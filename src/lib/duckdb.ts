@@ -64,6 +64,50 @@ export async function createTableFromFile(
   await conn.query(sql)
 }
 
+export async function loadDuckDBFile(file: File): Promise<string[]> {
+  const { db } = await initDuckDB()
+  
+  const arrayBuffer = await file.arrayBuffer()
+  const uint8Array = new Uint8Array(arrayBuffer)
+  
+  // DuckDBファイルを登録
+  await db.registerFileBuffer(file.name, uint8Array)
+  
+  // 新しい接続を作成してDuckDBファイルをアタッチ
+  const conn = await db.connect()
+  
+  try {
+    // DuckDBファイルをアタッチ
+    await conn.query(`ATTACH '${file.name}' AS attached_db`)
+    
+    // アタッチされたデータベースのテーブル一覧を取得
+    const result = await conn.query(`
+      SELECT table_name 
+      FROM attached_db.information_schema.tables 
+      WHERE table_schema = 'main'
+    `)
+    
+    const tables = result.toArray().map(row => row.table_name)
+    
+    // 各テーブルを現在のデータベースにコピー
+    for (const tableName of tables) {
+      await conn.query(`
+        CREATE TABLE ${tableName} AS 
+        SELECT * FROM attached_db.${tableName}
+      `)
+    }
+    
+    // アタッチを解除
+    await conn.query(`DETACH attached_db`)
+    
+    return tables
+    
+  } catch (error) {
+    await conn.close()
+    throw error
+  }
+}
+
 export async function getTableInfo(tableName: string): Promise<any[]> {
   const { conn } = await initDuckDB()
   const result = await conn.query(`DESCRIBE ${tableName}`)

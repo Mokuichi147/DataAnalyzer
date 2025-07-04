@@ -22,11 +22,12 @@ export function isValidFileType(file: File): boolean {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/json',
     'application/x-sqlite3',
-    'application/vnd.sqlite3'
+    'application/vnd.sqlite3',
+    'application/octet-stream' // DuckDBファイルなど
   ]
   
   const validExtensions = [
-    'csv', 'tsv', 'txt', 'json', 'xlsx', 'xls', 'sqlite', 'sqlite3', 'db', 'parquet'
+    'csv', 'tsv', 'txt', 'json', 'xlsx', 'xls', 'sqlite', 'sqlite3', 'db', 'duckdb', 'parquet'
   ]
   
   const fileExtension = file.name.split('.').pop()?.toLowerCase()

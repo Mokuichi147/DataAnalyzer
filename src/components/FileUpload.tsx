@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
-import { Upload, FileText, X, CheckCircle } from 'lucide-react'
+import { Upload, FileText, X, CheckCircle, Database } from 'lucide-react'
 import { isValidFileType, formatBytes } from '@/lib/utils'
-import { createTableFromFile, getTableCount } from '@/lib/duckdb'
+import { createTableFromFile, getTableCount, loadDuckDBFile, getTableInfo } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
 import { useRealtimeStore } from '@/store/realtimeStore'
 
@@ -11,6 +11,8 @@ interface UploadedFile {
   status: 'pending' | 'uploading' | 'success' | 'error'
   tableName: string
   error?: string
+  isDuckDBFile?: boolean
+  extractedTables?: string[]
 }
 
 export function FileUpload() {
@@ -31,12 +33,18 @@ export function FileUpload() {
       return true
     })
 
-    const uploadedFiles: UploadedFile[] = validFiles.map(file => ({
-      id: crypto.randomUUID(),
-      file,
-      status: 'pending',
-      tableName: file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '_'),
-    }))
+    const uploadedFiles: UploadedFile[] = validFiles.map(file => {
+      const fileExtension = file.name.split('.').pop()?.toLowerCase()
+      const isDuckDBFile = fileExtension === 'db' || fileExtension === 'duckdb'
+      
+      return {
+        id: crypto.randomUUID(),
+        file,
+        status: 'pending',
+        tableName: file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '_'),
+        isDuckDBFile,
+      }
+    })
 
     setFiles(prev => [...prev, ...uploadedFiles])
   }
@@ -77,27 +85,74 @@ export function FileUpload() {
         f.id === uploadedFile.id ? { ...f, status: 'uploading' } : f
       ))
 
-      await createTableFromFile(uploadedFile.file, uploadedFile.tableName)
+      if (uploadedFile.isDuckDBFile) {
+        // DuckDBファイルの処理
+        const extractedTables = await loadDuckDBFile(uploadedFile.file)
+        
+        setFiles(prev => prev.map(f => 
+          f.id === uploadedFile.id ? { 
+            ...f, 
+            status: 'success',
+            extractedTables
+          } : f
+        ))
 
-      setFiles(prev => prev.map(f => 
-        f.id === uploadedFile.id ? { ...f, status: 'success' } : f
-      ))
+        // 各テーブルをストアに追加
+        for (const tableName of extractedTables) {
+          const tableInfo = await getTableInfo(tableName)
+          const columns = tableInfo.map(col => ({
+            name: col.column_name,
+            type: col.column_type,
+            nullable: col.null === 'YES'
+          }))
 
-      // Add table to store
-      addTable({
-        name: uploadedFile.tableName,
-        connectionId: 'file',
-        columns: [], // Will be populated later
-        isLoaded: true
-      })
+          addTable({
+            name: tableName,
+            connectionId: 'file',
+            columns,
+            isLoaded: true
+          })
 
-      // Add to realtime monitoring
-      const rowCount = await getTableCount(uploadedFile.tableName)
-      addSubscription({
-        tableName: uploadedFile.tableName,
-        connectionId: 'file',
-        rowCount: rowCount,
-      })
+          // リアルタイム監視に追加
+          const rowCount = await getTableCount(tableName)
+          addSubscription({
+            tableName,
+            connectionId: 'file',
+            rowCount,
+          })
+        }
+      } else {
+        // 通常のファイル処理
+        await createTableFromFile(uploadedFile.file, uploadedFile.tableName)
+
+        setFiles(prev => prev.map(f => 
+          f.id === uploadedFile.id ? { ...f, status: 'success' } : f
+        ))
+
+        // テーブル情報を取得
+        const tableInfo = await getTableInfo(uploadedFile.tableName)
+        const columns = tableInfo.map(col => ({
+          name: col.column_name,
+          type: col.column_type,
+          nullable: col.null === 'YES'
+        }))
+
+        // Add table to store
+        addTable({
+          name: uploadedFile.tableName,
+          connectionId: 'file',
+          columns,
+          isLoaded: true
+        })
+
+        // Add to realtime monitoring
+        const rowCount = await getTableCount(uploadedFile.tableName)
+        addSubscription({
+          tableName: uploadedFile.tableName,
+          connectionId: 'file',
+          rowCount: rowCount,
+        })
+      }
 
     } catch (error) {
       setFiles(prev => prev.map(f => 
@@ -163,12 +218,12 @@ export function FileUpload() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".csv,.tsv,.json,.xlsx,.xls,.sqlite,.sqlite3,.db,.parquet"
+          accept=".csv,.tsv,.json,.xlsx,.xls,.sqlite,.sqlite3,.db,.duckdb,.parquet"
           onChange={handleFileInputChange}
           className="hidden"
         />
         <p className="text-sm text-gray-500 mt-4">
-          対応形式: CSV, TSV, JSON, Excel, SQLite, Parquet
+          対応形式: CSV, TSV, JSON, Excel, SQLite, Parquet, DuckDB
         </p>
       </div>
 
@@ -181,9 +236,20 @@ export function FileUpload() {
               <div key={uploadedFile.id} className="bg-white border rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <FileText className="h-8 w-8 text-gray-400" />
+                    {uploadedFile.isDuckDBFile ? (
+                      <Database className="h-8 w-8 text-blue-600" />
+                    ) : (
+                      <FileText className="h-8 w-8 text-gray-400" />
+                    )}
                     <div>
-                      <p className="font-medium text-gray-900">{uploadedFile.file.name}</p>
+                      <div className="flex items-center space-x-2">
+                        <p className="font-medium text-gray-900">{uploadedFile.file.name}</p>
+                        {uploadedFile.isDuckDBFile && (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                            DuckDB
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500">
                         {formatBytes(uploadedFile.file.size)}
                       </p>
@@ -230,9 +296,20 @@ export function FileUpload() {
                 
                 {uploadedFile.status === 'success' && (
                   <div className="mt-3">
-                    <p className="text-sm text-green-600">
-                      テーブル「{uploadedFile.tableName}」として正常にアップロードされました
-                    </p>
+                    {uploadedFile.isDuckDBFile && uploadedFile.extractedTables ? (
+                      <div className="text-sm text-green-600">
+                        <p>DuckDBファイルから{uploadedFile.extractedTables.length}個のテーブルを読み込みました:</p>
+                        <ul className="list-disc list-inside mt-1 space-y-1">
+                          {uploadedFile.extractedTables.map((tableName, index) => (
+                            <li key={index} className="font-mono">{tableName}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-green-600">
+                        テーブル「{uploadedFile.tableName}」として正常にアップロードされました
+                      </p>
+                    )}
                   </div>
                 )}
                 
