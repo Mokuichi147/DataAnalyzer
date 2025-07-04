@@ -1,0 +1,229 @@
+import React, { useState } from 'react'
+import { Play, Pause, Database, TrendingUp } from 'lucide-react'
+import { executeQuery } from '@/lib/duckdb'
+import { useDataStore } from '@/store/dataStore'
+
+export function DataSimulator() {
+  const [isSimulating, setIsSimulating] = useState(false)
+  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null)
+  const [simulationSettings, setSimulationSettings] = useState({
+    tableName: 'sample_data',
+    interval: 5000, // 5 seconds
+    recordsPerBatch: 5,
+  })
+  const { addTable } = useDataStore()
+
+  const createSampleTable = async () => {
+    try {
+      // サンプルテーブルを作成
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS ${simulationSettings.tableName} (
+          id INTEGER,
+          timestamp TIMESTAMP,
+          value DOUBLE,
+          category VARCHAR,
+          status VARCHAR
+        )
+      `)
+
+      // 初期データを挿入
+      const initialData = Array.from({ length: 20 }, (_, i) => ({
+        id: i + 1,
+        timestamp: new Date(Date.now() - (20 - i) * 60000).toISOString(),
+        value: Math.random() * 100,
+        category: ['A', 'B', 'C'][Math.floor(Math.random() * 3)],
+        status: ['active', 'inactive'][Math.floor(Math.random() * 2)]
+      }))
+
+      for (const record of initialData) {
+        await executeQuery(`
+          INSERT INTO ${simulationSettings.tableName} 
+          VALUES (${record.id}, '${record.timestamp}', ${record.value}, '${record.category}', '${record.status}')
+        `)
+      }
+
+      // テーブルをストアに追加
+      addTable({
+        name: simulationSettings.tableName,
+        connectionId: 'file',
+        columns: [
+          { name: 'id', type: 'INTEGER', nullable: false },
+          { name: 'timestamp', type: 'TIMESTAMP', nullable: false },
+          { name: 'value', type: 'DOUBLE', nullable: false },
+          { name: 'category', type: 'VARCHAR', nullable: false },
+          { name: 'status', type: 'VARCHAR', nullable: false },
+        ],
+        isLoaded: true
+      })
+
+      alert(`サンプルテーブル「${simulationSettings.tableName}」を作成しました`)
+    } catch (error) {
+      console.error('Failed to create sample table:', error)
+      alert('サンプルテーブルの作成に失敗しました')
+    }
+  }
+
+  const startSimulation = () => {
+    if (isSimulating) return
+
+    const id = setInterval(async () => {
+      try {
+        // 最新のIDを取得
+        const result = await executeQuery(`
+          SELECT MAX(id) as maxId FROM ${simulationSettings.tableName}
+        `)
+        const maxId = result[0]?.maxId || 0
+
+        // 新しいレコードを生成
+        const newRecords = Array.from({ length: simulationSettings.recordsPerBatch }, (_, i) => ({
+          id: maxId + i + 1,
+          timestamp: new Date().toISOString(),
+          value: Math.random() * 100,
+          category: ['A', 'B', 'C'][Math.floor(Math.random() * 3)],
+          status: ['active', 'inactive'][Math.floor(Math.random() * 2)]
+        }))
+
+        // データを挿入
+        for (const record of newRecords) {
+          await executeQuery(`
+            INSERT INTO ${simulationSettings.tableName} 
+            VALUES (${record.id}, '${record.timestamp}', ${record.value}, '${record.category}', '${record.status}')
+          `)
+        }
+
+        console.log(`Inserted ${newRecords.length} records into ${simulationSettings.tableName}`)
+      } catch (error) {
+        console.error('Failed to insert simulated data:', error)
+      }
+    }, simulationSettings.interval)
+
+    setIntervalId(id)
+    setIsSimulating(true)
+  }
+
+  const stopSimulation = () => {
+    if (intervalId) {
+      clearInterval(intervalId)
+      setIntervalId(null)
+    }
+    setIsSimulating(false)
+  }
+
+  const handleToggleSimulation = () => {
+    if (isSimulating) {
+      stopSimulation()
+    } else {
+      startSimulation()
+    }
+  }
+
+  return (
+    <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <TrendingUp className="h-5 w-5 text-blue-600" />
+          <h3 className="font-medium text-gray-900">データシミュレーター</h3>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={createSampleTable}
+            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200"
+          >
+            <Database className="h-4 w-4 inline mr-1" />
+            サンプル作成
+          </button>
+          <button
+            onClick={handleToggleSimulation}
+            className={`px-4 py-2 rounded-md flex items-center space-x-2 ${
+              isSimulating
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {isSimulating ? (
+              <>
+                <Pause className="h-4 w-4" />
+                <span>停止</span>
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                <span>開始</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            テーブル名
+          </label>
+          <input
+            type="text"
+            value={simulationSettings.tableName}
+            onChange={(e) => setSimulationSettings({
+              ...simulationSettings,
+              tableName: e.target.value
+            })}
+            disabled={isSimulating}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            間隔（秒）
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="60"
+            value={simulationSettings.interval / 1000}
+            onChange={(e) => setSimulationSettings({
+              ...simulationSettings,
+              interval: parseInt(e.target.value) * 1000
+            })}
+            disabled={isSimulating}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            バッチ件数
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="20"
+            value={simulationSettings.recordsPerBatch}
+            onChange={(e) => setSimulationSettings({
+              ...simulationSettings,
+              recordsPerBatch: parseInt(e.target.value)
+            })}
+            disabled={isSimulating}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+          />
+        </div>
+      </div>
+
+      {isSimulating && (
+        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+            <span className="text-sm text-green-700">
+              データシミュレーション実行中 - {simulationSettings.interval / 1000}秒ごとに{simulationSettings.recordsPerBatch}件のデータを挿入
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 text-xs text-gray-600">
+        <p>このシミュレーターは、リアルタイム更新機能のテスト用にダミーデータを定期的に挿入します。</p>
+        <p>まず「サンプル作成」でテーブルを作成し、「開始」でデータの挿入を開始してください。</p>
+      </div>
+    </div>
+  )
+}

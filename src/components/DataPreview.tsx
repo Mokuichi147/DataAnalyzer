@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Eye, Filter, Download } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, Filter, Download, RefreshCw } from 'lucide-react'
 import { useDataStore } from '@/store/dataStore'
+import { useRealtimeStore } from '@/store/realtimeStore'
 import { getTableData, getTableInfo, getTableCount, executeQuery } from '@/lib/duckdb'
 
 interface DataPreviewProps {
@@ -15,11 +16,31 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const [pageSize, setPageSize] = useState(50)
   const [isLoading, setIsLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const { filters, setLoading, setError } = useDataStore()
+  const { settings: realtimeSettings } = useRealtimeStore()
 
   useEffect(() => {
     loadData()
   }, [tableName, currentPage, pageSize, filters])
+
+  // リアルタイム更新のリスナー
+  useEffect(() => {
+    if (!realtimeSettings.autoRefresh) return
+
+    const handleDataChange = (event: CustomEvent) => {
+      const { tableName: changedTable } = event.detail
+      if (changedTable === tableName) {
+        loadData()
+        setLastRefresh(new Date())
+      }
+    }
+
+    window.addEventListener('dataChanged', handleDataChange as EventListener)
+    return () => {
+      window.removeEventListener('dataChanged', handleDataChange as EventListener)
+    }
+  }, [tableName, realtimeSettings.autoRefresh, loadData])
 
   const loadData = async () => {
     if (!tableName) return
@@ -82,6 +103,11 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const handlePageSizeChange = (size: number) => {
     setPageSize(size)
     setCurrentPage(1)
+  }
+
+  const handleManualRefresh = () => {
+    loadData()
+    setLastRefresh(new Date())
   }
 
   const exportData = async () => {
@@ -151,8 +177,25 @@ export function DataPreview({ tableName }: DataPreviewProps) {
           <span className="text-sm text-gray-500">
             {totalRows.toLocaleString()} 件のデータ
           </span>
+          {realtimeSettings.autoRefresh && (
+            <div className="flex items-center space-x-2 text-sm text-green-600">
+              <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+              <span>リアルタイム更新</span>
+            </div>
+          )}
+          <span className="text-xs text-gray-400">
+            最終更新: {lastRefresh.toLocaleTimeString()}
+          </span>
         </div>
         <div className="flex items-center space-x-2">
+          <button
+            onClick={handleManualRefresh}
+            disabled={isLoading}
+            className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 inline mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+            更新
+          </button>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`px-3 py-1 rounded-md text-sm ${

@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react'
 import { Upload, FileText, X, CheckCircle } from 'lucide-react'
 import { isValidFileType, formatBytes } from '@/lib/utils'
-import { createTableFromFile } from '@/lib/duckdb'
+import { createTableFromFile, getTableCount } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
+import { useRealtimeStore } from '@/store/realtimeStore'
 
 interface UploadedFile {
   id: string
@@ -17,6 +18,7 @@ export function FileUpload() {
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { addTable, setLoading, setError } = useDataStore()
+  const { addSubscription } = useRealtimeStore()
 
   const handleFileSelect = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return
@@ -87,6 +89,14 @@ export function FileUpload() {
         connectionId: 'file',
         columns: [], // Will be populated later
         isLoaded: true
+      })
+
+      // Add to realtime monitoring
+      const rowCount = await getTableCount(uploadedFile.tableName)
+      addSubscription({
+        tableName: uploadedFile.tableName,
+        connectionId: 'file',
+        rowCount: rowCount,
       })
 
     } catch (error) {
