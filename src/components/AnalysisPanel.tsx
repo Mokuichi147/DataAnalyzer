@@ -628,12 +628,18 @@ function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[
       label: '変化点',
       data: changePoints.map(cp => cp.value || 0),
       borderColor: '#ef4444',
-      backgroundColor: '#fee2e2',
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
       pointBackgroundColor: changePoints.map(cp => 
         (cp.confidence || 0) > 0.8 ? '#dc2626' : 
         (cp.confidence || 0) > 0.6 ? '#f59e0b' : '#6b7280'
       ),
-      pointRadius: changePoints.map(cp => 5 + (cp.confidence || 0) * 5),
+      pointBorderColor: changePoints.map(cp => 
+        (cp.confidence || 0) > 0.8 ? '#dc2626' : 
+        (cp.confidence || 0) > 0.6 ? '#f59e0b' : '#6b7280'
+      ),
+      pointBorderWidth: 0, // アウトラインを削除
+      pointRadius: changePoints.map(cp => 1 + (cp.confidence || 0) * 2), // 1-3の範囲でより小さく
+      pointHoverRadius: changePoints.map(cp => 2 + (cp.confidence || 0) * 3), // ホバー時は2-5の範囲
     }]
   }
 
@@ -647,7 +653,48 @@ function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[
         display: true,
         text: '変化点検出結果',
       },
+      tooltip: {
+        callbacks: {
+          afterLabel: function(context: any) {
+            const dataIndex = context.dataIndex
+            const confidence = changePoints[dataIndex]?.confidence
+            return confidence !== undefined ? `信頼度: ${(confidence * 100).toFixed(1)}%` : ''
+          }
+        }
+      }
     },
+    scales: {
+      y: {
+        beginAtZero: false,
+        grid: {
+          color: '#f3f4f6',
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        }
+      },
+      x: {
+        grid: {
+          color: '#f3f4f6',
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        }
+      }
+    },
+    elements: {
+      line: {
+        tension: 0.2, // 線をより滑らかに
+        borderWidth: 2 // 線の太さを調整
+      },
+      point: {
+        hitRadius: 8 // クリック/ホバーの反応範囲を広く
+      }
+    }
   }
 
   return (
@@ -703,20 +750,41 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
 
   const options = {
     responsive: true,
+    maintainAspectRatio: true,
+    aspectRatio: 2, // 横:縦=2:1の比率
     plugins: {
       legend: {
-        position: 'top' as const,
+        position: 'right' as const,
+        labels: {
+          boxWidth: 15,
+          font: {
+            size: 12
+          }
+        }
       },
       title: {
         display: true,
         text: '因子分析結果',
+        font: {
+          size: 14
+        }
       },
     },
+    layout: {
+      padding: {
+        top: 10,
+        bottom: 10,
+        left: 10,
+        right: 10
+      }
+    }
   }
 
   return (
     <div>
-      <Doughnut data={chartData} options={options} />
+      <div className="w-full max-w-2xl mx-auto mb-6">
+        <Doughnut data={chartData} options={options} />
+      </div>
       <div className="mt-4 space-y-4">
         {factorAnalysis.factors.map((factor, index) => (
           <div key={index} className="p-3 bg-gray-50 rounded">
