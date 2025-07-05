@@ -1191,15 +1191,19 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
             <div>
               <h5 className="font-medium text-gray-900 mb-3">サンプル値</h5>
               <div className="flex flex-wrap gap-2">
-                {column.sampleValues.map((value, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded font-mono truncate max-w-24"
-                    title={value}
-                  >
-                    {value || '(空)'}
-                  </span>
-                ))}
+                {column.sampleValues && column.sampleValues.length > 0 ? (
+                  column.sampleValues.map((value, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded font-mono truncate max-w-24"
+                      title={value}
+                    >
+                      {value || '(空)'}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-gray-500 text-sm">サンプル値がありません</span>
+                )}
               </div>
             </div>
           </div>

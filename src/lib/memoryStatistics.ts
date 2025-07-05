@@ -417,8 +417,8 @@ export async function getColumnAnalysis(
         emptyStringCount,
         emptyStringPercentage: safePercentage(emptyStringCount, totalRows),
         dataType,
-        sampleValues,
-        topValues,
+        sampleValues: sampleValues || [],
+        topValues: topValues || [],
         numericStats
       })
     }
