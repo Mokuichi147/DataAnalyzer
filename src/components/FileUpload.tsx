@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react'
-import { Upload, FileText, X, CheckCircle, Database } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { Upload, FileText, X, CheckCircle, Database, AlertTriangle } from 'lucide-react'
 import { isValidFileType, formatBytes } from '@/lib/utils'
 import { createTableFromFile, getTableCount, loadDuckDBFile, getTableInfo } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { FileUploadAlternatives } from './FileUploadAlternatives'
+import { getMemoryInfo, formatMemorySize, checkMemoryWarning } from '@/lib/memoryMonitor'
 
 interface UploadedFile {
   id: string
@@ -23,9 +24,19 @@ interface FileUploadProps {
 export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
+  const [memoryInfo, setMemoryInfo] = useState(getMemoryInfo())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { addTable, setLoading, setError } = useDataStore()
   const { addSubscription } = useRealtimeStore()
+  
+  // メモリ情報を定期的に更新
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMemoryInfo(getMemoryInfo())
+    }, 2000) // 2秒ごと
+    
+    return () => clearInterval(interval)
+  }, [])
 
   const handleFileSelect = (selectedFiles: FileList | null) => {
     if (!selectedFiles) return
@@ -40,8 +51,8 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
 
     const uploadedFiles: UploadedFile[] = validFiles.map(file => {
       const fileExtension = file.name.split('.').pop()?.toLowerCase()
-      const isDuckDBFile = fileExtension === 'duckdb'
-      // .dbの場合は後でヘッダーを確認して判断
+      const isDuckDBFile = fileExtension === 'duckdb' || fileExtension === 'db'
+      // .db および .duckdb ファイルはデータベースファイルとして扱う
       
       return {
         id: crypto.randomUUID(),
@@ -135,30 +146,50 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           f.id === uploadedFile.id ? { ...f, status: 'success' } : f
         ))
 
-        // テーブル情報を取得
-        const tableInfo = await getTableInfo(uploadedFile.tableName)
-        const columns = tableInfo.map(col => ({
-          name: col.column_name,
-          type: col.column_type,
-          nullable: col.null === 'YES'
-        }))
-
-        // Add to realtime monitoring
-        const rowCount = await getTableCount(uploadedFile.tableName)
+        // ファイル拡張子に基づいてテーブル名を決定
+        const fileExtension = uploadedFile.file.name.split('.').pop()?.toLowerCase()
+        let actualTableNames: string[] = []
         
-        // Add table to store
-        addTable({
-          name: uploadedFile.tableName,
-          connectionId: 'file',
-          columns,
-          rowCount,
-          isLoaded: true
-        })
-        addSubscription({
-          tableName: uploadedFile.tableName,
-          connectionId: 'file',
-          rowCount: rowCount,
-        })
+        if (fileExtension === 'sqlite' || fileExtension === 'sqlite3') {
+          // SQLiteファイルの場合、実際に作成されたテーブル名を取得
+          // メモリストアから取得
+          const { memoryDataStore } = await import('@/lib/memoryDataStore')
+          actualTableNames = memoryDataStore.listTables()
+          console.log('SQLiteファイルから取得されたテーブル名:', actualTableNames)
+        } else {
+          // 通常のファイルの場合は指定されたテーブル名を使用
+          actualTableNames = [uploadedFile.tableName]
+        }
+
+        // 各テーブルをストアに追加
+        for (const tableName of actualTableNames) {
+          try {
+            const tableInfo = await getTableInfo(tableName)
+            const columns = tableInfo.map(col => ({
+              name: col.column_name,
+              type: col.column_type,
+              nullable: col.null === 'YES'
+            }))
+
+            const rowCount = await getTableCount(tableName)
+            
+            addTable({
+              name: tableName,
+              connectionId: 'file',
+              columns,
+              rowCount,
+              isLoaded: true
+            })
+            
+            addSubscription({
+              tableName,
+              connectionId: 'file',
+              rowCount,
+            })
+          } catch (tableError) {
+            console.error(`テーブル ${tableName} の追加でエラー:`, tableError)
+          }
+        }
       }
 
     } catch (error) {
@@ -183,6 +214,8 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
     setLoading(false)
   }
 
+  const memoryWarning = checkMemoryWarning()
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -196,6 +229,46 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           </button>
         )}
       </div>
+
+      {/* メモリ使用量警告 */}
+      {memoryInfo.jsHeapSizeLimit > 0 && (
+        <div className={`p-4 rounded-lg border ${
+          memoryInfo.isCritical ? 'bg-red-50 border-red-200' :
+          memoryInfo.isNearLimit ? 'bg-yellow-50 border-yellow-200' :
+          'bg-gray-50 border-gray-200'
+        }`}>
+          <div className="flex items-center space-x-2">
+            {memoryInfo.isCritical && <AlertTriangle className="h-5 w-5 text-red-600" />}
+            {memoryInfo.isNearLimit && !memoryInfo.isCritical && <AlertTriangle className="h-5 w-5 text-yellow-600" />}
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-700">
+                  メモリ使用量: {memoryInfo.usagePercentage.toFixed(1)}%
+                </span>
+                <span className="text-xs text-gray-500">
+                  {formatMemorySize(memoryInfo.usedJSHeapSize)} / {formatMemorySize(memoryInfo.jsHeapSizeLimit)}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full ${
+                    memoryInfo.isCritical ? 'bg-red-600' :
+                    memoryInfo.isNearLimit ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(memoryInfo.usagePercentage, 100)}%` }}
+                ></div>
+              </div>
+              {memoryWarning.shouldWarn && (
+                <p className={`text-sm mt-2 ${
+                  memoryInfo.isCritical ? 'text-red-700' : 'text-yellow-700'
+                }`}>
+                  {memoryWarning.message}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Drop Zone */}
       <div
@@ -225,15 +298,15 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".csv,.tsv,.json"
+          accept=".csv,.tsv,.json,.sqlite,.sqlite3,.db,.duckdb"
           onChange={handleFileInputChange}
           className="hidden"
         />
         <p className="text-sm text-gray-500 mt-4">
-          対応形式: CSV, TSV, JSON
+          対応形式: CSV, TSV, JSON, SQLite3, DuckDB
         </p>
         <p className="text-xs text-gray-400 mt-1">
-          注意: SQLite、DuckDB、Parquet、ExcelファイルはCSV形式にエクスポートしてからアップロードしてください
+          注意: Parquet、ExcelファイルはCSV形式にエクスポートしてからアップロードしてください
         </p>
       </div>
 
@@ -300,7 +373,14 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
                     <div className="bg-blue-200 rounded-full h-2">
                       <div className="bg-blue-600 h-2 rounded-full animate-pulse"></div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">処理中...</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      処理中...
+                      {/^((?!chrome|android).)*safari/i.test(navigator.userAgent) && (
+                        <span className="block text-xs text-gray-500 mt-1">
+                          🍎 Safari環境: 大容量ファイルの処理には時間がかかる場合があります
+                        </span>
+                      )}
+                    </p>
                   </div>
                 )}
                 
