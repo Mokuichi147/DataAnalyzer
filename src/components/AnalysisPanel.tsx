@@ -48,6 +48,47 @@ ChartJS.register(
   ArcElement
 )
 
+// 数値フォーマット用ヘルパー関数
+function formatNumber(value: number | undefined | null): string {
+  if (value === null || value === undefined || isNaN(value)) {
+    return 'N/A'
+  }
+  
+  const absValue = Math.abs(value)
+  
+  // 非常に大きい数値の場合（10億以上）
+  if (absValue >= 1e9) {
+    return value.toExponential(2)
+  }
+  
+  // 非常に小さい数値の場合（0.001未満）
+  if (absValue > 0 && absValue < 0.001) {
+    return value.toExponential(3)
+  }
+  
+  // 整数の場合
+  if (Number.isInteger(value)) {
+    if (absValue >= 1000) {
+      return value.toLocaleString('ja-JP') // 日本語ロケール（カンマ区切り）
+    }
+    return value.toString()
+  }
+  
+  // 小数の場合
+  if (absValue >= 1000) {
+    return value.toLocaleString('ja-JP', { 
+      minimumFractionDigits: 0, 
+      maximumFractionDigits: 2 
+    })
+  } else if (absValue >= 1) {
+    return value.toFixed(4).replace(/\.?0+$/, '')
+  } else if (absValue >= 0.01) {
+    return value.toFixed(4).replace(/\.?0+$/, '')
+  } else {
+    return value.toFixed(6).replace(/\.?0+$/, '')
+  }
+}
+
 type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries'
 
 interface AnalysisPanelProps {
@@ -464,14 +505,14 @@ function BasicStatsResults({ stats }: { stats: BasicStats }) {
   }
   
   const data = [
-    { label: '件数', value: stats.count?.toLocaleString() || 'N/A' },
-    { label: '平均', value: stats.mean?.toFixed(2) || 'N/A' },
-    { label: '標準偏差', value: stats.std?.toFixed(2) || 'N/A' },
-    { label: '最小値', value: stats.min?.toFixed(2) || 'N/A' },
-    { label: '最大値', value: stats.max?.toFixed(2) || 'N/A' },
-    { label: '第1四分位数', value: stats.quartiles?.q1?.toFixed(2) || 'N/A' },
-    { label: '中央値', value: stats.quartiles?.q2?.toFixed(2) || 'N/A' },
-    { label: '第3四分位数', value: stats.quartiles?.q3?.toFixed(2) || 'N/A' },
+    { label: '件数', value: formatNumber(stats.count) },
+    { label: '平均', value: formatNumber(stats.mean) },
+    { label: '標準偏差', value: formatNumber(stats.std) },
+    { label: '最小値', value: formatNumber(stats.min) },
+    { label: '最大値', value: formatNumber(stats.max) },
+    { label: '第1四分位数', value: formatNumber(stats.quartiles?.q1) },
+    { label: '中央値', value: formatNumber(stats.quartiles?.q2) },
+    { label: '第3四分位数', value: formatNumber(stats.quartiles?.q3) },
   ]
 
   return (
@@ -551,7 +592,7 @@ function CorrelationResults({ correlations }: { correlations: CorrelationResult[
               Math.abs(corr.correlation) > 0.7 ? 'text-red-600' :
               Math.abs(corr.correlation) > 0.3 ? 'text-blue-600' : 'text-gray-600'
             }`}>
-              {corr.correlation.toFixed(3)}
+              {formatNumber(corr.correlation)}
             </span>
           </div>
         ))}
@@ -618,7 +659,7 @@ function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[
             <span className="font-medium">Index {cp.index || 'N/A'}</span>
             <div className="text-right">
               <div className="font-bold">
-                {cp.value !== undefined ? cp.value.toFixed(2) : 'N/A'}
+                {formatNumber(cp.value)}
               </div>
               <div className="text-sm text-gray-600">
                 信頼度: {cp.confidence !== undefined ? (cp.confidence * 100).toFixed(1) : 'N/A'}%
@@ -686,7 +727,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
               {factor.loadings.map((loading, i) => (
                 <div key={i} className="flex justify-between text-sm">
                   <span>{loading.variable}</span>
-                  <span className="font-mono">{loading.loading.toFixed(3)}</span>
+                  <span className="font-mono">{formatNumber(loading.loading)}</span>
                 </div>
               ))}
             </div>
@@ -755,7 +796,7 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
             {data.map((row, index) => (
               <tr key={index} className="border-b">
                 <td className="p-2 font-mono">{row.bin}</td>
-                <td className="p-2 text-right">{row.count}</td>
+                <td className="p-2 text-right">{formatNumber(row.count)}</td>
                 <td className="p-2 text-right">{row.frequency}%</td>
               </tr>
             ))}
@@ -819,7 +860,7 @@ function TimeSeriesResults({ data }: { data: Array<{ time: string; value: number
     <div>
       <Line data={chartData} options={options} />
       <div className="mt-4 text-sm text-gray-600">
-        データポイント数: {data.length}
+        データポイント数: {formatNumber(data.length)}
       </div>
     </div>
   )
