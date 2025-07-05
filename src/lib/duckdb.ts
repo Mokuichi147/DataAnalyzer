@@ -20,33 +20,56 @@ export async function initDuckDB(): Promise<DuckDBInstance | null> {
   }
 
   try {
-    // CDNから直接バンドルを取得
-    const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles()
-    const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES)
-    
-    // ログを無効化
+    // DuckDBの初期化を試行（SecurityErrorを適切に処理）
     const logger = new duckdb.VoidLogger()
     
-    // Workerを作成
-    const worker = new Worker(bundle.mainWorker!)
-    
-    // DuckDBインスタンスを作成
-    const db = new duckdb.AsyncDuckDB(logger, worker)
-    
-    // メインモジュールのみでインスタンス化（pthreadWorkerを使わない）
     try {
-      await db.instantiate(bundle.mainModule)
-    } catch (error) {
-      console.warn('pthread無しでの初期化に失敗、代替方法を試行中...')
-      // フォールバック: より基本的な初期化
-      await db.instantiate(bundle.mainModule, undefined)
+      const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles()
+      const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES)
+      
+      // 標準的なWorker作成を試行
+      const worker = new Worker(bundle.mainWorker!)
+      const db = new duckdb.AsyncDuckDB(logger, worker)
+      
+      // DuckDBインスタンスを初期化
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
+      
+      const conn = await db.connect()
+      duckdbInstance = { db, conn }
+      console.log('DuckDB初期化成功')
+      return duckdbInstance
+    } catch (workerError) {
+      // SecurityErrorの場合は即座にフォールバック
+      if (workerError instanceof Error && 
+          (workerError.name === 'SecurityError' || 
+           workerError.message.includes('insecure') ||
+           workerError.message.includes('SecurityError'))) {
+        console.warn('セキュリティエラーによりDuckDB初期化失敗、メモリ内データストアにフォールバック')
+        throw workerError
+      }
+      
+      // その他のエラーの場合はpthreadWorker無しで再試行
+      console.warn('pthread使用での初期化に失敗、代替方法を試行:', workerError)
+      
+      try {
+        const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles()
+        const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES)
+        
+        const worker = new Worker(bundle.mainWorker!)
+        const db = new duckdb.AsyncDuckDB(logger, worker)
+        
+        // pthreadWorker無しで初期化
+        await db.instantiate(bundle.mainModule)
+        
+        const conn = await db.connect()
+        duckdbInstance = { db, conn }
+        console.log('DuckDB初期化成功（pthread無し）')
+        return duckdbInstance
+      } catch (fallbackError) {
+        console.warn('代替初期化も失敗:', fallbackError)
+        throw fallbackError
+      }
     }
-    
-    const conn = await db.connect()
-
-    duckdbInstance = { db, conn }
-    console.log('DuckDB初期化成功')
-    return duckdbInstance
   } catch (error) {
     console.error('DuckDB初期化エラー、メモリ内データストアにフォールバック:', error)
     useFallback = true

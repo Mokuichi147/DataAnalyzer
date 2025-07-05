@@ -15,17 +15,26 @@ import {
 } from 'chart.js'
 import { useDataStore } from '@/store/dataStore'
 import {
-  getBasicStatistics,
-  getCorrelationMatrix,
-  detectChangePoints,
-  performFactorAnalysis,
-  getHistogramData,
-  getTimeSeriesData,
+  getBasicStatistics as getBasicStatisticsOriginal,
+  getCorrelationMatrix as getCorrelationMatrixOriginal,
+  detectChangePoints as detectChangePointsOriginal,
+  performFactorAnalysis as performFactorAnalysisOriginal,
+  getHistogramData as getHistogramDataOriginal,
+  getTimeSeriesData as getTimeSeriesDataOriginal,
   BasicStats,
   CorrelationResult,
   ChangePointResult,
   FactorAnalysisResult
 } from '@/lib/statistics'
+
+import {
+  getBasicStatistics as getBasicStatisticsMemory,
+  getCorrelationMatrix as getCorrelationMatrixMemory,
+  detectChangePoints as detectChangePointsMemory,
+  performFactorAnalysis as performFactorAnalysisMemory,
+  getHistogramData as getHistogramDataMemory,
+  getTimeSeriesData as getTimeSeriesDataMemory
+} from '@/lib/memoryStatistics'
 
 ChartJS.register(
   CategoryScale,
@@ -43,7 +52,7 @@ type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histog
 
 interface AnalysisPanelProps {
   tableName: string
-  columns: Array<{ column_name: string; column_type: string }>
+  columns: Array<{ name: string; type: string; nullable: boolean }>
 }
 
 export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
@@ -52,65 +61,134 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const [analysisResults, setAnalysisResults] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const { setError } = useDataStore()
+  
+  console.log('AnalysisPanel props:', { tableName, columns })
+  console.log('AnalysisPanel state:', { activeAnalysis, selectedColumns, analysisResults, isLoading })
+  
+  // 分析タイプが変更されたときに結果をクリア
+  useEffect(() => {
+    setAnalysisResults(null)
+    setSelectedColumns([])
+  }, [activeAnalysis])
+  
+  // テーブルが変更されたときに結果をクリア
+  useEffect(() => {
+    setAnalysisResults(null)
+    setSelectedColumns([])
+  }, [tableName])
+  
+  if (!tableName) {
+    return <div className="text-center py-8 text-gray-500">テーブル名が設定されていません</div>
+  }
+  
+  if (!columns || columns.length === 0) {
+    return <div className="text-center py-8 text-gray-500">カラム情報が取得できません</div>
+  }
 
+  // 数値型の判定（メモリ内データストアの場合、すべてTEXTなので実際のデータから判定）
   const numericColumns = columns.filter(col => 
-    col.column_type.includes('INT') || 
-    col.column_type.includes('FLOAT') || 
-    col.column_type.includes('DOUBLE') ||
-    col.column_type.includes('DECIMAL')
+    col.type.includes('INT') || 
+    col.type.includes('FLOAT') || 
+    col.type.includes('DOUBLE') ||
+    col.type.includes('DECIMAL') ||
+    col.type.includes('NUMBER') ||
+    // TEXTタイプでも数値として扱えるものを含める（仮で全て含める）
+    col.type === 'TEXT'
   )
 
   const dateColumns = columns.filter(col => 
-    col.column_type.includes('DATE') || 
-    col.column_type.includes('TIMESTAMP')
+    col.type.includes('DATE') || 
+    col.type.includes('TIMESTAMP')
   )
 
+  const getCurrentAnalysisType = () => {
+    return analysisTypes.find(type => type.key === activeAnalysis)
+  }
+
+  const isValidColumnSelection = () => {
+    const currentType = getCurrentAnalysisType()
+    if (!currentType) return false
+    
+    return selectedColumns.length >= currentType.minColumns && 
+           selectedColumns.length <= currentType.maxColumns
+  }
+
   const runAnalysis = async () => {
-    if (!tableName || selectedColumns.length === 0) return
+    if (!tableName || selectedColumns.length === 0) {
+      console.log('Cannot run analysis: missing table or columns')
+      return
+    }
+    
+    if (!isValidColumnSelection()) {
+      const currentType = getCurrentAnalysisType()
+      setError(`${currentType?.label}には${currentType?.minColumns}〜${currentType?.maxColumns}個のカラムが必要です`)
+      return
+    }
     
     setIsLoading(true)
     setAnalysisResults(null)
     
     try {
+      console.log('Running analysis:', { activeAnalysis, tableName, selectedColumns })
       let results: any = null
+      
+      // メモリ内データストアを使用（DuckDBのフォールバック判定）
+      const useMemoryStore = true // 現在はメモリ内データストアを使用
       
       switch (activeAnalysis) {
         case 'basic':
           if (selectedColumns.length === 1) {
-            results = await getBasicStatistics(tableName, selectedColumns[0])
+            results = useMemoryStore 
+              ? await getBasicStatisticsMemory(tableName, selectedColumns[0])
+              : await getBasicStatisticsOriginal(tableName, selectedColumns[0])
           }
           break
           
         case 'correlation':
           if (selectedColumns.length >= 2) {
-            results = await getCorrelationMatrix(tableName, selectedColumns)
+            results = useMemoryStore
+              ? await getCorrelationMatrixMemory(tableName, selectedColumns)
+              : await getCorrelationMatrixOriginal(tableName, selectedColumns)
+            console.log('Correlation results:', results)
           }
           break
           
         case 'changepoint':
           if (selectedColumns.length >= 1) {
-            results = await detectChangePoints(tableName, selectedColumns[0])
+            results = useMemoryStore
+              ? await detectChangePointsMemory(tableName, selectedColumns[0])
+              : await detectChangePointsOriginal(tableName, selectedColumns[0])
           }
           break
           
         case 'factor':
           if (selectedColumns.length >= 2) {
-            results = await performFactorAnalysis(tableName, selectedColumns)
+            results = useMemoryStore
+              ? await performFactorAnalysisMemory(tableName, selectedColumns)
+              : await performFactorAnalysisOriginal(tableName, selectedColumns)
           }
           break
           
         case 'histogram':
           if (selectedColumns.length === 1) {
-            results = await getHistogramData(tableName, selectedColumns[0])
+            results = useMemoryStore
+              ? await getHistogramDataMemory(tableName, selectedColumns[0])
+              : await getHistogramDataOriginal(tableName, selectedColumns[0])
           }
           break
           
         case 'timeseries':
-          if (selectedColumns.length === 1 && dateColumns.length > 0) {
-            results = await getTimeSeriesData(tableName, selectedColumns[0], dateColumns[0].column_name)
+          if (selectedColumns.length === 1) {
+            results = useMemoryStore
+              ? await getTimeSeriesDataMemory(tableName, selectedColumns[0], 'index')
+              : dateColumns.length > 0 
+                ? await getTimeSeriesDataOriginal(tableName, selectedColumns[0], dateColumns[0].name)
+                : null
           }
           break
       }
+      
+      console.log('Analysis results:', results)
       
       setAnalysisResults(results)
     } catch (error) {
@@ -196,13 +274,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-medium text-gray-900">分析・可視化</h2>
-        <button
-          onClick={runAnalysis}
-          disabled={!canRunAnalysis || isLoading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? '分析中...' : '分析実行'}
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => {
+              setAnalysisResults(null)
+              setSelectedColumns([])
+              setActiveAnalysis('basic')
+            }}
+            className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+          >
+            リセット
+          </button>
+          <button
+            onClick={runAnalysis}
+            disabled={!canRunAnalysis || isLoading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? '分析中...' : '分析実行'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -243,14 +333,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {numericColumns.map((col) => (
-            <label key={col.column_name} className="flex items-center space-x-2">
+            <label key={col.name} className="flex items-center space-x-2">
               <input
                 type="checkbox"
-                checked={selectedColumns.includes(col.column_name)}
-                onChange={() => handleColumnToggle(col.column_name)}
+                checked={selectedColumns.includes(col.name)}
+                onChange={() => handleColumnToggle(col.name)}
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded"
               />
-              <span className="text-sm text-gray-700">{col.column_name}</span>
+              <span className="text-sm text-gray-700">{col.name}</span>
             </label>
           ))}
         </div>
@@ -270,6 +360,32 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           <AnalysisResults type={activeAnalysis} results={analysisResults} />
         </div>
       )}
+      
+      {/* 常に表示されるデバッグ情報（一時的） */}
+      <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-xs">
+        <p><strong>Debug Info:</strong></p>
+        <p>activeAnalysis: {activeAnalysis}</p>
+        <p>hasResults: {analysisResults ? 'true' : 'false'}</p>
+        <p>isLoading: {isLoading ? 'true' : 'false'}</p>
+        <p>selectedColumns: [{selectedColumns.join(', ')}]</p>
+        <p>numericColumns: [{numericColumns.map(c => c.name).join(', ')}]</p>
+        <p>canRunAnalysis: {canRunAnalysis ? 'true' : 'false'}</p>
+        {analysisResults && <p>Results type: {typeof analysisResults}</p>}
+      </div>
+      
+      {/* 強制的に結果表示テスト */}
+      <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded">
+        <p className="text-sm font-bold">Force Display Test:</p>
+        {analysisResults ? (
+          <div>
+            <p>✅ Results exist</p>
+            <p>Type: {activeAnalysis}</p>
+            <AnalysisResults type={activeAnalysis} results={analysisResults} />
+          </div>
+        ) : (
+          <p>❌ No results to display</p>
+        )}
+      </div>
     </div>
   )
 }
@@ -280,7 +396,12 @@ interface AnalysisResultsProps {
 }
 
 function AnalysisResults({ type, results }: AnalysisResultsProps) {
-  if (!results) return null
+  console.log('AnalysisResults:', { type, results })
+  
+  if (!results) {
+    console.log('AnalysisResults: No results to display')
+    return null
+  }
 
   switch (type) {
     case 'basic':
@@ -301,15 +422,26 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
 }
 
 function BasicStatsResults({ stats }: { stats: BasicStats }) {
+  console.log('BasicStatsResults received:', stats)
+  
+  if (!stats || typeof stats !== 'object') {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>基本統計の結果が無効です。</p>
+        <p className="text-xs mt-2">Expected object, got: {typeof stats}</p>
+      </div>
+    )
+  }
+  
   const data = [
-    { label: '件数', value: stats.count.toLocaleString() },
-    { label: '平均', value: stats.mean.toFixed(2) },
-    { label: '標準偏差', value: stats.std.toFixed(2) },
-    { label: '最小値', value: stats.min.toFixed(2) },
-    { label: '最大値', value: stats.max.toFixed(2) },
-    { label: '第1四分位数', value: stats.quartiles.q1.toFixed(2) },
-    { label: '中央値', value: stats.quartiles.q2.toFixed(2) },
-    { label: '第3四分位数', value: stats.quartiles.q3.toFixed(2) },
+    { label: '件数', value: stats.count?.toLocaleString() || 'N/A' },
+    { label: '平均', value: stats.mean?.toFixed(2) || 'N/A' },
+    { label: '標準偏差', value: stats.std?.toFixed(2) || 'N/A' },
+    { label: '最小値', value: stats.min?.toFixed(2) || 'N/A' },
+    { label: '最大値', value: stats.max?.toFixed(2) || 'N/A' },
+    { label: '第1四分位数', value: stats.quartiles?.q1?.toFixed(2) || 'N/A' },
+    { label: '中央値', value: stats.quartiles?.q2?.toFixed(2) || 'N/A' },
+    { label: '第3四分位数', value: stats.quartiles?.q3?.toFixed(2) || 'N/A' },
   ]
 
   return (
@@ -325,6 +457,25 @@ function BasicStatsResults({ stats }: { stats: BasicStats }) {
 }
 
 function CorrelationResults({ correlations }: { correlations: CorrelationResult[] }) {
+  console.log('CorrelationResults received:', correlations, 'Type:', typeof correlations, 'IsArray:', Array.isArray(correlations))
+  
+  if (!correlations || !Array.isArray(correlations)) {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>相関分析の結果が無効です。</p>
+        <p className="text-xs mt-2">Expected array, got: {typeof correlations}</p>
+      </div>
+    )
+  }
+  
+  if (correlations.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600">
+        <p>相関分析の結果がありません。</p>
+      </div>
+    )
+  }
+  
   const chartData = {
     labels: correlations.map(c => `${c.column1}-${c.column2}`),
     datasets: [{
@@ -380,6 +531,25 @@ function CorrelationResults({ correlations }: { correlations: CorrelationResult[
 }
 
 function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[] }) {
+  console.log('ChangePointResults received:', changePoints)
+  
+  if (!changePoints || !Array.isArray(changePoints)) {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>変化点検出の結果が無効です。</p>
+        <p className="text-xs mt-2">Expected array, got: {typeof changePoints}</p>
+      </div>
+    )
+  }
+  
+  if (changePoints.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600">
+        <p>変化点が検出されませんでした。</p>
+      </div>
+    )
+  }
+  
   const chartData = {
     labels: changePoints.map(cp => `Point ${cp.index}`),
     datasets: [{
@@ -429,6 +599,25 @@ function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[
 }
 
 function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnalysisResult }) {
+  console.log('FactorAnalysisResults received:', factorAnalysis)
+  
+  if (!factorAnalysis || !factorAnalysis.factors || !Array.isArray(factorAnalysis.factors)) {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>因子分析の結果が無効です。</p>
+        <p className="text-xs mt-2">Expected object with factors array, got: {typeof factorAnalysis}</p>
+      </div>
+    )
+  }
+  
+  if (factorAnalysis.factors.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600">
+        <p>因子分析の結果がありません。</p>
+      </div>
+    )
+  }
+  
   const chartData = {
     labels: factorAnalysis.factors.map(f => f.name),
     datasets: [{
@@ -476,6 +665,25 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
 }
 
 function HistogramResults({ data }: { data: Array<{ bin: string; count: number; frequency: number }> }) {
+  console.log('HistogramResults received:', data)
+  
+  if (!data || !Array.isArray(data)) {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>ヒストグラムの結果が無効です。</p>
+        <p className="text-xs mt-2">Expected array, got: {typeof data}</p>
+      </div>
+    )
+  }
+  
+  if (data.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600">
+        <p>ヒストグラムの結果がありません。</p>
+      </div>
+    )
+  }
+  
   const chartData = {
     labels: data.map(d => d.bin),
     datasets: [{
@@ -526,6 +734,25 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
 }
 
 function TimeSeriesResults({ data }: { data: Array<{ time: string; value: number; count: number }> }) {
+  console.log('TimeSeriesResults received:', data)
+  
+  if (!data || !Array.isArray(data)) {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>時系列分析の結果が無効です。</p>
+        <p className="text-xs mt-2">Expected array, got: {typeof data}</p>
+      </div>
+    )
+  }
+  
+  if (data.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600">
+        <p>時系列分析の結果がありません。</p>
+      </div>
+    )
+  }
+  
   const chartData = {
     labels: data.map(d => d.time),
     datasets: [{

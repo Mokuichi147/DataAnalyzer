@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Database, Upload, Settings, BarChart3, Activity } from 'lucide-react'
 import { DataSourceManager } from './components/DataSourceManager'
 import { FileUpload } from './components/FileUpload'
@@ -7,10 +7,35 @@ import { AnalysisPanel } from './components/AnalysisPanel'
 import { RealtimeManager } from './components/RealtimeManager'
 import { DuckDBConverter } from './components/DuckDBConverter'
 import { useDataStore } from './store/dataStore'
+import { memoryDataStore } from './lib/memoryDataStore'
 
 function App() {
   const [activeTab, setActiveTab] = useState('data')
-  const { currentTable } = useDataStore()
+  const { currentTable, tables, setCurrentTable, removeTable } = useDataStore()
+
+  // アプリ初期化時にメモリ内データストアと同期
+  useEffect(() => {
+    const syncTablesWithMemoryStore = () => {
+      const memoryTables = memoryDataStore.listTables()
+      const storeTables = tables.filter(table => table.connectionId === 'file')
+      
+      // メモリに存在しないテーブルをストアから削除
+      storeTables.forEach(table => {
+        if (!memoryTables.includes(table.name)) {
+          console.log(`Removing stale table from store: ${table.name}`)
+          removeTable(table.id)
+        }
+      })
+      
+      // 現在選択されているテーブルがメモリに存在しない場合、選択を解除
+      if (currentTable && currentTable.connectionId === 'file' && !memoryTables.includes(currentTable.name)) {
+        console.log(`Current table ${currentTable.name} not found in memory, clearing selection`)
+        setCurrentTable(null)
+      }
+    }
+
+    syncTablesWithMemoryStore()
+  }, [tables, currentTable, removeTable, setCurrentTable])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -103,16 +128,117 @@ function App() {
             <div className="bg-white rounded-lg shadow p-6">
               {currentTable ? (
                 <div className="space-y-6">
-                  <DataPreview tableName={currentTable.name} />
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-lg font-medium text-gray-900">分析・可視化</h2>
+                      <p className="text-sm text-gray-600">
+                        テーブル: <span className="font-medium">{currentTable.name}</span>
+                        （{currentTable.columns.length}列
+                        {currentTable.rowCount && `、${currentTable.rowCount}行`}、
+                        {currentTable.connectionId === 'file' ? 'ファイル' : currentTable.connectionId}）
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setCurrentTable(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      テーブルを変更
+                    </button>
+                  </div>
+                  
+                  <DataPreview key={`preview-${currentTable.id}`} tableName={currentTable.name} />
                   <AnalysisPanel 
+                    key={`analysis-${currentTable.id}`}
                     tableName={currentTable.name} 
                     columns={currentTable.columns} 
                   />
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p>分析を開始するためにテーブルを選択してください</p>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-medium text-gray-900">テーブル選択</h2>
+                    {tables.some(table => table.connectionId === 'file' && !memoryDataStore.listTables().includes(table.name)) && (
+                      <button
+                        onClick={() => {
+                          const memoryTables = memoryDataStore.listTables()
+                          tables.forEach(table => {
+                            if (table.connectionId === 'file' && !memoryTables.includes(table.name)) {
+                              removeTable(table.id)
+                            }
+                          })
+                        }}
+                        className="text-sm text-red-600 hover:text-red-800 underline"
+                      >
+                        古いテーブルをすべて削除
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* テーブル一覧表示 */}
+                  <div className="space-y-4">
+                    {tables.length > 0 ? (
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {tables.map((table) => {
+                          const memoryTables = memoryDataStore.listTables()
+                          const isTableInMemory = table.connectionId !== 'file' || memoryTables.includes(table.name)
+                          
+                          return (
+                            <div
+                              key={table.id}
+                              className={`border rounded-lg p-4 transition-colors ${
+                                isTableInMemory 
+                                  ? 'border-gray-200 hover:border-blue-500 hover:bg-blue-50 cursor-pointer'
+                                  : 'border-red-200 bg-red-50'
+                              }`}
+                              onClick={() => isTableInMemory && setCurrentTable(table)}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <h3 className={`font-medium ${isTableInMemory ? 'text-gray-900' : 'text-red-700'}`}>
+                                  {table.name}
+                                  {!isTableInMemory && <span className="ml-2 text-xs">(データ消失)</span>}
+                                </h3>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-xs text-gray-500">
+                                    {table.columns.length} 列
+                                  </span>
+                                  {!isTableInMemory && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        removeTable(table.id)
+                                      }}
+                                      className="text-xs text-red-600 hover:text-red-800 underline"
+                                    >
+                                      削除
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">
+                                接続: {table.connectionId === 'file' ? 'ファイル' : table.connectionId}
+                                {table.rowCount && ` • ${table.rowCount} 行`}
+                              </p>
+                              <div className="text-xs text-gray-500">
+                                {table.columns.slice(0, 3).map(col => col.name).join(', ')}
+                                {table.columns.length > 3 && '...'}
+                              </div>
+                              {!isTableInMemory && (
+                                <div className="mt-2 text-xs text-red-600">
+                                  メモリからデータが消失しています。再度ファイルをアップロードしてください。
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                        <p className="mb-2">分析するテーブルがありません</p>
+                        <p className="text-sm">「ファイルアップロード」タブからデータをアップロードしてください</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

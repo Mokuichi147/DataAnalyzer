@@ -20,39 +20,21 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const { filters, setLoading, setError } = useDataStore()
   const { settings: realtimeSettings } = useRealtimeStore()
 
-  useEffect(() => {
-    loadData()
-  }, [tableName, currentPage, pageSize, filters])
-
-  // リアルタイム更新のリスナー
-  useEffect(() => {
-    if (!realtimeSettings.autoRefresh) return
-
-    const handleDataChange = (event: CustomEvent) => {
-      const { tableName: changedTable } = event.detail
-      if (changedTable === tableName) {
-        loadData()
-        setLastRefresh(new Date())
-      }
-    }
-
-    window.addEventListener('dataChanged', handleDataChange as EventListener)
-    return () => {
-      window.removeEventListener('dataChanged', handleDataChange as EventListener)
-    }
-  }, [tableName, realtimeSettings.autoRefresh, loadData])
-
   const loadData = async () => {
     if (!tableName) return
     
     setIsLoading(true)
     try {
+      console.log('Loading data for table:', tableName)
+      
       // テーブル情報を取得
       const tableInfo = await getTableInfo(tableName)
+      console.log('Table info:', tableInfo)
       setColumns(tableInfo)
       
       // 総行数を取得
       const count = await getTableCount(tableName)
+      console.log('Row count:', count)
       setTotalRows(count)
       
       // データを取得（フィルタ適用）
@@ -83,16 +65,41 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       }
       
       query += ` LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+      console.log('Executing query:', query)
       
       const result = await executeQuery(query)
+      console.log('Query result:', result)
       setData(result)
       
     } catch (error) {
+      console.error('Error loading data:', error)
       setError(error instanceof Error ? error.message : 'データの読み込みに失敗しました')
     } finally {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadData()
+  }, [tableName, currentPage, pageSize, filters])
+
+  // リアルタイム更新のリスナー
+  useEffect(() => {
+    if (!realtimeSettings.autoRefresh) return
+
+    const handleDataChange = (event: CustomEvent) => {
+      const { tableName: changedTable } = event.detail
+      if (changedTable === tableName) {
+        loadData()
+        setLastRefresh(new Date())
+      }
+    }
+
+    window.addEventListener('dataChanged', handleDataChange as EventListener)
+    return () => {
+      window.removeEventListener('dataChanged', handleDataChange as EventListener)
+    }
+  }, [tableName, realtimeSettings.autoRefresh])
 
   const totalPages = Math.ceil(totalRows / pageSize)
 

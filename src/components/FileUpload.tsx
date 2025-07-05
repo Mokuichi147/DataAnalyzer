@@ -143,16 +143,17 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           nullable: col.null === 'YES'
         }))
 
+        // Add to realtime monitoring
+        const rowCount = await getTableCount(uploadedFile.tableName)
+        
         // Add table to store
         addTable({
           name: uploadedFile.tableName,
           connectionId: 'file',
           columns,
+          rowCount,
           isLoaded: true
         })
-
-        // Add to realtime monitoring
-        const rowCount = await getTableCount(uploadedFile.tableName)
         addSubscription({
           tableName: uploadedFile.tableName,
           connectionId: 'file',

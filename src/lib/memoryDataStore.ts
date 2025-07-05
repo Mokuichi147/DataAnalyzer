@@ -146,6 +146,10 @@ class MemoryDataStore {
   listTables(): string[] {
     return Array.from(this.tables.keys())
   }
+
+  getTableSchema(tableName: string): TableSchema | undefined {
+    return this.tables.get(tableName)
+  }
 }
 
 // シングルトンインスタンス
