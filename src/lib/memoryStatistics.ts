@@ -19,6 +19,27 @@ export interface CorrelationResult {
   correlation: number
 }
 
+export interface ColumnAnalysisResult {
+  columnName: string
+  totalRows: number
+  uniqueValues: number
+  nullCount: number
+  nullPercentage: number
+  emptyStringCount: number
+  emptyStringPercentage: number
+  dataType: string
+  sampleValues: string[]
+  topValues?: Array<{ value: string; count: number; percentage: number }>
+  // 数値型の場合の追加情報
+  numericStats?: {
+    min: number
+    max: number
+    mean: number
+    median: number
+    std: number
+  }
+}
+
 // 数値に変換できるかチェック
 function isNumeric(value: any): boolean {
   return !isNaN(parseFloat(value)) && isFinite(value)
@@ -299,4 +320,150 @@ export async function getTimeSeriesData(
     console.error('Error generating time series data:', error)
     throw error
   }
+}
+
+export async function getColumnAnalysis(
+  tableName: string,
+  columnNames: string[]
+): Promise<ColumnAnalysisResult[]> {
+  try {
+    const table = memoryDataStore.getTableSchema(tableName)
+    if (!table) {
+      throw new Error(`Table ${tableName} not found`)
+    }
+
+    const results: ColumnAnalysisResult[] = []
+
+    for (const columnName of columnNames) {
+      const totalRows = table.data.length
+      let nullCount = 0
+      let emptyStringCount = 0
+      const valueFrequency = new Map<string, number>()
+      const uniqueValues = new Set<string>()
+      const numericValues: number[] = []
+
+      // データを分析
+      for (const row of table.data) {
+        const value = row[columnName]
+        
+        // NULL/undefined チェック
+        if (value === null || value === undefined) {
+          nullCount++
+          continue
+        }
+
+        const stringValue = String(value).trim()
+        
+        // 空文字列チェック
+        if (stringValue === '') {
+          emptyStringCount++
+          continue
+        }
+
+        // ユニーク値とカウント
+        uniqueValues.add(stringValue)
+        valueFrequency.set(stringValue, (valueFrequency.get(stringValue) || 0) + 1)
+
+        // 数値として解析可能かチェック
+        if (isNumeric(value)) {
+          numericValues.push(parseFloat(stringValue))
+        }
+      }
+
+      // データタイプを推定
+      const dataType = inferDataType(table.data, columnName)
+
+      // 上位値を取得（頻度順）
+      const topValues = Array.from(valueFrequency.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([value, count]) => ({
+          value,
+          count,
+          percentage: (count / totalRows) * 100
+        }))
+
+      // サンプル値を取得（ユニーク値から最大10個）
+      const sampleValues = Array.from(uniqueValues).slice(0, 10)
+
+      // 数値統計（数値型の場合）
+      let numericStats: ColumnAnalysisResult['numericStats'] = undefined
+      if (numericValues.length > 0 && numericValues.length >= totalRows * 0.5) {
+        const sorted = [...numericValues].sort((a, b) => a - b)
+        const mean = numericValues.reduce((sum, val) => sum + val, 0) / numericValues.length
+        const variance = numericValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / numericValues.length
+        
+        numericStats = {
+          min: Math.min(...numericValues),
+          max: Math.max(...numericValues),
+          mean: mean,
+          median: sorted[Math.floor(sorted.length / 2)],
+          std: Math.sqrt(variance)
+        }
+      }
+
+      results.push({
+        columnName,
+        totalRows,
+        uniqueValues: uniqueValues.size,
+        nullCount,
+        nullPercentage: (nullCount / totalRows) * 100,
+        emptyStringCount,
+        emptyStringPercentage: (emptyStringCount / totalRows) * 100,
+        dataType,
+        sampleValues,
+        topValues,
+        numericStats
+      })
+    }
+
+    return results
+  } catch (error) {
+    console.error('Error analyzing columns:', error)
+    throw error
+  }
+}
+
+// データタイプ推定のヘルパー関数
+function inferDataType(data: any[], columnName: string): string {
+  if (data.length === 0) return 'TEXT'
+  
+  const sampleSize = Math.min(data.length, 100)
+  const samples = data.slice(0, sampleSize)
+  
+  let integerCount = 0
+  let floatCount = 0
+  let dateCount = 0
+  let booleanCount = 0
+  let totalNonNull = 0
+  
+  for (const row of samples) {
+    const value = row[columnName]
+    if (value === null || value === undefined || value === '') continue
+    
+    totalNonNull++
+    const strValue = String(value).trim()
+    
+    if (strValue.toLowerCase() === 'true' || strValue.toLowerCase() === 'false') {
+      booleanCount++
+    } else if (/^-?\d+$/.test(strValue)) {
+      integerCount++
+    } else if (/^-?\d*\.\d+$/.test(strValue)) {
+      floatCount++
+    } else if (/^\d{4}-\d{2}-\d{2}/.test(strValue)) {
+      dateCount++
+    }
+  }
+  
+  if (totalNonNull === 0) return 'TEXT'
+  
+  const threshold = totalNonNull * 0.8
+  
+  if (integerCount >= threshold) return 'INTEGER'
+  if (floatCount >= threshold) return 'FLOAT'
+  if ((integerCount + floatCount) >= threshold) return 'NUMERIC'
+  if (dateCount >= threshold) return 'DATE'
+  if (booleanCount >= threshold) return 'BOOLEAN'
+  
+  return 'TEXT'
 }

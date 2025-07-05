@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BarChart, LineChart, PieChart, TrendingUp, Activity, Zap } from 'lucide-react'
+import { BarChart, LineChart, PieChart, TrendingUp, Activity, Zap, Database } from 'lucide-react'
 import { Line, Bar, Scatter, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -33,7 +33,9 @@ import {
   detectChangePoints as detectChangePointsMemory,
   performFactorAnalysis as performFactorAnalysisMemory,
   getHistogramData as getHistogramDataMemory,
-  getTimeSeriesData as getTimeSeriesDataMemory
+  getTimeSeriesData as getTimeSeriesDataMemory,
+  getColumnAnalysis,
+  type ColumnAnalysisResult
 } from '@/lib/memoryStatistics'
 
 ChartJS.register(
@@ -89,7 +91,7 @@ function formatNumber(value: number | undefined | null): string {
   }
 }
 
-type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries'
+type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column'
 
 interface AnalysisPanelProps {
   tableName: string
@@ -233,6 +235,12 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
                 : null
           }
           break
+          
+        case 'column':
+          if (selectedColumns.length >= 1) {
+            results = await getColumnAnalysis(tableName, selectedColumns)
+          }
+          break
       }
       
       console.log('Analysis results:', results)
@@ -329,6 +337,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       description: '時間経過による変化を分析',
       minColumns: 1,
       maxColumns: 1
+    },
+    { 
+      key: 'column' as const, 
+      label: 'カラム分析', 
+      icon: Database, 
+      description: 'ユニーク値、NULL割合、データ品質等の詳細分析',
+      minColumns: 1,
+      maxColumns: 10
     }
   ]
 
@@ -538,6 +554,8 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
       return <HistogramResults data={results} />
     case 'timeseries':
       return <TimeSeriesResults data={results} />
+    case 'column':
+      return <ColumnAnalysisResults data={results} />
     default:
       return null
   }
@@ -1028,6 +1046,138 @@ function TimeSeriesResults({ data }: { data: Array<{ time: string; value: number
       <div className="mt-4 text-sm text-gray-600">
         データポイント数: {formatNumber(data.length)}
       </div>
+    </div>
+  )
+}
+
+function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
+  console.log('ColumnAnalysisResults received:', data)
+  
+  if (!data || !Array.isArray(data)) {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>カラム分析の結果が無効です。</p>
+        <p className="text-xs mt-2">Expected array, got: {typeof data}</p>
+      </div>
+    )
+  }
+  
+  if (data.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600">
+        <p>カラム分析の結果がありません。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {data.map((column, index) => (
+        <div key={index} className="bg-white border rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="text-lg font-medium text-gray-900">{column.columnName}</h4>
+              <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                {column.dataType}
+              </span>
+            </div>
+            <div className="text-right text-sm text-gray-600">
+              総行数: {formatNumber(column.totalRows)}
+            </div>
+          </div>
+
+          {/* 基本情報 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-2xl font-bold text-blue-600">{formatNumber(column.uniqueValues)}</div>
+              <div className="text-sm text-gray-600">ユニーク値</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-2xl font-bold text-red-600">{formatNumber(column.nullCount)}</div>
+              <div className="text-sm text-gray-600">NULL値</div>
+              <div className="text-xs text-gray-500">({column.nullPercentage.toFixed(1)}%)</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-2xl font-bold text-orange-600">{formatNumber(column.emptyStringCount)}</div>
+              <div className="text-sm text-gray-600">空文字</div>
+              <div className="text-xs text-gray-500">({column.emptyStringPercentage.toFixed(1)}%)</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-2xl font-bold text-green-600">
+                {((100 - column.nullPercentage - column.emptyStringPercentage)).toFixed(1)}%
+              </div>
+              <div className="text-sm text-gray-600">有効データ</div>
+            </div>
+          </div>
+
+          {/* 数値統計（数値型の場合） */}
+          {column.numericStats && (
+            <div className="mb-6">
+              <h5 className="font-medium text-gray-900 mb-3">数値統計</h5>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="text-center p-2 bg-blue-50 rounded">
+                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.min)}</div>
+                  <div className="text-xs text-gray-600">最小値</div>
+                </div>
+                <div className="text-center p-2 bg-blue-50 rounded">
+                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.max)}</div>
+                  <div className="text-xs text-gray-600">最大値</div>
+                </div>
+                <div className="text-center p-2 bg-blue-50 rounded">
+                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.mean)}</div>
+                  <div className="text-xs text-gray-600">平均</div>
+                </div>
+                <div className="text-center p-2 bg-blue-50 rounded">
+                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.median)}</div>
+                  <div className="text-xs text-gray-600">中央値</div>
+                </div>
+                <div className="text-center p-2 bg-blue-50 rounded">
+                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.std)}</div>
+                  <div className="text-xs text-gray-600">標準偏差</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* 上位値 */}
+            {column.topValues && column.topValues.length > 0 && (
+              <div>
+                <h5 className="font-medium text-gray-900 mb-3">上位値 (頻度順)</h5>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {column.topValues.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded text-sm">
+                      <span className="truncate flex-1 mr-2 font-mono">
+                        {item.value || '(空)'}
+                      </span>
+                      <div className="text-right">
+                        <span className="font-bold">{formatNumber(item.count)}</span>
+                        <span className="text-gray-500 ml-2">({item.percentage.toFixed(1)}%)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* サンプル値 */}
+            <div>
+              <h5 className="font-medium text-gray-900 mb-3">サンプル値</h5>
+              <div className="flex flex-wrap gap-2">
+                {column.sampleValues.map((value, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded font-mono truncate max-w-24"
+                    title={value}
+                  >
+                    {value || '(空)'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
