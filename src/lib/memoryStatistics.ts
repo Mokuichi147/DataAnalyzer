@@ -373,6 +373,12 @@ export async function getColumnAnalysis(
       // データタイプを推定
       const dataType = inferDataType(table.data, columnName)
 
+      // 安全なパーセンテージ計算のヘルパー関数
+      const safePercentage = (count: number, total: number): number => {
+        if (total === 0) return 0
+        return (count / total) * 100
+      }
+
       // 上位値を取得（頻度順）
       const topValues = Array.from(valueFrequency.entries())
         .sort((a, b) => b[1] - a[1])
@@ -380,7 +386,7 @@ export async function getColumnAnalysis(
         .map(([value, count]) => ({
           value,
           count,
-          percentage: (count / totalRows) * 100
+          percentage: safePercentage(count, totalRows)
         }))
 
       // サンプル値を取得（ユニーク値から最大10個）
@@ -388,7 +394,7 @@ export async function getColumnAnalysis(
 
       // 数値統計（数値型の場合）
       let numericStats: ColumnAnalysisResult['numericStats'] = undefined
-      if (numericValues.length > 0 && numericValues.length >= totalRows * 0.5) {
+      if (numericValues.length > 0 && totalRows > 0 && numericValues.length >= totalRows * 0.5) {
         const sorted = [...numericValues].sort((a, b) => a - b)
         const mean = numericValues.reduce((sum, val) => sum + val, 0) / numericValues.length
         const variance = numericValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / numericValues.length
@@ -407,9 +413,9 @@ export async function getColumnAnalysis(
         totalRows,
         uniqueValues: uniqueValues.size,
         nullCount,
-        nullPercentage: (nullCount / totalRows) * 100,
+        nullPercentage: safePercentage(nullCount, totalRows),
         emptyStringCount,
-        emptyStringPercentage: (emptyStringCount / totalRows) * 100,
+        emptyStringPercentage: safePercentage(emptyStringCount, totalRows),
         dataType,
         sampleValues,
         topValues,

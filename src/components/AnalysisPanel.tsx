@@ -1053,6 +1053,33 @@ function TimeSeriesResults({ data }: { data: Array<{ time: string; value: number
 function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
   console.log('ColumnAnalysisResults received:', data)
   
+  // 安全なパーセンテージ表示のヘルパー関数
+  const formatPercentage = (value: number | undefined | null): string => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return '0.0'
+    }
+    return value.toFixed(1)
+  }
+  
+  // 有効データパーセンテージの安全な計算
+  const calculateValidDataPercentage = (column: ColumnAnalysisResult): string => {
+    // データが0個の場合は0%（論理的に正しい表示）
+    if (column.totalRows === 0) return '0.0'
+    
+    const nullPct = column.nullPercentage || 0
+    const emptyPct = column.emptyStringPercentage || 0
+    const validPct = 100 - nullPct - emptyPct
+    
+    if (isNaN(validPct)) return '0.0'
+    return Math.max(0, validPct).toFixed(1)
+  }
+  
+  // データが0個の場合の特別表示
+  const getValidDataLabel = (column: ColumnAnalysisResult): string => {
+    if (column.totalRows === 0) return '有効データ (データなし)'
+    return '有効データ'
+  }
+  
   if (!data || !Array.isArray(data)) {
     return (
       <div className="text-center py-4 text-red-600">
@@ -1095,18 +1122,18 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
             <div className="text-center p-3 bg-gray-50 rounded">
               <div className="text-2xl font-bold text-red-600">{formatNumber(column.nullCount)}</div>
               <div className="text-sm text-gray-600">NULL値</div>
-              <div className="text-xs text-gray-500">({column.nullPercentage.toFixed(1)}%)</div>
+              <div className="text-xs text-gray-500">({formatPercentage(column.nullPercentage)}%)</div>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
               <div className="text-2xl font-bold text-orange-600">{formatNumber(column.emptyStringCount)}</div>
               <div className="text-sm text-gray-600">空文字</div>
-              <div className="text-xs text-gray-500">({column.emptyStringPercentage.toFixed(1)}%)</div>
+              <div className="text-xs text-gray-500">({formatPercentage(column.emptyStringPercentage)}%)</div>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
               <div className="text-2xl font-bold text-green-600">
-                {((100 - column.nullPercentage - column.emptyStringPercentage)).toFixed(1)}%
+                {calculateValidDataPercentage(column)}%
               </div>
-              <div className="text-sm text-gray-600">有効データ</div>
+              <div className="text-sm text-gray-600">{getValidDataLabel(column)}</div>
             </div>
           </div>
 
@@ -1152,7 +1179,7 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
                       </span>
                       <div className="text-right">
                         <span className="font-bold">{formatNumber(item.count)}</span>
-                        <span className="text-gray-500 ml-2">({item.percentage.toFixed(1)}%)</span>
+                        <span className="text-gray-500 ml-2">({formatPercentage(item.percentage)}%)</span>
                       </div>
                     </div>
                   ))}
