@@ -9,7 +9,66 @@ export interface DuckDBInstance {
 let duckdbInstance: DuckDBInstance | null = null
 let useFallback = false
 
+// フォールバック状況を外部から参照可能にする
+export function isUsingFallback(): boolean {
+  return useFallback
+}
+
+// 使用中のストレージタイプを取得
+export function getStorageType(): 'duckdb' | 'memory' {
+  return useFallback ? 'memory' : 'duckdb'
+}
+
+// 環境の安全性を判定する関数
+function isEnvironmentSecure(): boolean {
+  try {
+    // Web Workerのサポートをチェック
+    if (typeof Worker === 'undefined') {
+      console.log('💡 Web Workers非サポート環境: メモリ内データストアを使用')
+      return false
+    }
+    
+    // ローカルファイルアクセスの場合（file://）
+    if (window.location.protocol === 'file:') {
+      console.log('💡 ローカルファイル環境: メモリ内データストアを使用')
+      return false
+    }
+    
+    // HTTPSでない場合（開発環境以外）
+    if (window.location.protocol === 'http:' && 
+        !window.location.hostname.includes('localhost') && 
+        !window.location.hostname.includes('127.0.0.1') &&
+        !window.location.hostname.includes('192.168.') &&
+        !window.location.hostname.includes('10.0.') &&
+        !window.location.hostname.includes('172.')) {
+      console.log('💡 HTTP本番環境: メモリ内データストアを使用')
+      return false
+    }
+    
+    // 簡単なWorker作成テスト
+    try {
+      const testWorker = new Worker('data:application/javascript,self.close();')
+      testWorker.terminate()
+    } catch (testError) {
+      console.log('💡 Worker作成テスト失敗: メモリ内データストアを使用')
+      return false
+    }
+    
+    return true
+  } catch (error) {
+    console.log('💡 環境判定エラー: メモリ内データストアを使用')
+    return false
+  }
+}
+
 export async function initDuckDB(): Promise<DuckDBInstance | null> {
+  // 環境の安全性を事前チェック
+  if (!isEnvironmentSecure()) {
+    useFallback = true
+    console.log('✅ 互換性モード: メモリ内データストアで動作中（機能に制限はありません）')
+    return null
+  }
+
   if (useFallback) {
     console.log('メモリ内データストアを使用中')
     return null
@@ -44,7 +103,7 @@ export async function initDuckDB(): Promise<DuckDBInstance | null> {
           (workerError.name === 'SecurityError' || 
            workerError.message.includes('insecure') ||
            workerError.message.includes('SecurityError'))) {
-        console.warn('セキュリティエラーによりDuckDB初期化失敗、メモリ内データストアにフォールバック')
+        console.warn('セキュリティエラーによりDuckDB初期化失敗、メモリ内データストアにフォールバック:', workerError.message)
         throw workerError
       }
       
@@ -71,7 +130,10 @@ export async function initDuckDB(): Promise<DuckDBInstance | null> {
       }
     }
   } catch (error) {
-    console.error('DuckDB初期化エラー、メモリ内データストアにフォールバック:', error)
+    console.log('DuckDBを使用できません。メモリ内データストアで動作します。')
+    if (error instanceof Error && error.message.includes('SecurityError')) {
+      console.log('📝 これは通常の動作です。セキュリティ制限によりDuckDBが無効化されました。')
+    }
     useFallback = true
     return null
   }
