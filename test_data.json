@@ -1,0 +1,7 @@
+[
+  {"name": "John Doe", "age": 30, "city": "Tokyo", "salary": 50000},
+  {"name": "Jane Smith", "age": 25, "city": "Osaka", "salary": 45000},
+  {"name": "Mike Johnson", "age": 35, "city": "Kyoto", "salary": 60000},
+  {"name": "Sarah Wilson", "age": 28, "city": "Tokyo", "salary": 52000},
+  {"name": "David Brown", "age": 32, "city": "Osaka", "salary": 48000}
+]
