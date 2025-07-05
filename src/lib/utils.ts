@@ -18,16 +18,12 @@ export function isValidFileType(file: File): boolean {
   const validTypes = [
     'text/csv',
     'text/tab-separated-values',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/json',
-    'application/x-sqlite3',
-    'application/vnd.sqlite3',
-    'application/octet-stream' // DuckDBファイルなど
+    'text/plain'
   ]
   
   const validExtensions = [
-    'csv', 'tsv', 'txt', 'json', 'xlsx', 'xls', 'sqlite', 'sqlite3', 'db', 'duckdb', 'parquet'
+    'csv', 'tsv', 'txt', 'json'
   ]
   
   const fileExtension = file.name.split('.').pop()?.toLowerCase()

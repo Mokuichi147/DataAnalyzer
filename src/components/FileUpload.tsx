@@ -4,6 +4,7 @@ import { isValidFileType, formatBytes } from '@/lib/utils'
 import { createTableFromFile, getTableCount, loadDuckDBFile, getTableInfo } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
 import { useRealtimeStore } from '@/store/realtimeStore'
+import { FileUploadAlternatives } from './FileUploadAlternatives'
 
 interface UploadedFile {
   id: string
@@ -15,7 +16,11 @@ interface UploadedFile {
   extractedTables?: string[]
 }
 
-export function FileUpload() {
+interface FileUploadProps {
+  onNavigateToSettings?: () => void
+}
+
+export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -35,7 +40,8 @@ export function FileUpload() {
 
     const uploadedFiles: UploadedFile[] = validFiles.map(file => {
       const fileExtension = file.name.split('.').pop()?.toLowerCase()
-      const isDuckDBFile = fileExtension === 'db' || fileExtension === 'duckdb'
+      const isDuckDBFile = fileExtension === 'duckdb'
+      // .dbの場合は後でヘッダーを確認して判断
       
       return {
         id: crypto.randomUUID(),
@@ -218,12 +224,15 @@ export function FileUpload() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".csv,.tsv,.json,.xlsx,.xls,.sqlite,.sqlite3,.db,.duckdb,.parquet"
+          accept=".csv,.tsv,.json"
           onChange={handleFileInputChange}
           className="hidden"
         />
         <p className="text-sm text-gray-500 mt-4">
-          対応形式: CSV, TSV, JSON, Excel, SQLite, Parquet, DuckDB
+          対応形式: CSV, TSV, JSON
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          注意: SQLite、DuckDB、Parquet、ExcelファイルはCSV形式にエクスポートしてからアップロードしてください
         </p>
       </div>
 
@@ -315,15 +324,44 @@ export function FileUpload() {
                 
                 {uploadedFile.status === 'error' && (
                   <div className="mt-3">
-                    <p className="text-sm text-red-600">
-                      エラー: {uploadedFile.error}
-                    </p>
-                    <button
-                      onClick={() => processFile(uploadedFile)}
-                      className="text-sm text-blue-600 hover:text-blue-800 mt-1"
-                    >
-                      再試行
-                    </button>
+                    {uploadedFile.isDuckDBFile ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded p-3">
+                        <div className="flex items-start space-x-2">
+                          <div className="text-amber-600 font-medium text-sm">🔒 DuckDBファイル検出</div>
+                        </div>
+                        <div className="text-sm text-amber-700 mt-2 whitespace-pre-line">
+                          {uploadedFile.error}
+                        </div>
+                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <p className="text-sm text-blue-700 font-medium">💡 クイックソリューション:</p>
+                          <div className="text-xs text-blue-600 mt-1 space-y-1">
+                            <div>1. DuckDBで: <code className="bg-white px-1 rounded">SHOW TABLES;</code></div>
+                            <div>2. エクスポート: <code className="bg-white px-1 rounded">COPY table TO 'file.parquet' (FORMAT PARQUET);</code></div>
+                            <div>3. 本アプリに .parquet ファイルをアップロード</div>
+                          </div>
+                          <button
+                            onClick={onNavigateToSettings}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline mt-2"
+                          >
+                            詳細ガイドを見る →
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <FileUploadAlternatives
+                          errorMessage={uploadedFile.error || ''}
+                          fileName={uploadedFile.file.name}
+                          fileExtension={uploadedFile.file.name.split('.').pop()?.toLowerCase() || 'unknown'}
+                        />
+                        <button
+                          onClick={() => processFile(uploadedFile)}
+                          className="text-sm text-blue-600 hover:text-blue-800 mt-2"
+                        >
+                          再試行
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

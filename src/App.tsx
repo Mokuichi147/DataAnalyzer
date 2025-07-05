@@ -5,6 +5,7 @@ import { FileUpload } from './components/FileUpload'
 import { DataPreview } from './components/DataPreview'
 import { AnalysisPanel } from './components/AnalysisPanel'
 import { RealtimeManager } from './components/RealtimeManager'
+import { DuckDBConverter } from './components/DuckDBConverter'
 import { useDataStore } from './store/dataStore'
 
 function App() {
@@ -95,7 +96,7 @@ function App() {
           )}
           {activeTab === 'upload' && (
             <div className="bg-white rounded-lg shadow p-6">
-              <FileUpload />
+              <FileUpload onNavigateToSettings={() => setActiveTab('settings')} />
             </div>
           )}
           {activeTab === 'analysis' && (
@@ -123,8 +124,17 @@ function App() {
           )}
           {activeTab === 'settings' && (
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">設定</h2>
-              <p className="text-gray-600">アプリケーションの設定を行います。</p>
+              <h2 className="text-lg font-medium text-gray-900 mb-6">設定</h2>
+              
+              <div className="mb-6">
+                <h3 className="text-md font-medium text-gray-900 mb-4">DuckDBファイル変換ガイド</h3>
+                <DuckDBConverter />
+              </div>
+              
+              <div className="border-t pt-6">
+                <h3 className="text-md font-medium text-gray-900 mb-2">その他の設定</h3>
+                <p className="text-gray-600">今後、その他の設定項目がここに追加されます。</p>
+              </div>
             </div>
           )}
         </div>
