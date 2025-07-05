@@ -562,6 +562,7 @@ function CorrelationResults({ correlations }: { correlations: CorrelationResult[
 
 function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[] }) {
   console.log('ChangePointResults received:', changePoints)
+  console.log('First change point structure:', changePoints?.[0])
   
   if (!changePoints || !Array.isArray(changePoints)) {
     return (
@@ -581,17 +582,17 @@ function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[
   }
   
   const chartData = {
-    labels: changePoints.map(cp => `Point ${cp.index}`),
+    labels: changePoints.map(cp => `Point ${cp.index || 'N/A'}`),
     datasets: [{
       label: '変化点',
-      data: changePoints.map(cp => cp.value),
+      data: changePoints.map(cp => cp.value || 0),
       borderColor: '#ef4444',
       backgroundColor: '#fee2e2',
       pointBackgroundColor: changePoints.map(cp => 
-        cp.confidence > 0.8 ? '#dc2626' : 
-        cp.confidence > 0.6 ? '#f59e0b' : '#6b7280'
+        (cp.confidence || 0) > 0.8 ? '#dc2626' : 
+        (cp.confidence || 0) > 0.6 ? '#f59e0b' : '#6b7280'
       ),
-      pointRadius: changePoints.map(cp => 5 + cp.confidence * 5),
+      pointRadius: changePoints.map(cp => 5 + (cp.confidence || 0) * 5),
     }]
   }
 
@@ -614,11 +615,13 @@ function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[
       <div className="mt-4 space-y-2">
         {changePoints.map((cp, index) => (
           <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-            <span className="font-medium">Index {cp.index}</span>
+            <span className="font-medium">Index {cp.index || 'N/A'}</span>
             <div className="text-right">
-              <div className="font-bold">{cp.value.toFixed(2)}</div>
+              <div className="font-bold">
+                {cp.value !== undefined ? cp.value.toFixed(2) : 'N/A'}
+              </div>
               <div className="text-sm text-gray-600">
-                信頼度: {(cp.confidence * 100).toFixed(1)}%
+                信頼度: {cp.confidence !== undefined ? (cp.confidence * 100).toFixed(1) : 'N/A'}%
               </div>
             </div>
           </div>
