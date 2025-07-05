@@ -516,7 +516,7 @@ async function createTableFromJSON(file: File, tableName: string): Promise<void>
 // ファイルヘッダーを検査してSQLiteまたはDuckDBかを判定
 async function loadDatabaseFile(file: File, tableName: string = 'data'): Promise<void> {
   try {
-    console.log('データベースファイルの形式を判定中:', file.name)
+    console.log('🔍 データベースファイルの形式を判定中:', file.name)
     
     // ファイルの最初の部分を読み込んでヘッダーを確認
     const slice = file.slice(0, 100)
@@ -528,39 +528,63 @@ async function loadDatabaseFile(file: File, tableName: string = 'data'): Promise
     }
     
     const header = String.fromCharCode(...uint8Array.slice(0, 20))
-    console.log('ファイルヘッダー検査:', header.substring(0, 15))
+    console.log('🔍 ファイルヘッダー検査:', JSON.stringify(header.substring(0, 15)))
     
-    // SQLiteファイルの判定
+    // ヘッダーのバイト値も確認
+    const headerBytes = Array.from(uint8Array.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')
+    console.log('🔍 ヘッダーバイト値:', headerBytes)
+    
+    // SQLiteファイルの判定（最優先）
     if (header.startsWith('SQLite format 3')) {
-      console.log('SQLiteファイルとして検出')
+      console.log('✅ SQLiteファイルとして確実に検出')
       await loadSQLiteFile(file, tableName)
       return
     }
     
-    // DuckDBファイルの判定（DUCKという文字列を含む）
-    if (header.includes('DUCK') || uint8Array.slice(4, 8).every((byte, i) => byte === 'DUCK'.charCodeAt(i))) {
-      console.log('DuckDBファイルとして検出')
+    // DuckDBファイルの明確な判定
+    const isDuckDB = header.includes('DUCK') || 
+                     uint8Array.slice(4, 8).every((byte, i) => byte === 'DUCK'.charCodeAt(i)) ||
+                     header.includes('duckdb')
+    
+    if (isDuckDB) {
+      console.log('✅ DuckDBファイルとして確実に検出')
       await loadDuckDBFile(file)
       return
     }
     
-    // バイナリヘッダーによる判定（印刷不可能文字が多い場合はDuckDB）
-    const printableChars = header.split('').filter(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) <= 126).length
-    if (printableChars < header.length * 0.5) {
-      console.log('バイナリヘッダー検出、DuckDBファイルとして処理')
-      await loadDuckDBFile(file)
-      return
-    }
+    // 印刷可能文字の割合を確認
+    const printableChars = header.split('').filter(char => {
+      const code = char.charCodeAt(0)
+      return code >= 32 && code <= 126
+    }).length
+    const printableRatio = printableChars / header.length
     
-    // SQLiteファイルとして試行、失敗した場合はDuckDBとして処理
+    console.log(`📊 印刷可能文字の割合: ${printableRatio.toFixed(2)} (${printableChars}/${header.length})`)
+    
+    // SQLiteファイルを最初に試行（.dbファイルの場合、SQLiteの可能性が高い）
+    console.log('🔄 SQLiteファイルとして優先的に試行中...')
     try {
-      console.log('SQLiteファイルとして試行')
       await loadSQLiteFile(file, tableName)
+      console.log('✅ SQLiteファイルとしての読み込み成功')
       return
     } catch (sqliteError) {
-      console.warn('SQLiteとして失敗、DuckDBファイルとして試行:', sqliteError)
-      await loadDuckDBFile(file)
-      return
+      console.warn('❌ SQLiteファイルとしての読み込み失敗:', sqliteError)
+      
+      // SQLiteとして読み込めない場合のみDuckDBを試行
+      if (printableRatio < 0.7) {
+        console.log('🔄 バイナリファイルのため、DuckDBファイルとして試行')
+        try {
+          await loadDuckDBFile(file)
+          console.log('✅ DuckDBファイルとしての読み込み成功')
+          return
+        } catch (duckdbError) {
+          console.error('❌ DuckDBファイルとしても読み込み失敗:', duckdbError)
+          throw new Error(`データベースファイルの読み込みに失敗しました。SQLiteエラー: ${sqliteError instanceof Error ? sqliteError.message : 'Unknown'}, DuckDBエラー: ${duckdbError instanceof Error ? duckdbError.message : 'Unknown'}`)
+        }
+      } else {
+        // テキスト系ファイルの場合はSQLiteエラーをそのまま投げる
+        throw sqliteError
+      }
     }
     
   } catch (error) {
@@ -976,9 +1000,10 @@ export async function loadDuckDBFile(file: File): Promise<string[]> {
     
     if (useFallback || !instance) {
       // フォールバック: SQLiteファイルとしてsql.jsで読み込み
-      console.log('メモリ内データストアを使用してSQLiteファイルを読み込み')
-      await loadSQLiteFile(file)
-      return ['sqlite_fallback_successful']
+      console.log('🔄 メモリ内データストアを使用してSQLiteファイルを読み込み')
+      const tableNames = await loadSQLiteFile(file)
+      console.log('✅ フォールバック処理でSQLiteファイルを読み込み完了:', tableNames)
+      return tableNames
     }
     
     try {
@@ -1049,12 +1074,18 @@ export async function loadDuckDBFile(file: File): Promise<string[]> {
       return tableNames
       
     } catch (duckdbError) {
-      console.warn('DuckDB Wasmでの読み込みに失敗:', duckdbError)
+      console.warn('❌ DuckDB Wasmでの読み込みに失敗:', duckdbError)
       
       // フォールバック: SQLiteファイルとしてsql.jsで読み込み
-      console.log('SQLiteファイルとしてフォールバック処理を実行')
-      await loadSQLiteFile(file)
-      return ['sqlite_fallback_successful']
+      console.log('🔄 SQLiteファイルとしてフォールバック処理を実行')
+      try {
+        const tableNames = await loadSQLiteFile(file)
+        console.log('✅ フォールバック処理でSQLiteファイルを読み込み完了:', tableNames)
+        return tableNames
+      } catch (sqliteError) {
+        console.error('❌ フォールバック処理も失敗:', sqliteError)
+        throw new Error(`データベースファイルの読み込みに失敗しました。DuckDBエラー: ${duckdbError instanceof Error ? duckdbError.message : 'Unknown'}, SQLiteエラー: ${sqliteError instanceof Error ? sqliteError.message : 'Unknown'}`)
+      }
     }
     
   } catch (error) {

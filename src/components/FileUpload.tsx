@@ -150,12 +150,12 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
         const fileExtension = uploadedFile.file.name.split('.').pop()?.toLowerCase()
         let actualTableNames: string[] = []
         
-        if (fileExtension === 'sqlite' || fileExtension === 'sqlite3') {
-          // SQLiteファイルの場合、実際に作成されたテーブル名を取得
+        if (fileExtension === 'sqlite' || fileExtension === 'sqlite3' || fileExtension === 'db') {
+          // データベースファイルの場合、実際に作成されたテーブル名を取得
           // メモリストアから取得
           const { memoryDataStore } = await import('@/lib/memoryDataStore')
           actualTableNames = memoryDataStore.listTables()
-          console.log('SQLiteファイルから取得されたテーブル名:', actualTableNames)
+          console.log('データベースファイルから取得されたテーブル名:', actualTableNames)
         } else {
           // 通常のファイルの場合は指定されたテーブル名を使用
           actualTableNames = [uploadedFile.tableName]
