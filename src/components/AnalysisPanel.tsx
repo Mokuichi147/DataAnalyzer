@@ -262,6 +262,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     }
   }
 
+  const handleSelectAll = () => {
+    const currentType = getCurrentAnalysisType()
+    if (!currentType) return
+    
+    const maxSelectable = Math.min(currentType.maxColumns, numericColumns.length)
+    const availableColumns = numericColumns.map(col => col.name)
+    
+    // 既に選択されている列は維持し、残りのスロットに未選択の列を追加
+    const unselectedColumns = availableColumns.filter(col => !selectedColumns.includes(col))
+    const remainingSlots = maxSelectable - selectedColumns.length
+    const newSelections = unselectedColumns.slice(0, remainingSlots)
+    
+    setSelectedColumns([...selectedColumns, ...newSelections])
+  }
+
+  const handleDeselectAll = () => {
+    setSelectedColumns([])
+  }
+
   const analysisTypes = [
     { 
       key: 'basic' as const, 
@@ -388,6 +407,32 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             </span>
           )}
         </p>
+        
+        {/* 複数選択可能な場合のみ全選択・選択解除ボタンを表示 */}
+        {currentAnalysisType && currentAnalysisType.maxColumns > 1 && (
+          <div className="flex items-center space-x-2 mb-3">
+            <button
+              onClick={handleSelectAll}
+              disabled={selectedColumns.length >= Math.min(currentAnalysisType.maxColumns, numericColumns.length)}
+              className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              全て選択
+              {currentAnalysisType.maxColumns < numericColumns.length && 
+                ` (最大${currentAnalysisType.maxColumns}個)`
+              }
+            </button>
+            <button
+              onClick={handleDeselectAll}
+              disabled={selectedColumns.length === 0}
+              className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              選択解除
+            </button>
+            <span className="text-xs text-gray-500">
+              ({selectedColumns.length}/{currentAnalysisType.maxColumns})
+            </span>
+          </div>
+        )}
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {numericColumns.map((col) => {
