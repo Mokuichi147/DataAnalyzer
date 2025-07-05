@@ -178,10 +178,16 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       
       switch (activeAnalysis) {
         case 'basic':
-          if (selectedColumns.length === 1) {
-            results = useMemoryStore 
-              ? await getBasicStatisticsMemory(tableName, selectedColumns[0])
-              : await getBasicStatisticsOriginal(tableName, selectedColumns[0])
+          if (selectedColumns.length >= 1) {
+            // 複数列の基本統計量を取得
+            const allStats = []
+            for (const column of selectedColumns) {
+              const stats = useMemoryStore 
+                ? await getBasicStatisticsMemory(tableName, column)
+                : await getBasicStatisticsOriginal(tableName, column)
+              allStats.push({ columnName: column, ...stats })
+            }
+            results = allStats
           }
           break
           
@@ -263,7 +269,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: BarChart, 
       description: '平均、標準偏差、四分位数など',
       minColumns: 1,
-      maxColumns: 1
+      maxColumns: 10
     },
     { 
       key: 'correlation' as const, 
@@ -492,14 +498,61 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
   }
 }
 
-function BasicStatsResults({ stats }: { stats: BasicStats }) {
+function BasicStatsResults({ stats }: { stats: any }) {
   console.log('BasicStatsResults received:', stats)
   
+  // 複数列の統計量の場合（配列）
+  if (Array.isArray(stats)) {
+    if (stats.length === 0) {
+      return (
+        <div className="text-center py-4 text-gray-600">
+          <p>基本統計の結果がありません。</p>
+        </div>
+      )
+    }
+    
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b-2 border-gray-200">
+              <th className="text-left p-3 font-medium text-gray-900">列名</th>
+              <th className="text-right p-3 font-medium text-gray-900">件数</th>
+              <th className="text-right p-3 font-medium text-gray-900">平均</th>
+              <th className="text-right p-3 font-medium text-gray-900">標準偏差</th>
+              <th className="text-right p-3 font-medium text-gray-900">最小値</th>
+              <th className="text-right p-3 font-medium text-gray-900">最大値</th>
+              <th className="text-right p-3 font-medium text-gray-900">第1四分位数</th>
+              <th className="text-right p-3 font-medium text-gray-900">中央値</th>
+              <th className="text-right p-3 font-medium text-gray-900">第3四分位数</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.map((stat, index) => (
+              <tr key={index} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                <td className="p-3 font-medium text-gray-900">{stat.columnName}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.count)}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.mean)}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.std)}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.min)}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.max)}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.quartiles?.q1)}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.quartiles?.q2)}</td>
+                <td className="p-3 text-right font-mono">{formatNumber(stat.quartiles?.q3)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+  
+  // 単一列の統計量の場合（後方互換性のため）
   if (!stats || typeof stats !== 'object') {
     return (
       <div className="text-center py-4 text-red-600">
         <p>基本統計の結果が無効です。</p>
-        <p className="text-xs mt-2">Expected object, got: {typeof stats}</p>
+        <p className="text-xs mt-2">Expected object or array, got: {typeof stats}</p>
       </div>
     )
   }
