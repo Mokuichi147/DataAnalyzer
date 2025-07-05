@@ -13,7 +13,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const [columns, setColumns] = useState<any[]>([])
   const [totalRows, setTotalRows] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  const [pageSize, setPageSize] = useState(5)
   const [isLoading, setIsLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
@@ -279,10 +279,11 @@ export function DataPreview({ tableName }: DataPreviewProps) {
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                 className="px-2 py-1 border border-gray-300 rounded text-sm"
               >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
-                <option value={200}>200</option>
               </select>
             </div>
             
