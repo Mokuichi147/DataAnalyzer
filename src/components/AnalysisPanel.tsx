@@ -199,11 +199,20 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   }
 
   const handleColumnToggle = (columnName: string) => {
-    setSelectedColumns(prev => 
-      prev.includes(columnName)
-        ? prev.filter(c => c !== columnName)
-        : [...prev, columnName]
-    )
+    const currentType = getCurrentAnalysisType()
+    if (!currentType) return
+    
+    if (currentType.minColumns === 1 && currentType.maxColumns === 1) {
+      // 単一選択の場合：ラジオボタン動作
+      setSelectedColumns([columnName])
+    } else {
+      // 複数選択の場合：チェックボックス動作
+      setSelectedColumns(prev => 
+        prev.includes(columnName)
+          ? prev.filter(c => c !== columnName)
+          : [...prev, columnName]
+      )
+    }
   }
 
   const analysisTypes = [
@@ -323,26 +332,42 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           {currentAnalysisType?.description}
           {currentAnalysisType && (
             <span className="block mt-1">
-              {currentAnalysisType.minColumns === currentAnalysisType.maxColumns
-                ? `${currentAnalysisType.minColumns}個の列を選択してください`
-                : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください`
+              {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
+                ? `1つの列を選択してください（ラジオボタン）`
+                : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
+                ? `${currentAnalysisType.minColumns}個の列を選択してください（チェックボックス）`
+                : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（チェックボックス）`
               }
             </span>
           )}
         </p>
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-          {numericColumns.map((col) => (
-            <label key={col.name} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={selectedColumns.includes(col.name)}
-                onChange={() => handleColumnToggle(col.name)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-              />
-              <span className="text-sm text-gray-700">{col.name}</span>
-            </label>
-          ))}
+          {numericColumns.map((col) => {
+            const isSingleSelect = currentAnalysisType?.minColumns === 1 && currentAnalysisType?.maxColumns === 1
+            const isSelected = selectedColumns.includes(col.name)
+            const maxReached = !isSingleSelect && currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns
+            const isDisabled = maxReached && !isSelected
+            
+            return (
+              <label 
+                key={col.name} 
+                className={`flex items-center space-x-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <input
+                  type={isSingleSelect ? "radio" : "checkbox"}
+                  name={isSingleSelect ? "single-column-selection" : undefined}
+                  checked={isSelected}
+                  disabled={isDisabled}
+                  onChange={() => handleColumnToggle(col.name)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded disabled:opacity-50"
+                />
+                <span className={`text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-700'}`}>
+                  {col.name}
+                </span>
+              </label>
+            )
+          })}
         </div>
         
         {selectedColumns.length > 0 && (
@@ -350,6 +375,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             <span className="text-sm text-gray-600">
               選択中: {selectedColumns.join(', ')}
             </span>
+            {currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns && currentAnalysisType.maxColumns > 1 && (
+              <span className="block text-xs text-amber-600 mt-1">
+                最大選択数（{currentAnalysisType.maxColumns}個）に達しました
+              </span>
+            )}
           </div>
         )}
       </div>
