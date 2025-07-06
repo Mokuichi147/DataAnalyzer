@@ -1,6 +1,19 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
+// iOS Safari対応のUUID生成関数
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // iOS Safari用のフォールバック
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 export interface DataConnection {
   id: string
   name: string
@@ -79,7 +92,7 @@ export const useDataStore = create<DataStoreState>()(
       addConnection: (connection) => {
         const newConnection: DataConnection = {
           ...connection,
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           isConnected: false,
         }
         set(state => ({
@@ -115,7 +128,7 @@ export const useDataStore = create<DataStoreState>()(
       addTable: (table) => {
         const newTable: DataTable = {
           ...table,
-          id: crypto.randomUUID(),
+          id: generateUUID(),
         }
         set(state => ({
           tables: [...state.tables, newTable]

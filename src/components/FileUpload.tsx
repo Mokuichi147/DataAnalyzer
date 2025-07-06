@@ -29,6 +29,24 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
   const { addTable, setLoading, setError } = useDataStore()
   const { addSubscription } = useRealtimeStore()
   
+  // デバイス・ブラウザ検出
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  
+  // iOS Safari対応のUUID生成関数
+  const generateUUID = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+    // iOS Safari用のフォールバック
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0
+      const v = c === 'x' ? r : (r & 0x3 | 0x8)
+      return v.toString(16)
+    })
+  }
+  
   // メモリ情報を定期的に更新
   useEffect(() => {
     const interval = setInterval(() => {
@@ -39,31 +57,66 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
   }, [])
 
   const handleFileSelect = (selectedFiles: FileList | null) => {
-    if (!selectedFiles) return
+    console.log('📂 handleFileSelect called', {
+      selectedFiles,
+      selectedFilesLength: selectedFiles?.length,
+      isIOS,
+      isSafari
+    })
+    
+    if (!selectedFiles) {
+      console.log('❌ No files selected')
+      return
+    }
+
+    console.log('📋 Selected files:', Array.from(selectedFiles).map(f => ({ 
+      name: f.name, 
+      size: f.size, 
+      type: f.type,
+      lastModified: f.lastModified 
+    })))
 
     const validFiles = Array.from(selectedFiles).filter(file => {
-      if (!isValidFileType(file)) {
+      const isValid = isValidFileType(file)
+      console.log(`🔍 File validation: ${file.name} - ${isValid ? 'VALID' : 'INVALID'}`)
+      if (!isValid) {
         setError(`サポートされていないファイル形式です: ${file.name}`)
         return false
       }
       return true
     })
 
+    console.log('✅ Valid files:', validFiles.length)
+
     const uploadedFiles: UploadedFile[] = validFiles.map(file => {
       const fileExtension = file.name.split('.').pop()?.toLowerCase()
       const isDuckDBFile = fileExtension === 'duckdb' || fileExtension === 'db'
       // .db および .duckdb ファイルはデータベースファイルとして扱う
       
-      return {
-        id: crypto.randomUUID(),
+      const uploadedFile = {
+        id: generateUUID(),
         file,
-        status: 'pending',
+        status: 'pending' as const,
         tableName: file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '_'),
         isDuckDBFile,
       }
+      
+      console.log('📄 Created uploaded file object:', {
+        id: uploadedFile.id,
+        name: file.name,
+        tableName: uploadedFile.tableName,
+        isDuckDBFile: uploadedFile.isDuckDBFile
+      })
+      
+      return uploadedFile
     })
 
-    setFiles(prev => [...prev, ...uploadedFiles])
+    console.log('💾 Setting files state with:', uploadedFiles.length, 'files')
+    setFiles(prev => {
+      const newFiles = [...prev, ...uploadedFiles]
+      console.log('📁 New files state will be:', newFiles.length, 'total files')
+      return newFiles
+    })
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -83,7 +136,20 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
   }
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('📱 handleFileInputChange called', {
+      isIOS,
+      isSafari,
+      filesLength: e.target.files?.length,
+      files: e.target.files ? Array.from(e.target.files).map(f => ({ name: f.name, size: f.size, type: f.type })) : null
+    })
     handleFileSelect(e.target.files)
+    
+    // iOS Safari対応: input要素をリセットして再選択を可能にする
+    if (isIOS && e.target) {
+      setTimeout(() => {
+        e.target.value = ''
+      }, 100)
+    }
   }
 
   const removeFile = (id: string) => {
@@ -97,10 +163,31 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
   }
 
   const processFile = async (uploadedFile: UploadedFile) => {
+    console.log('🚀 processFile started for:', {
+      fileName: uploadedFile.file.name,
+      fileSize: uploadedFile.file.size,
+      fileType: uploadedFile.file.type,
+      isDuckDBFile: uploadedFile.isDuckDBFile,
+      isIOS,
+      isSafari
+    })
+    
     try {
+      // ファイルサイズチェック
+      if (uploadedFile.file.size === 0) {
+        throw new Error('ファイルサイズが0バイトです。正しいファイルを選択してください。')
+      }
+      
+      // ファイルの有効性チェック
+      if (!uploadedFile.file.name || uploadedFile.file.name.trim() === '') {
+        throw new Error('ファイル名が無効です。')
+      }
+      
       setFiles(prev => prev.map(f => 
         f.id === uploadedFile.id ? { ...f, status: 'uploading' } : f
       ))
+
+      console.log('📁 File validation passed, processing...')
 
       if (uploadedFile.isDuckDBFile) {
         // DuckDBファイルの処理
@@ -140,7 +227,36 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
         }
       } else {
         // 通常のファイル処理
-        await createTableFromFile(uploadedFile.file, uploadedFile.tableName)
+        console.log('📊 Processing regular file...')
+        
+        try {
+          // iOS Safari用の特別処理
+          if (isIOS && isSafari) {
+            console.log('🍎 iOS Safari detected, using safe file processing')
+            
+            // ファイル読み込みテスト
+            try {
+              const testChunk = uploadedFile.file.slice(0, 1024)
+              const testText = await testChunk.text()
+              console.log('📝 File read test successful, first 50 chars:', testText.substring(0, 50))
+            } catch (readError) {
+              console.error('❌ File read test failed:', readError)
+              throw new Error('iOS Safari: ファイル読み込みができません。ファイルが破損しているか、サイズが大きすぎる可能性があります。')
+            }
+            
+            // メモリチェック
+            if (uploadedFile.file.size > 10 * 1024 * 1024) { // 10MB
+              console.warn('⚠️ Large file detected on iOS Safari')
+              throw new Error('iOS Safari: ファイルサイズが10MBを超えています。小さなファイルをお試しください。')
+            }
+          }
+          
+          await createTableFromFile(uploadedFile.file, uploadedFile.tableName)
+          console.log('✅ createTableFromFile completed successfully')
+        } catch (createError) {
+          console.error('❌ createTableFromFile failed:', createError)
+          throw new Error(`ファイル処理エラー: ${createError instanceof Error ? createError.message : '不明なエラー'}`)
+        }
 
         setFiles(prev => prev.map(f => 
           f.id === uploadedFile.id ? { ...f, status: 'success' } : f
@@ -162,42 +278,183 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
         }
 
         // 各テーブルをストアに追加
+        console.log('📋 Adding tables to store:', actualTableNames)
         for (const tableName of actualTableNames) {
           try {
-            const tableInfo = await getTableInfo(tableName)
+            console.log(`🔍 Getting table info for: ${tableName}`)
+            
+            let tableInfo
+            try {
+              tableInfo = await getTableInfo(tableName)
+              console.log('✅ getTableInfo successful, columns:', tableInfo?.length)
+            } catch (tableInfoError) {
+              console.error('❌ getTableInfo failed:', tableInfoError)
+              
+              // iOS Safari フォールバック: メモリストアから直接取得を試行
+              if (isIOS && isSafari) {
+                console.log('🍎 iOS Safari: trying memory store fallback for table info')
+                try {
+                  const { memoryDataStore } = await import('@/lib/memoryDataStore')
+                  const schema = memoryDataStore.getTableSchema(tableName)
+                  if (schema && schema.columns) {
+                    console.log('✅ Memory store fallback successful')
+                    tableInfo = schema.columns.map(col => ({
+                      column_name: col.name,
+                      column_type: col.type,
+                      null: col.nullable ? 'YES' : 'NO'
+                    }))
+                  } else {
+                    throw new Error('Memory store schema not found')
+                  }
+                } catch (memoryError) {
+                  console.error('❌ Memory store fallback failed:', memoryError)
+                  throw new Error(`テーブル情報の取得に失敗 (フォールバックも失敗): ${tableInfoError instanceof Error ? tableInfoError.message : String(tableInfoError)}`)
+                }
+              } else {
+                throw new Error(`テーブル情報の取得に失敗: ${tableInfoError instanceof Error ? tableInfoError.message : String(tableInfoError)}`)
+              }
+            }
+            
+            if (!tableInfo || tableInfo.length === 0) {
+              console.warn(`⚠️ No table info found for: ${tableName}`)
+              throw new Error(`テーブル ${tableName} の情報が見つかりません`)
+            }
+            
             const columns = tableInfo.map(col => ({
               name: col.column_name,
               type: col.column_type,
               nullable: col.null === 'YES'
             }))
 
-            const rowCount = await getTableCount(tableName)
+            console.log(`📊 Getting row count for: ${tableName}`)
+            let rowCount
+            try {
+              rowCount = await getTableCount(tableName)
+              console.log('✅ getTableCount successful, count:', rowCount)
+            } catch (rowCountError) {
+              console.error('❌ getTableCount failed:', rowCountError)
+              
+              // iOS Safari フォールバック: メモリストアから直接取得を試行
+              if (isIOS && isSafari) {
+                console.log('🍎 iOS Safari: trying memory store fallback for row count')
+                try {
+                  const { memoryDataStore } = await import('@/lib/memoryDataStore')
+                  const schema = memoryDataStore.getTableSchema(tableName)
+                  if (schema && schema.data) {
+                    rowCount = schema.data.length
+                    console.log('✅ Memory store row count fallback successful:', rowCount)
+                  } else {
+                    console.warn('⚠️ Setting default row count: 0')
+                    rowCount = 0
+                  }
+                } catch (memoryError) {
+                  console.error('❌ Memory store row count fallback failed:', memoryError)
+                  console.warn('⚠️ Setting default row count: 0')
+                  rowCount = 0
+                }
+              } else {
+                throw new Error(`行数の取得に失敗: ${rowCountError instanceof Error ? rowCountError.message : String(rowCountError)}`)
+              }
+            }
             
-            addTable({
+            console.log(`✅ Adding table to store:`, {
               name: tableName,
-              connectionId: 'file',
-              columns,
-              rowCount,
-              isLoaded: true
+              columnsCount: columns.length,
+              rowCount
             })
             
-            addSubscription({
-              tableName,
-              connectionId: 'file',
-              rowCount,
-            })
+            console.log(`📋 Adding table to store: ${tableName}`)
+            try {
+              addTable({
+                name: tableName,
+                connectionId: 'file',
+                columns,
+                rowCount,
+                isLoaded: true
+              })
+              console.log('✅ Table added to store successfully')
+              
+              addSubscription({
+                tableName,
+                connectionId: 'file',
+                rowCount,
+              })
+              console.log('✅ Subscription added successfully')
+              
+              // iOS Safari: 状態の強制更新
+              if (isIOS && isSafari) {
+                console.log('🍎 iOS Safari: forcing state update')
+                setTimeout(() => {
+                  console.log('🔄 iOS Safari: delayed state verification')
+                }, 1000)
+              }
+              
+            } catch (storeError) {
+              console.error('❌ Failed to add table to store:', storeError)
+              throw new Error(`ストアへのテーブル追加に失敗: ${storeError instanceof Error ? storeError.message : String(storeError)}`)
+            }
           } catch (tableError) {
-            console.error(`テーブル ${tableName} の追加でエラー:`, tableError)
+            console.error(`❌ Error adding table ${tableName}:`, tableError)
+            
+            // エラーの詳細情報をキャプチャ
+            let errorDetails = 'Unknown error'
+            if (tableError instanceof Error) {
+              errorDetails = `${tableError.name}: ${tableError.message}`
+              if (tableError.stack) {
+                console.error('Stack trace:', tableError.stack)
+              }
+            } else if (typeof tableError === 'object' && tableError !== null) {
+              errorDetails = JSON.stringify(tableError, Object.getOwnPropertyNames(tableError))
+            } else {
+              errorDetails = String(tableError)
+            }
+            
+            console.error(`📋 Detailed error info for table ${tableName}:`, errorDetails)
+            throw new Error(`テーブル ${tableName} の処理でエラーが発生しました: ${errorDetails}`)
           }
         }
       }
 
     } catch (error) {
+      console.error('💥 processFile error:', error)
+      
+      // エラーの完全な詳細をキャプチャ
+      let errorMessage = 'アップロードに失敗しました'
+      let errorDetails = 'Unknown error type'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+        errorDetails = `${error.name}: ${error.message}`
+        if (error.stack) {
+          console.error('💥 Error stack:', error.stack)
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error
+        errorDetails = error
+      } else if (error === null) {
+        errorMessage = 'iOS Safari: ファイル読み込みエラーが発生しました。ファイルサイズが大きすぎるか、ファイルが破損している可能性があります。'
+        errorDetails = 'null error'
+      } else if (typeof error === 'object') {
+        try {
+          errorDetails = JSON.stringify(error, Object.getOwnPropertyNames(error))
+          errorMessage = `オブジェクトエラー: ${errorDetails}`
+        } catch (jsonError) {
+          errorDetails = 'Non-serializable object error'
+          errorMessage = 'オブジェクトエラー（詳細取得不可）'
+        }
+      } else {
+        errorDetails = String(error)
+        errorMessage = `未知のエラータイプ: ${errorDetails}`
+      }
+      
+      console.error('📝 Final error message:', errorMessage)
+      console.error('🔍 Error details:', errorDetails)
+      
       setFiles(prev => prev.map(f => 
         f.id === uploadedFile.id ? { 
           ...f, 
           status: 'error', 
-          error: error instanceof Error ? error.message : 'アップロードに失敗しました'
+          error: errorMessage
         } : f
       ))
     }
@@ -279,18 +536,52 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           isDragOver
             ? 'border-blue-500 bg-blue-50'
             : 'border-gray-300 hover:border-gray-400'
-        }`}
+        } ${isMobile ? 'touch-manipulation' : ''}`}
       >
         <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
         <p className="text-lg font-medium text-gray-900 mb-2">
-          ファイルをドラッグ&ドロップ
+          {isMobile 
+            ? 'ファイルを選択してアップロード' 
+            : 'ファイルをドラッグ&ドロップ'
+          }
         </p>
-        <p className="text-gray-600 mb-4">
-          または
-        </p>
+        {!isMobile && (
+          <p className="text-gray-600 mb-4">
+            または
+          </p>
+        )}
         <button
-          onClick={() => fileInputRef.current?.click()}
-          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+          onClick={(e) => {
+            console.log('🔘 File select button clicked', { isIOS, isSafari, isMobile })
+            e.preventDefault()
+            if (fileInputRef.current) {
+              console.log('📂 Triggering file input click')
+              fileInputRef.current.click()
+            } else {
+              console.log('❌ File input ref is null')
+            }
+          }}
+          onTouchStart={(e) => {
+            // iOS Safari用の追加対策
+            if (isIOS) {
+              console.log('📱 Touch start on iOS - preparing file input')
+              e.preventDefault()
+            }
+          }}
+          onTouchEnd={(e) => {
+            // モバイル端末でのタッチサポート
+            if (isMobile) {
+              console.log('👆 Touch end on mobile')
+              e.preventDefault()
+              setTimeout(() => {
+                if (fileInputRef.current) {
+                  console.log('📂 Delayed file input click for mobile')
+                  fileInputRef.current.click()
+                }
+              }, 50)
+            }
+          }}
+          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 active:bg-blue-800 touch-manipulation"
         >
           ファイルを選択
         </button>
@@ -298,9 +589,23 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".csv,.tsv,.json,.sqlite,.sqlite3,.db,.duckdb"
+          accept={isIOS 
+            ? ".csv,.tsv,.json,.sqlite,.sqlite3,.db,.duckdb" 
+            : ".csv,.tsv,.json,.sqlite,.sqlite3,.db,.duckdb,text/csv,application/json,application/x-sqlite3,application/vnd.sqlite3"
+          }
           onChange={handleFileInputChange}
           className="hidden"
+          key={isIOS ? 'ios-input' : 'desktop-input'}
+          style={{ 
+            position: 'absolute',
+            left: '-9999px',
+            top: '-9999px',
+            opacity: 0,
+            pointerEvents: 'none'
+          }}
+          tabIndex={-1}
+          onFocus={() => console.log('📂 File input focused')}
+          onBlur={() => console.log('📂 File input blurred')}
         />
         <p className="text-sm text-gray-500 mt-4">
           対応形式: CSV, TSV, JSON, SQLite3, DuckDB
@@ -308,7 +613,22 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
         <p className="text-xs text-gray-400 mt-1">
           注意: Parquet、ExcelファイルはCSV形式にエクスポートしてからアップロードしてください
         </p>
+        
       </div>
+
+      {/* Debug Info for iOS Safari */}
+      {(isIOS || isSafari) && (
+        <div className="mt-4 p-3 bg-gray-100 border rounded-lg">
+          <p className="text-xs font-mono text-gray-600">
+            🐛 Debug: Files count = {files.length} | iOS = {isIOS ? 'Yes' : 'No'} | Safari = {isSafari ? 'Yes' : 'No'}
+          </p>
+          {files.length > 0 && (
+            <div className="mt-1 text-xs text-gray-500">
+              Files: {files.map(f => f.file.name).join(', ')}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* File List */}
       {files.length > 0 && (
@@ -396,9 +716,25 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
                         </ul>
                       </div>
                     ) : (
-                      <p className="text-sm text-green-600">
-                        テーブル「{uploadedFile.tableName}」として正常にアップロードされました
-                      </p>
+                      <div className="text-sm text-green-600">
+                        <p className="mb-2">
+                          テーブル「{uploadedFile.tableName}」として正常にアップロードされました
+                        </p>
+                        {isIOS && (
+                          <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                            <p className="text-blue-700 font-medium text-xs mb-1">🍎 iOS Safari:</p>
+                            <p className="text-blue-600 text-xs">
+                              「分析・可視化」タブでテーブルが表示されない場合は、ページを再読み込みしてください。
+                            </p>
+                            <button
+                              onClick={() => window.location.reload()}
+                              className="mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                            >
+                              ページを再読み込み
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

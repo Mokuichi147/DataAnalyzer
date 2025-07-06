@@ -1,5 +1,18 @@
 import { create } from 'zustand'
 
+// iOS Safari対応のUUID生成関数
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // iOS Safari用のフォールバック
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 export interface RealtimeSettings {
   isEnabled: boolean
   interval: number // seconds
@@ -53,7 +66,7 @@ export const useRealtimeStore = create<RealtimeStoreState>((set, get) => ({
   addSubscription: (subscription) => {
     const newSubscription: RealtimeSubscription = {
       ...subscription,
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       isActive: true,
       lastChecked: new Date(),
     }
