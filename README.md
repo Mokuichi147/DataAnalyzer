@@ -5,14 +5,15 @@ DuckDB Wasmを使用したブラウザベースのデータ分析アプリケー
 ## 主な機能
 
 ### データソース管理
-- **データベース接続**: PostgreSQL、MySQL、SQLite への接続
+- **データベース接続**: PostgreSQL、MySQL への接続
 - **接続設定の保存**: 設定を安全に保存・管理
 - **接続テスト**: データベースへの接続確認
 
 ### ファイルアップロード
 - **ドラッグ&ドロップ**: ファイルを簡単にアップロード
-- **多種類のファイル形式**: CSV、TSV、JSON、Excel、SQLite、Parquet、**DuckDB** に対応
-- **DuckDBファイル直接読み込み**: .db、.duckdb ファイルから複数テーブルを一括取り込み
+- **多種類のファイル形式**: CSV、TSV、JSON、SQLite に対応
+- **DBファイル直接読み込み**: .db、.sqlite ファイルから複数テーブルを一括取り込み
+- **Parquet対応**: 高効率なカラム型データ形式をサポート
 - **バッチ処理**: 複数ファイルの同時処理
 
 ### データ設定・プレビュー
@@ -100,10 +101,8 @@ DuckDB Wasmを使用したブラウザベースのデータ分析アプリケー
 - **CSV**: カンマ区切りテキスト
 - **TSV**: タブ区切りテキスト
 - **JSON**: JSON形式のデータ
-- **Excel**: .xlsx, .xls ファイル
-- **SQLite**: .sqlite, .sqlite3 ファイル（自動識別）
+- **SQLite**: .db, .sqlite, .sqlite3 ファイル
 - **Parquet**: Apache Parquet形式
-- **DuckDB**: .db, .duckdb ファイル（制限あり - 代替手段を推奨）
 
 ## 分析機能詳細
 
@@ -161,36 +160,6 @@ npm run preview
 - **サンプルデータ生成**: 定期的なダミーデータ挿入
 - **監視確認**: 実際の変更検出をテスト
 
-## DuckDBファイル入力機能
-
-### 重要な制限事項
-DuckDB Wasmはセキュリティ上の制限により、DuckDBファイル（.db、.duckdb）の直接読み込みに制限があります。
-
-### 推奨される代替手段
-DuckDBのデータを本アプリケーションで使用する場合、以下の形式でエクスポートしてください：
-
-#### 1. Parquet形式（推奨）
-```sql
-COPY table_name TO 'output.parquet' (FORMAT PARQUET);
-```
-- 高いパフォーマンス
-- データ型の完全保持
-- 圧縮効率が高い
-
-#### 2. CSV形式
-```sql
-COPY table_name TO 'output.csv' (FORMAT CSV, HEADER);
-```
-- 汎用性が高い
-- テキストエディタで確認可能
-
-#### 3. JSON形式
-```sql
-COPY table_name TO 'output.json' (FORMAT JSON);
-```
-- 階層データに対応
-- ウェブ標準形式
-
 ### サポート機能
 - **自動フォーマット検出**: アップロードされたファイルの形式を自動識別
 - **一括処理**: 複数ファイルの同時アップロード・処理
@@ -199,8 +168,7 @@ COPY table_name TO 'output.json' (FORMAT JSON);
 
 ## 今後の拡張予定
 
-- **データベース接続強化**: PostgreSQL/MySQL用のWALログ監視
+- **ファイルサポート**: Parquet、DuckDB、Excel
 - **機械学習**: 予測モデルの構築
 - **ダッシュボード**: カスタマイズ可能なダッシュボード
-- **データ変換**: ETL機能の追加
 - **共有機能**: 分析結果の共有・エクスポート
