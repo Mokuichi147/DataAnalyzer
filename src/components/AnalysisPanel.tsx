@@ -125,10 +125,16 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   console.log('AnalysisPanel props:', { tableName, columns })
   console.log('AnalysisPanel state:', { activeAnalysis, selectedColumns, analysisResults, isLoading })
   
-  // 分析タイプが変更されたときに結果をクリア
+  // 分析タイプが変更されたときに結果をクリアし、カラム分析の場合は自動実行
   useEffect(() => {
     setAnalysisResults(null)
     setSelectedColumns([])
+    
+    // カラム分析の場合は自動的に全カラムを選択して実行
+    if (activeAnalysis === 'column' && availableColumns.length > 0) {
+      const autoSelectedColumns = availableColumns.slice(0, 10).map(col => col.name) // 最大10カラム
+      setSelectedColumns(autoSelectedColumns)
+    }
   }, [activeAnalysis])
   
   // テーブルが変更されたときに結果をクリア
@@ -136,6 +142,47 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     setAnalysisResults(null)
     setSelectedColumns([])
   }, [tableName])
+
+  // 選択されたカラムが変更されたとき、条件を満たしていれば自動実行
+  useEffect(() => {
+    if (selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
+      runAnalysis()
+    }
+  }, [selectedColumns, tableName])
+
+  // データ変更を監視して分析結果を自動更新
+  useEffect(() => {
+    const handleDataChange = (event: CustomEvent) => {
+      console.log('🔄 dataChanged event received:', event.detail)
+      const { tableName: changedTable, changeType, count } = event.detail
+      
+      console.log('📊 Analysis Panel state:', {
+        currentTableName: tableName,
+        changedTable,
+        hasAnalysisResults: !!analysisResults,
+        selectedColumnsCount: selectedColumns.length,
+        isLoading
+      })
+      
+      if (changedTable === tableName && selectedColumns.length > 0 && !isLoading) {
+        console.log('✅ Conditions met, re-running analysis for table:', changedTable)
+        runAnalysis()
+      } else {
+        console.log('❌ Conditions not met for auto-refresh:', {
+          tableMatch: changedTable === tableName,
+          hasSelectedColumns: selectedColumns.length > 0,
+          notLoading: !isLoading
+        })
+      }
+    }
+
+    console.log('🎧 Setting up dataChanged listener for table:', tableName)
+    window.addEventListener('dataChanged', handleDataChange as EventListener)
+    return () => {
+      console.log('🔇 Removing dataChanged listener for table:', tableName)
+      window.removeEventListener('dataChanged', handleDataChange as EventListener)
+    }
+  }, [tableName, selectedColumns, isLoading])
   
   if (!tableName) {
     return <div className="text-center py-8 text-gray-500">テーブル名が設定されていません</div>
@@ -448,7 +495,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             onClick={() => {
               setAnalysisResults(null)
               setSelectedColumns([])
-              setActiveAnalysis('basic')
+              setActiveAnalysis('column')
             }}
             className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
           >
@@ -459,7 +506,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             disabled={!canRunAnalysis || isLoading}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? '分析中...' : '分析実行'}
+            {isLoading ? '分析中...' : '手動実行'}
           </button>
         </div>
       </div>
@@ -485,18 +532,26 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       </div>
 
       <div className="bg-white border rounded-lg p-4">
-        <h3 className="font-medium text-gray-900 mb-3">
-          列選択 ({currentAnalysisType?.label})
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-medium text-gray-900">
+            列選択 ({currentAnalysisType?.label})
+          </h3>
+          {isLoading && (
+            <div className="flex items-center space-x-2 text-sm text-blue-600">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>分析実行中...</span>
+            </div>
+          )}
+        </div>
         <p className="text-sm text-gray-600 mb-4">
           {currentAnalysisType?.description}
           {currentAnalysisType && (
             <span className="block mt-1">
               {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
-                ? `1つの列を選択してください（ラジオボタン）`
+                ? `1つの列を選択してください（自動実行）`
                 : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
-                ? `${currentAnalysisType.minColumns}個の列を選択してください（チェックボックス）`
-                : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（チェックボックス）`
+                ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
+                : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
               }
               {availableColumns.length === 0 && (
                 <span className="block mt-1 text-amber-600 font-medium">

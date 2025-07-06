@@ -198,11 +198,15 @@ export function setupRealtimeMonitoring() {
     const { currentTable } = useDataStore.getState()
     const { settings } = useRealtimeStore.getState()
     
+    // 常にデータ変更イベントを発生させる（設定に関係なく）
+    window.dispatchEvent(new CustomEvent('dataChanged', { 
+      detail: { tableName, changeType, count } 
+    }))
+    console.log('📡 Dispatched dataChanged event:', { tableName, changeType, count })
+    
+    // 追加で、現在のテーブルに対する自動リフレッシュ処理
     if (settings.autoRefresh && currentTable?.name === tableName) {
-      // データプレビューの自動更新をトリガー
-      window.dispatchEvent(new CustomEvent('dataChanged', { 
-        detail: { tableName, changeType, count } 
-      }))
+      console.log('🔄 Auto-refresh triggered for current table:', tableName)
     }
   })
   

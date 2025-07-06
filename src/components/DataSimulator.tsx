@@ -77,6 +77,17 @@ export function DataSimulator() {
       })
 
       console.log('Table added to store')
+      
+      // テーブル作成イベントを発生させる
+      window.dispatchEvent(new CustomEvent('dataChanged', { 
+        detail: { 
+          tableName: simulationSettings.tableName, 
+          changeType: 'inserted', 
+          count: initialData.length 
+        } 
+      }))
+      console.log('Dispatched dataChanged event for table creation:', simulationSettings.tableName)
+      
       alert(`サンプルテーブル「${simulationSettings.tableName}」を作成しました（${initialData.length}件のデータ）`)
     } catch (error) {
       console.error('Failed to create sample table:', error)
@@ -121,6 +132,16 @@ export function DataSimulator() {
         }
 
         console.log(`Inserted ${newRecords.length} records into ${simulationSettings.tableName}`)
+        
+        // データ変更イベントを発生させる
+        window.dispatchEvent(new CustomEvent('dataChanged', { 
+          detail: { 
+            tableName: simulationSettings.tableName, 
+            changeType: 'inserted', 
+            count: newRecords.length 
+          } 
+        }))
+        console.log('Dispatched dataChanged event for', simulationSettings.tableName)
       } catch (error) {
         console.error('Failed to insert simulated data:', error)
       }

@@ -85,21 +85,25 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   // リアルタイム更新のリスナー
   useEffect(() => {
-    if (!realtimeSettings.autoRefresh) return
-
     const handleDataChange = (event: CustomEvent) => {
+      console.log('🔄 DataPreview: dataChanged event received:', event.detail)
       const { tableName: changedTable } = event.detail
       if (changedTable === tableName) {
+        console.log('✅ DataPreview: Reloading data for table:', changedTable)
         loadData()
         setLastRefresh(new Date())
+      } else {
+        console.log('❌ DataPreview: Table mismatch:', { current: tableName, changed: changedTable })
       }
     }
 
+    console.log('🎧 DataPreview: Setting up dataChanged listener for table:', tableName)
     window.addEventListener('dataChanged', handleDataChange as EventListener)
     return () => {
+      console.log('🔇 DataPreview: Removing dataChanged listener for table:', tableName)
       window.removeEventListener('dataChanged', handleDataChange as EventListener)
     }
-  }, [tableName, realtimeSettings.autoRefresh])
+  }, [tableName])
 
   const totalPages = Math.ceil(totalRows / pageSize)
 
