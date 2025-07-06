@@ -435,23 +435,23 @@ export async function getTimeSeriesData(
     const values = workingData.map(d => d.value)
     const mean = values.reduce((sum, val) => sum + val, 0) / values.length
     
-    // 移動平均の計算（効率的な実装）
+    // 移動平均の計算（正確な実装）
     const movingAverageWindow = Math.max(3, Math.floor(workingData.length / 20))
-    const movingAverage = []
-    let windowSum = 0
-    
-    // 初期窓の計算
-    for (let i = 0; i < Math.min(movingAverageWindow, workingData.length); i++) {
-      windowSum += workingData[i].value
-    }
+    const movingAverage: number[] = []
     
     for (let i = 0; i < workingData.length; i++) {
-      if (i >= movingAverageWindow) {
-        // 窓をスライド
-        windowSum = windowSum - workingData[i - movingAverageWindow].value + workingData[i].value
+      // 各ポイントで使用可能なウィンドウサイズを計算
+      const windowStart = Math.max(0, i - movingAverageWindow + 1)
+      const windowEnd = i + 1
+      const currentWindowSize = windowEnd - windowStart
+      
+      // 現在のウィンドウ内の値の合計を計算
+      let windowSum = 0
+      for (let j = windowStart; j < windowEnd; j++) {
+        windowSum += workingData[j].value
       }
       
-      const currentWindowSize = Math.min(movingAverageWindow, i + 1)
+      // 移動平均を計算
       movingAverage.push(windowSum / currentWindowSize)
     }
 
