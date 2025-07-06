@@ -99,7 +99,7 @@ interface AnalysisPanelProps {
 }
 
 export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
-  const [activeAnalysis, setActiveAnalysis] = useState<AnalysisType>('basic')
+  const [activeAnalysis, setActiveAnalysis] = useState<AnalysisType>('column')
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
   const [analysisResults, setAnalysisResults] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -291,6 +291,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
   const analysisTypes = [
     { 
+      key: 'column' as const, 
+      label: 'カラム分析', 
+      icon: Database, 
+      description: 'ユニーク値、NULL割合、データ品質等の詳細分析',
+      minColumns: 1,
+      maxColumns: 10
+    },
+    { 
       key: 'basic' as const, 
       label: '基本統計量', 
       icon: BarChart, 
@@ -337,14 +345,6 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       description: '時間経過による変化を分析',
       minColumns: 1,
       maxColumns: 1
-    },
-    { 
-      key: 'column' as const, 
-      label: 'カラム分析', 
-      icon: Database, 
-      description: 'ユニーク値、NULL割合、データ品質等の詳細分析',
-      minColumns: 1,
-      maxColumns: 10
     }
   ]
 
