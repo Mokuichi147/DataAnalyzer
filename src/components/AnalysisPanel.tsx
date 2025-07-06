@@ -145,14 +145,43 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     return <div className="text-center py-8 text-gray-500">カラム情報が取得できません</div>
   }
 
-  // 数値型の判定（メモリ内データストアの場合、すべてTEXTなので実際のデータから判定）
+  // 分析タイプに応じた適切なカラムフィルタリング
+  const getAvailableColumns = () => {
+    switch (activeAnalysis) {
+      case 'basic':
+      case 'correlation':
+      case 'changepoint':
+      case 'factor':
+      case 'histogram':
+      case 'timeseries':
+        // 数値型のカラムのみ
+        return columns.filter(col => 
+          col.type.includes('INT') || 
+          col.type.includes('FLOAT') || 
+          col.type.includes('DOUBLE') ||
+          col.type.includes('DECIMAL') ||
+          col.type.includes('NUMBER')
+        )
+      case 'column':
+        // カラム分析は全カラム
+        return columns
+      case 'text':
+        // テキスト分析はTEXTカラムのみ
+        return columns.filter(col => col.type === 'TEXT')
+      default:
+        return columns
+    }
+  }
+
+  const availableColumns = getAvailableColumns()
+  
+  // 後方互換性のため numericColumns を維持
   const numericColumns = columns.filter(col => 
     col.type.includes('INT') || 
     col.type.includes('FLOAT') || 
     col.type.includes('DOUBLE') ||
     col.type.includes('DECIMAL') ||
     col.type.includes('NUMBER') ||
-    // TEXTタイプでも数値として扱えるものを含める（仮で全て含める）
     col.type === 'TEXT'
   )
 
@@ -314,11 +343,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     const currentType = getCurrentAnalysisType()
     if (!currentType) return
     
-    const maxSelectable = Math.min(currentType.maxColumns, numericColumns.length)
-    const availableColumns = numericColumns.map(col => col.name)
+    const maxSelectable = Math.min(currentType.maxColumns, availableColumns.length)
+    const availableColumnNames = availableColumns.map(col => col.name)
     
     // 既に選択されている列は維持し、残りのスロットに未選択の列を追加
-    const unselectedColumns = availableColumns.filter(col => !selectedColumns.includes(col))
+    const unselectedColumns = availableColumnNames.filter(col => !selectedColumns.includes(col))
     const remainingSlots = maxSelectable - selectedColumns.length
     const newSelections = unselectedColumns.slice(0, remainingSlots)
     
@@ -398,7 +427,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
   const currentAnalysisType = analysisTypes.find(t => t.key === activeAnalysis)
   const canRunAnalysis = selectedColumns.length >= (currentAnalysisType?.minColumns || 1) &&
-                        selectedColumns.length <= (currentAnalysisType?.maxColumns || 10)
+                        selectedColumns.length <= (currentAnalysisType?.maxColumns || 10) &&
+                        availableColumns.length > 0
 
   if (!tableName) {
     return (
@@ -468,20 +498,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
                 ? `${currentAnalysisType.minColumns}個の列を選択してください（チェックボックス）`
                 : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（チェックボックス）`
               }
+              {availableColumns.length === 0 && (
+                <span className="block mt-1 text-amber-600 font-medium">
+                  ⚠️ この分析に適した列がありません
+                </span>
+              )}
             </span>
           )}
         </p>
         
         {/* 複数選択可能な場合のみ全選択・選択解除ボタンを表示 */}
-        {currentAnalysisType && currentAnalysisType.maxColumns > 1 && (
+        {currentAnalysisType && currentAnalysisType.maxColumns > 1 && availableColumns.length > 0 && (
           <div className="flex items-center space-x-2 mb-3">
             <button
               onClick={handleSelectAll}
-              disabled={selectedColumns.length >= Math.min(currentAnalysisType.maxColumns, numericColumns.length)}
+              disabled={selectedColumns.length >= Math.min(currentAnalysisType.maxColumns, availableColumns.length)}
               className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               全て選択
-              {currentAnalysisType.maxColumns < numericColumns.length && 
+              {currentAnalysisType.maxColumns < availableColumns.length && 
                 ` (最大${currentAnalysisType.maxColumns}個)`
               }
             </button>
@@ -498,8 +533,9 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           </div>
         )}
         
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-          {numericColumns.map((col) => {
+        {availableColumns.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {availableColumns.map((col) => {
             const isSingleSelect = currentAnalysisType?.minColumns === 1 && currentAnalysisType?.maxColumns === 1
             const isSelected = selectedColumns.includes(col.name)
             const maxReached = !isSingleSelect && currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns
@@ -523,8 +559,18 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
                 </span>
               </label>
             )
-          })}
-        </div>
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p className="text-sm">この分析タイプに適したカラムがありません</p>
+            <p className="text-xs mt-2">
+              {activeAnalysis === 'basic' && '数値型のカラムが必要です'}
+              {activeAnalysis === 'text' && 'TEXT型のカラムが必要です'}
+              {(activeAnalysis === 'correlation' || activeAnalysis === 'factor') && '数値型のカラムが2つ以上必要です'}
+            </p>
+          </div>
+        )}
         
         {selectedColumns.length > 0 && (
           <div className="mt-3 p-2 bg-gray-50 rounded">
