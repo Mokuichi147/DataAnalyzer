@@ -116,6 +116,7 @@ interface AnalysisPanelProps {
 export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const [activeAnalysis, setActiveAnalysis] = useState<AnalysisType>('column')
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
+  const [xAxisColumn, setXAxisColumn] = useState<string>('index') // 横軸カラム選択
   const [analysisResults, setAnalysisResults] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation'>('moving_average')
@@ -177,6 +178,13 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       runAnalysis()
     }
   }, [changePointAlgorithm])
+
+  // 横軸カラムが変更されたとき、自動実行（時系列分析と変化点検出のみ）
+  useEffect(() => {
+    if ((activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
+      runAnalysis()
+    }
+  }, [xAxisColumn])
 
   // データ変更を監視して分析結果を自動更新
   useEffect(() => {
@@ -246,6 +254,23 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       default:
         return columns
     }
+  }
+
+  // 横軸に使用可能なカラムを取得（数値型、日時型、INDEX）
+  const getXAxisColumns = () => {
+    const availableColumns = columns.filter(col => 
+      col.type.includes('INT') || 
+      col.type.includes('FLOAT') || 
+      col.type.includes('DOUBLE') ||
+      col.type.includes('DECIMAL') ||
+      col.type.includes('NUMBER') ||
+      col.type.includes('DATE') ||
+      col.type.includes('TIME') ||
+      col.type.includes('TIMESTAMP')
+    )
+    
+    // INDEXオプションを先頭に追加
+    return [{ name: 'index', type: 'INDEX', nullable: false, label: 'INDEX（行番号）' }, ...availableColumns.map(col => ({ ...col, label: col.name }))]
   }
 
   const availableColumns = getAvailableColumns()
@@ -327,7 +352,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         case 'changepoint':
           if (selectedColumns.length >= 1) {
             results = useMemoryStore
-              ? await detectChangePointsMemory(tableName, selectedColumns[0], { algorithm: changePointAlgorithm })
+              ? await detectChangePointsMemory(tableName, selectedColumns[0], { algorithm: changePointAlgorithm, xColumn: xAxisColumn })
               : await detectChangePointsOriginal(tableName, selectedColumns[0])
           }
           break
@@ -351,7 +376,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         case 'timeseries':
           if (selectedColumns.length === 1) {
             results = useMemoryStore
-              ? await getTimeSeriesDataMemory(tableName, selectedColumns[0], 'index')
+              ? await getTimeSeriesDataMemory(tableName, selectedColumns[0], xAxisColumn)
               : dateColumns.length > 0 
                 ? await getTimeSeriesDataOriginal(tableName, selectedColumns[0], dateColumns[0].name)
                 : null
@@ -770,6 +795,32 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               </div>
             </label>
           </div>
+        </div>
+      )}
+
+      {/* 横軸カラム選択（時系列分析と変化点検出のみ） */}
+      {(activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && availableColumns.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-blue-900 mb-3 flex items-center">
+            <LineChart className="h-4 w-4 mr-2" />
+            横軸（X軸）カラムを選択
+          </h4>
+          <div className="mb-2">
+            <select
+              value={xAxisColumn}
+              onChange={(e) => setXAxisColumn(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {getXAxisColumns().map((col) => (
+                <option key={col.name} value={col.name}>
+                  {col.label || col.name} ({col.type})
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs text-blue-700">
+            横軸に使用するカラムを選択してください。INDEXは行番号を表します。
+          </p>
         </div>
       )}
 

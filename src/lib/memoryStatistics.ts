@@ -45,6 +45,7 @@ export type ChangePointAlgorithm = 'moving_average' | 'cusum' | 'ewma' | 'binary
 
 export interface ChangePointOptions {
   algorithm?: ChangePointAlgorithm
+  xColumn?: string // 横軸カラム名（デフォルトは'index'）
   // 移動平均法用パラメータ
   windowSize?: number
   threshold?: number
@@ -323,10 +324,17 @@ export async function detectChangePoints(
       throw new Error(`Table ${tableName} not found`)
     }
 
-    const rawData = table.data.map((row, index) => ({
-      index,
-      value: parseFloat(row[columnName] || '0') || 0
-    })).filter(item => !isNaN(item.value))
+    const xColumn = options.xColumn || 'index'
+    
+    const rawData = table.data.map((row, index) => {
+      const xValue = xColumn === 'index' ? index : (parseFloat(row[xColumn] || '0') || 0)
+      const yValue = parseFloat(row[columnName] || '0') || 0
+      
+      return {
+        index: xValue,
+        value: yValue
+      }
+    }).filter(item => !isNaN(item.value) && !isNaN(item.index))
     
     if (rawData.length < 10) {
       return {
@@ -566,7 +574,7 @@ export async function getHistogramData(
 export async function getTimeSeriesData(
   tableName: string,
   valueColumn: string,
-  dateColumn: string
+  xColumn: string
 ): Promise<any> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
@@ -577,11 +585,16 @@ export async function getTimeSeriesData(
     const startTime = performance.now()
 
     // データの準備
-    const rawData = table.data.map((row, index) => ({
-      time: row[dateColumn] || index.toString(),
-      value: isNumeric(row[valueColumn]) ? parseFloat(row[valueColumn]) : 0,
-      index
-    })).filter(item => !isNaN(item.value))
+    const rawData = table.data.map((row, index) => {
+      const xValue = xColumn === 'index' ? index : (row[xColumn] || index)
+      const yValue = isNumeric(row[valueColumn]) ? parseFloat(row[valueColumn]) : 0
+      
+      return {
+        time: xValue.toString(),
+        value: yValue,
+        index: xValue
+      }
+    }).filter(item => !isNaN(item.value))
 
     if (rawData.length === 0) {
       return {
