@@ -34,11 +34,11 @@ export function isValidFileType(file: File): boolean {
     'text/plain',
     'application/x-sqlite3',
     'application/vnd.sqlite3',
-    'application/octet-stream' // SQLite/DuckDBファイルの場合
+    'application/octet-stream' // SQLiteファイルの場合
   ]
   
   const validExtensions = [
-    'csv', 'tsv', 'txt', 'json', 'sqlite', 'sqlite3', 'db', 'duckdb'
+    'csv', 'tsv', 'txt', 'json', 'sqlite', 'sqlite3', 'db'
   ]
   
   const fileExtension = file.name.split('.').pop()?.toLowerCase()

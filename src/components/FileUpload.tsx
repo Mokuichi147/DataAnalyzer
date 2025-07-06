@@ -590,8 +590,8 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           type="file"
           multiple
           accept={isIOS 
-            ? ".csv,.tsv,.json,.sqlite,.sqlite3,.db,.duckdb" 
-            : ".csv,.tsv,.json,.sqlite,.sqlite3,.db,.duckdb,text/csv,application/json,application/x-sqlite3,application/vnd.sqlite3"
+            ? ".csv,.tsv,.json,.sqlite,.sqlite3,.db" 
+            : ".csv,.tsv,.json,.sqlite,.sqlite3,.db,text/csv,application/json,application/x-sqlite3,application/vnd.sqlite3"
           }
           onChange={handleFileInputChange}
           className="hidden"
@@ -608,10 +608,7 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
           onBlur={() => console.log('📂 File input blurred')}
         />
         <p className="text-sm text-gray-500 mt-4">
-          対応形式: CSV, TSV, JSON, SQLite3, DuckDB
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          注意: Parquet、ExcelファイルはCSV形式にエクスポートしてからアップロードしてください
+          対応形式: CSV, TSV, JSON, SQLite3
         </p>
         
       </div>
