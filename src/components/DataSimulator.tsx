@@ -28,24 +28,34 @@ export function DataSimulator() {
         console.log('Table did not exist, proceeding with creation')
       }
 
-      // 初期データを生成
+      // 初期データを生成（数値分析に適したデータ）
       const initialData = Array.from({ length: 20 }, (_, i) => ({
         id: i + 1,
         timestamp: new Date(Date.now() - (20 - i) * 60000).toISOString(),
-        value: Math.random() * 100,
+        temperature: Math.round((Math.random() * 40 + 10) * 100) / 100, // 10-50℃
+        humidity: Math.round((Math.random() * 60 + 30) * 100) / 100, // 30-90%
+        pressure: Math.round((Math.random() * 200 + 950) * 100) / 100, // 950-1150hPa
+        sales: Math.round(Math.random() * 10000 + 1000), // 1000-11000円
+        score: Math.round((Math.random() * 40 + 60) * 100) / 100, // 60-100点
         category: ['A', 'B', 'C'][Math.floor(Math.random() * 3)],
-        status: ['active', 'inactive'][Math.floor(Math.random() * 2)]
+        status: ['active', 'inactive'][Math.floor(Math.random() * 2)],
+        description: `Sample text data ${i + 1} - ${['良好', '普通', '要改善'][Math.floor(Math.random() * 3)]}`
       }))
 
       console.log('Generated initial data:', initialData.length, 'records')
 
-      // メモリストアにテーブルを作成
+      // メモリストアにテーブルを作成（数値カラムをNUMBERとして定義）
       memoryDataStore.createTable(simulationSettings.tableName, [
-        { name: 'id', type: 'INTEGER', nullable: false },
+        { name: 'id', type: 'NUMBER', nullable: false },
         { name: 'timestamp', type: 'TEXT', nullable: false },
-        { name: 'value', type: 'TEXT', nullable: false },
+        { name: 'temperature', type: 'NUMBER', nullable: false },
+        { name: 'humidity', type: 'NUMBER', nullable: false },
+        { name: 'pressure', type: 'NUMBER', nullable: false },
+        { name: 'sales', type: 'NUMBER', nullable: false },
+        { name: 'score', type: 'NUMBER', nullable: false },
         { name: 'category', type: 'TEXT', nullable: false },
         { name: 'status', type: 'TEXT', nullable: false },
+        { name: 'description', type: 'TEXT', nullable: false },
       ])
 
       // 初期データを挿入
@@ -53,9 +63,14 @@ export function DataSimulator() {
         memoryDataStore.insertRow(simulationSettings.tableName, {
           id: record.id.toString(),
           timestamp: record.timestamp,
-          value: record.value.toString(),
+          temperature: record.temperature.toString(),
+          humidity: record.humidity.toString(),
+          pressure: record.pressure.toString(),
+          sales: record.sales.toString(),
+          score: record.score.toString(),
           category: record.category,
-          status: record.status
+          status: record.status,
+          description: record.description
         })
       }
 
@@ -66,11 +81,16 @@ export function DataSimulator() {
         name: simulationSettings.tableName,
         connectionId: 'file',
         columns: [
-          { name: 'id', type: 'TEXT', nullable: false },
+          { name: 'id', type: 'NUMBER', nullable: false },
           { name: 'timestamp', type: 'TEXT', nullable: false },
-          { name: 'value', type: 'TEXT', nullable: false },
+          { name: 'temperature', type: 'NUMBER', nullable: false },
+          { name: 'humidity', type: 'NUMBER', nullable: false },
+          { name: 'pressure', type: 'NUMBER', nullable: false },
+          { name: 'sales', type: 'NUMBER', nullable: false },
+          { name: 'score', type: 'NUMBER', nullable: false },
           { name: 'category', type: 'TEXT', nullable: false },
           { name: 'status', type: 'TEXT', nullable: false },
+          { name: 'description', type: 'TEXT', nullable: false },
         ],
         rowCount: initialData.length,
         isLoaded: true
@@ -118,13 +138,21 @@ export function DataSimulator() {
           : 0
 
         // 新しいレコードを生成
-        const newRecords = Array.from({ length: simulationSettings.recordsPerBatch }, (_, i) => ({
-          id: (maxId + i + 1).toString(),
-          timestamp: new Date().toISOString(),
-          value: (Math.random() * 100).toFixed(2),
-          category: ['A', 'B', 'C'][Math.floor(Math.random() * 3)],
-          status: ['active', 'inactive'][Math.floor(Math.random() * 2)]
-        }))
+        const newRecords = Array.from({ length: simulationSettings.recordsPerBatch }, (_, i) => {
+          const recordId = maxId + i + 1
+          return {
+            id: recordId.toString(),
+            timestamp: new Date().toISOString(),
+            temperature: (Math.random() * 40 + 10).toFixed(2), // 10-50℃
+            humidity: (Math.random() * 60 + 30).toFixed(2), // 30-90%
+            pressure: (Math.random() * 200 + 950).toFixed(2), // 950-1150hPa
+            sales: Math.round(Math.random() * 10000 + 1000).toString(), // 1000-11000円
+            score: (Math.random() * 40 + 60).toFixed(2), // 60-100点
+            category: ['A', 'B', 'C'][Math.floor(Math.random() * 3)],
+            status: ['active', 'inactive'][Math.floor(Math.random() * 2)],
+            description: `Sample text data ${recordId} - ${['良好', '普通', '要改善'][Math.floor(Math.random() * 3)]}`
+          }
+        })
 
         // データを挿入
         for (const record of newRecords) {
