@@ -533,25 +533,51 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {analysisTypes.map((type) => (
-          <div
-            key={type.key}
-            onClick={() => setActiveAnalysis(type.key)}
-            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-              activeAnalysis === type.key
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="flex items-center mb-2">
-              <type.icon className="h-5 w-5 text-gray-600 mr-2" />
-              <h3 className="font-medium text-gray-900">{type.label}</h3>
-            </div>
-            <p className="text-sm text-gray-600 whitespace-pre-line">{type.description}</p>
+      {/* 分析タイプ選択：コンパクトなカード形式 */}
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-gray-700 mb-3">分析手法を選択</h3>
+        <div className="max-h-64 overflow-y-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {analysisTypes.map((type) => (
+              <div
+                key={type.key}
+                onClick={() => setActiveAnalysis(type.key)}
+                className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 hover:scale-105 ${
+                  activeAnalysis === type.key
+                    ? 'border-blue-500 bg-blue-50 shadow-md'
+                    : 'border-gray-200 hover:border-blue-300 hover:shadow-sm bg-white'
+                }`}
+              >
+                <div className="flex flex-col items-center text-center space-y-1.5">
+                  <type.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${
+                    activeAnalysis === type.key ? 'text-blue-600' : 'text-gray-600'
+                  }`} />
+                  <h3 className={`text-xs font-medium leading-tight min-h-[2.5rem] flex items-center justify-center ${
+                    activeAnalysis === type.key ? 'text-blue-900' : 'text-gray-900'
+                  }`}>
+                    {type.label}
+                  </h3>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
+
+      {/* 選択された分析の詳細説明 */}
+      {currentAnalysisType && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <currentAnalysisType.icon className="h-6 w-6 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-medium text-blue-900 mb-2">{currentAnalysisType.label}</h3>
+              <p className="text-sm text-blue-800 whitespace-pre-line">
+                {currentAnalysisType.description}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white border rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
@@ -565,24 +591,30 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             </div>
           )}
         </div>
-        <p className="text-sm text-gray-600 mb-4 whitespace-pre-line">
-          {currentAnalysisType?.description}
+        
+        {/* 列選択の指示と警告 */}
+        <div className="mb-4">
           {currentAnalysisType && (
-            <span className="block mt-1">
+            <p className="text-sm text-gray-700 mb-2">
               {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
                 ? `1つの列を選択してください（自動実行）`
                 : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
                 ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
                 : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
               }
-              {availableColumns.length === 0 && (
-                <span className="block mt-1 text-amber-600 font-medium">
-                  ⚠️ この分析に適した列がありません
-                </span>
-              )}
-            </span>
+            </p>
           )}
-        </p>
+          {availableColumns.length === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+              <div className="flex items-center">
+                <span className="text-amber-600 mr-2">⚠️</span>
+                <span className="text-amber-800 text-sm font-medium">
+                  この分析に適した列がありません
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
         
         {/* 複数選択可能な場合のみ全選択・選択解除ボタンを表示 */}
         {currentAnalysisType && currentAnalysisType.maxColumns > 1 && availableColumns.length > 0 && (
