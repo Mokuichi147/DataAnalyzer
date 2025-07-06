@@ -430,25 +430,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const analysisTypes = [
     { 
       key: 'column' as const, 
-      label: 'カラム分析', 
+      label: 'データ型推定・品質分析', 
       icon: Database, 
-      description: 'ユニーク値、NULL割合、データ品質等の詳細分析',
+      description: '【手法】正規表現パターンマッチング\n【内容】データ型の自動判定（整数・小数・日付・真偽値）、NULL値の分析、ユニーク値の検出、データ品質の総合評価',
       minColumns: 1,
       maxColumns: 10
     },
     { 
       key: 'basic' as const, 
-      label: '基本統計量', 
+      label: '記述統計量', 
       icon: BarChart, 
-      description: '平均、標準偏差、四分位数など',
+      description: '【手法】算術平均・母集団標準偏差・分位数計算\n【内容】平均値、標準偏差、四分位数（Q1, Q2, Q3）、最小値・最大値による数値データの分布特性を要約',
       minColumns: 1,
       maxColumns: 10
     },
     { 
       key: 'correlation' as const, 
-      label: '相関分析', 
+      label: 'ピアソン相関分析', 
       icon: TrendingUp, 
-      description: '変数間の相関係数',
+      description: '【手法】ピアソンの積率相関係数\n【内容】変数間の線形関係の強さを-1〜+1で測定。+1に近いほど正の相関、-1に近いほど負の相関が強い',
       minColumns: 2,
       maxColumns: 10
     },
@@ -456,39 +456,39 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       key: 'changepoint' as const, 
       label: '変化点検出', 
       icon: Zap, 
-      description: '時系列データの変化点を検出',
+      description: '【手法】移動平均差分法 + 2σルール\n【内容】短期移動平均（5期間）と長期移動平均（10期間）の差分から、データの急激な変化点を統計的に検出',
       minColumns: 1,
       maxColumns: 1
     },
     { 
       key: 'factor' as const, 
-      label: '因子分析', 
+      label: '主成分分析（PCA）', 
       icon: Activity, 
-      description: '主成分分析による次元削減',
+      description: '【手法】分散共分散行列の固有値分解\n【内容】多次元データを少数の主成分に集約し、寄与率・累積寄与率を計算してデータの構造を解析',
       minColumns: 2,
       maxColumns: 10
     },
     { 
       key: 'histogram' as const, 
-      label: 'ヒストグラム', 
+      label: 'ヒストグラム分析', 
       icon: BarChart, 
-      description: 'データの分布を可視化',
+      description: '【手法】等幅ビン分割法\n【内容】データの範囲を等間隔に分割し、各区間の頻度を計算することで、データの分布形状や偏りを可視化',
       minColumns: 1,
       maxColumns: 1
     },
     { 
       key: 'timeseries' as const, 
-      label: '時系列分析', 
+      label: '時系列集約分析', 
       icon: LineChart, 
-      description: '時間経過による変化を分析',
+      description: '【手法】DATE_TRUNC集約関数\n【内容】時間軸での集約（時間・日・週・月単位）により、時系列データのトレンドや周期性を分析',
       minColumns: 1,
       maxColumns: 1
     },
     { 
       key: 'text' as const, 
-      label: 'テキスト分析', 
+      label: 'テキスト・言語分析', 
       icon: Type, 
-      description: '文字・単語頻度、パターン、言語分析',
+      description: '【手法】TinySegmenter形態素解析 + Flesch改良読みやすさ指標\n【内容】日本語の分かち書き、文字種分析、パターン検出（メール・URL・電話番号）、文章の読みやすさ評価',
       minColumns: 1,
       maxColumns: 1
     }
@@ -548,7 +548,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               <type.icon className="h-5 w-5 text-gray-600 mr-2" />
               <h3 className="font-medium text-gray-900">{type.label}</h3>
             </div>
-            <p className="text-sm text-gray-600">{type.description}</p>
+            <p className="text-sm text-gray-600 whitespace-pre-line">{type.description}</p>
           </div>
         ))}
       </div>
@@ -565,7 +565,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             </div>
           )}
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-gray-600 mb-4 whitespace-pre-line">
           {currentAnalysisType?.description}
           {currentAnalysisType && (
             <span className="block mt-1">
