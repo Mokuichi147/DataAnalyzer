@@ -87,7 +87,7 @@ export function RealtimeManager() {
             className="p-2 text-gray-600 hover:text-gray-800"
             title="ブラウザ通知を有効にする"
           >
-            {Notification.permission === 'granted' ? (
+            {typeof Notification !== 'undefined' && Notification.permission === 'granted' ? (
               <Bell className="h-5 w-5 text-green-600" />
             ) : (
               <BellOff className="h-5 w-5" />

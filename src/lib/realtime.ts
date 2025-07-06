@@ -136,7 +136,7 @@ export class ChangeNotificationManager {
     this.notifyListeners()
     
     // ブラウザ通知（ユーザーが許可している場合）
-    if (Notification.permission === 'granted') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(`データ変更検出: ${tableName}`, {
         body: `${count}件の${this.getChangeTypeText(changeType)}が検出されました`,
         icon: '/favicon.ico',
@@ -224,7 +224,7 @@ export function setupRealtimeMonitoring() {
 
 // ブラウザ通知の許可を要求
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (!('Notification' in window)) {
+  if (typeof Notification === 'undefined' || !('Notification' in window)) {
     console.warn('This browser does not support notifications')
     return false
   }
@@ -237,6 +237,11 @@ export async function requestNotificationPermission(): Promise<boolean> {
     return false
   }
   
-  const permission = await Notification.requestPermission()
-  return permission === 'granted'
+  try {
+    const permission = await Notification.requestPermission()
+    return permission === 'granted'
+  } catch (error) {
+    console.warn('Failed to request notification permission:', error)
+    return false
+  }
 }
