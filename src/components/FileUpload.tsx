@@ -694,7 +694,7 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
                       処理中...
                       {/^((?!chrome|android).)*safari/i.test(navigator.userAgent) && (
                         <span className="block text-xs text-gray-500 mt-1">
-                          🍎 Safari環境: 大容量ファイルの処理には時間がかかる場合があります
+                          ⏳ 大容量ファイルの処理には時間がかかる場合があります
                         </span>
                       )}
                     </p>
