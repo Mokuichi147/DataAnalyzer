@@ -191,10 +191,10 @@ function App() {
             </div>
           )}
           {activeTab === 'analysis' && (
-            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <div className="md:bg-white md:rounded-lg md:shadow md:p-6">
               {currentTable ? (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="space-y-4 md:space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 md:p-0 bg-white md:bg-transparent rounded-lg md:rounded-none shadow md:shadow-none md:mb-4">
                     <div>
                       <h2 className="text-lg font-medium text-gray-900">分析・可視化</h2>
                       <p className="text-sm text-gray-600">
@@ -206,7 +206,7 @@ function App() {
                     </div>
                     <button
                       onClick={() => setCurrentTable(null)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
+                      className="text-sm text-blue-600 hover:text-blue-800 self-start sm:self-auto"
                     >
                       テーブルを変更
                     </button>
@@ -220,7 +220,7 @@ function App() {
                   />
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-4 md:space-y-6 p-4 md:p-0 bg-white md:bg-transparent rounded-lg md:rounded-none shadow md:shadow-none">
                   <div className="flex justify-between items-center">
                     <h2 className="text-lg font-medium text-gray-900">テーブル選択</h2>
                     {tables.length > 0 && (

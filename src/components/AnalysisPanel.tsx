@@ -642,9 +642,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       </div>
 
       {analysisResults && (
-        <div className="bg-white border rounded-lg p-6">
+        <div className="bg-white border rounded-lg p-4 md:p-6">
           <h3 className="font-medium text-gray-900 mb-4">分析結果</h3>
-          <AnalysisResults type={activeAnalysis} results={analysisResults} />
+          <div className="overflow-hidden">
+            <AnalysisResults type={activeAnalysis} results={analysisResults} />
+          </div>
         </div>
       )}
       
@@ -1249,42 +1251,42 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {data.map((column, index) => (
-        <div key={index} className="bg-white border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div key={index} className="bg-gray-50 md:bg-white border rounded-lg p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div>
-              <h4 className="text-lg font-medium text-gray-900">{column.columnName}</h4>
+              <h4 className="text-lg font-medium text-gray-900 break-words">{column.columnName}</h4>
               <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
                 {column.dataType}
               </span>
             </div>
-            <div className="text-right text-sm text-gray-600">
+            <div className="text-left sm:text-right text-sm text-gray-600">
               総行数: {formatNumber(column.totalRows)}
             </div>
           </div>
 
           {/* 基本情報 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="text-center p-3 bg-gray-50 rounded">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
               <div className="text-2xl font-bold text-blue-600">{formatNumber(column.uniqueValues)}</div>
               <div className="text-sm text-gray-600">ユニーク値</div>
             </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-2xl font-bold text-red-600">{formatNumber(column.nullCount)}</div>
-              <div className="text-sm text-gray-600">NULL値</div>
+            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
+              <div className="text-xl md:text-2xl font-bold text-red-600">{formatNumber(column.nullCount)}</div>
+              <div className="text-xs md:text-sm text-gray-600">NULL値</div>
               <div className="text-xs text-gray-500">({formatPercentage(column.nullPercentage)}%)</div>
             </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-2xl font-bold text-orange-600">{formatNumber(column.emptyStringCount)}</div>
-              <div className="text-sm text-gray-600">空文字</div>
+            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
+              <div className="text-xl md:text-2xl font-bold text-orange-600">{formatNumber(column.emptyStringCount)}</div>
+              <div className="text-xs md:text-sm text-gray-600">空文字</div>
               <div className="text-xs text-gray-500">({formatPercentage(column.emptyStringPercentage)}%)</div>
             </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-2xl font-bold text-green-600">
+            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
+              <div className="text-xl md:text-2xl font-bold text-green-600">
                 {calculateValidDataPercentage(column)}%
               </div>
-              <div className="text-sm text-gray-600">{getValidDataLabel(column)}</div>
+              <div className="text-xs md:text-sm text-gray-600">{getValidDataLabel(column)}</div>
             </div>
           </div>
 
