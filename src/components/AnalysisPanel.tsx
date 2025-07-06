@@ -125,6 +125,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
   const [analysisResults, setAnalysisResults] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation'>('moving_average')
   const { setError } = useDataStore()
   
   console.log('AnalysisPanel props:', { tableName, columns })
@@ -176,6 +177,13 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       runAnalysis()
     }
   }, [selectedColumns, tableName])
+
+  // 変化点検出アルゴリズムが変更されたとき、自動実行
+  useEffect(() => {
+    if (activeAnalysis === 'changepoint' && selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
+      runAnalysis()
+    }
+  }, [changePointAlgorithm])
 
   // データ変更を監視して分析結果を自動更新
   useEffect(() => {
@@ -325,7 +333,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         case 'changepoint':
           if (selectedColumns.length >= 1) {
             results = useMemoryStore
-              ? await detectChangePointsMemory(tableName, selectedColumns[0])
+              ? await detectChangePointsMemory(tableName, selectedColumns[0], { algorithm: changePointAlgorithm })
               : await detectChangePointsOriginal(tableName, selectedColumns[0])
           }
           break
@@ -461,7 +469,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       key: 'changepoint' as const, 
       label: '変化点検出', 
       icon: Zap, 
-      description: '【手法】移動平均差分法 + 2σルール\n【内容】短期移動平均（5期間）と長期移動平均（10期間）の差分から、データの急激な変化点を統計的に検出',
+      description: '【手法】Moving Average / CUSUM / EWMA / Binary Segmentation\n【内容】選択可能な4つのアルゴリズムでデータの急激な変化点を統計的に検出。小さな変化から大きな構造変化まで対応',
       minColumns: 1,
       maxColumns: 1
     },
@@ -699,6 +707,77 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           </div>
         )}
       </div>
+
+      {/* 変化点検出アルゴリズム選択 */}
+      {activeAnalysis === 'changepoint' && availableColumns.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-yellow-900 mb-3 flex items-center">
+            <Zap className="h-4 w-4 mr-2" />
+            変化点検出アルゴリズムを選択
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name="changepoint-algorithm"
+                value="moving_average"
+                checked={changePointAlgorithm === 'moving_average'}
+                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">移動平均法</div>
+                <div className="text-xs text-gray-600">短期・長期移動平均の差分で検出。安定した結果。</div>
+              </div>
+            </label>
+            
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name="changepoint-algorithm"
+                value="cusum"
+                checked={changePointAlgorithm === 'cusum'}
+                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">CUSUM</div>
+                <div className="text-xs text-gray-600">累積和による検出。小さな変化にも敏感。</div>
+              </div>
+            </label>
+            
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name="changepoint-algorithm"
+                value="ewma"
+                checked={changePointAlgorithm === 'ewma'}
+                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">EWMA</div>
+                <div className="text-xs text-gray-600">指数重み付き移動平均。最近のデータを重視。</div>
+              </div>
+            </label>
+            
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name="changepoint-algorithm"
+                value="binary_segmentation"
+                checked={changePointAlgorithm === 'binary_segmentation'}
+                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">Binary Segmentation</div>
+                <div className="text-xs text-gray-600">再帰的分割法。複数の構造変化に適用。</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
 
       {analysisResults && (
         <div className="bg-white border rounded-lg p-4 md:p-6">
@@ -990,22 +1069,39 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
         
         {/* 統計情報の表示 */}
         {statistics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-xl font-bold text-gray-900">{points.length}</div>
-              <div className="text-sm text-gray-600">変化点数</div>
+          <div className="space-y-4 mb-4">
+            {/* アルゴリズム情報 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <Zap className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  使用アルゴリズム: {statistics.algorithm || 'Moving Average'}
+                </span>
+              </div>
             </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-xl font-bold text-gray-900">{(statistics.averageConfidence * 100).toFixed(1)}%</div>
-              <div className="text-sm text-gray-600">平均信頼度</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-xl font-bold text-gray-900">{formatNumber(statistics.threshold)}</div>
-              <div className="text-sm text-gray-600">検出閾値</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-xl font-bold text-gray-900">{formatNumber(statistics.globalStd)}</div>
-              <div className="text-sm text-gray-600">標準偏差</div>
+            
+            {/* 統計指標 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-gray-50 rounded">
+                <div className="text-xl font-bold text-gray-900">{points.length}</div>
+                <div className="text-sm text-gray-600">変化点数</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded">
+                <div className="text-xl font-bold text-gray-900">{(statistics.averageConfidence * 100).toFixed(1)}%</div>
+                <div className="text-sm text-gray-600">平均信頼度</div>
+              </div>
+              {statistics.threshold && (
+                <div className="text-center p-3 bg-gray-50 rounded">
+                  <div className="text-xl font-bold text-gray-900">{formatNumber(statistics.threshold)}</div>
+                  <div className="text-sm text-gray-600">検出閾値</div>
+                </div>
+              )}
+              {statistics.globalStd && (
+                <div className="text-center p-3 bg-gray-50 rounded">
+                  <div className="text-xl font-bold text-gray-900">{formatNumber(statistics.globalStd)}</div>
+                  <div className="text-sm text-gray-600">標準偏差</div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1022,9 +1118,10 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
                 <th className="text-left p-3 font-medium text-gray-900">インデックス</th>
                 <th className="text-right p-3 font-medium text-gray-900">値</th>
                 <th className="text-right p-3 font-medium text-gray-900">信頼度</th>
-                <th className="text-right p-3 font-medium text-gray-900">変化前平均</th>
-                <th className="text-right p-3 font-medium text-gray-900">変化後平均</th>
-                <th className="text-right p-3 font-medium text-gray-900">差分</th>
+                {points[0]?.beforeMean !== undefined && <th className="text-right p-3 font-medium text-gray-900">変化前平均</th>}
+                {points[0]?.afterMean !== undefined && <th className="text-right p-3 font-medium text-gray-900">変化後平均</th>}
+                {points[0]?.difference !== undefined && <th className="text-right p-3 font-medium text-gray-900">差分</th>}
+                {points[0]?.algorithm && <th className="text-center p-3 font-medium text-gray-900">アルゴリズム</th>}
               </tr>
             </thead>
             <tbody>
@@ -1041,9 +1138,14 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
                       {(point.confidence * 100).toFixed(1)}%
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono">{formatNumber(point.beforeMean)}</td>
-                  <td className="p-3 text-right font-mono">{formatNumber(point.afterMean)}</td>
-                  <td className="p-3 text-right font-mono">{formatNumber(point.difference)}</td>
+                  {point.beforeMean !== undefined && <td className="p-3 text-right font-mono">{formatNumber(point.beforeMean)}</td>}
+                  {point.afterMean !== undefined && <td className="p-3 text-right font-mono">{formatNumber(point.afterMean)}</td>}
+                  {point.difference !== undefined && <td className="p-3 text-right font-mono">{formatNumber(point.difference)}</td>}
+                  {point.algorithm && <td className="p-3 text-center">
+                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-xs font-medium">
+                      {point.algorithm}
+                    </span>
+                  </td>}
                 </tr>
               ))}
             </tbody>

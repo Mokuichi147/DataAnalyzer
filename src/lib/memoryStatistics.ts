@@ -41,6 +41,23 @@ export interface ColumnAnalysisResult {
   }
 }
 
+export type ChangePointAlgorithm = 'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation'
+
+export interface ChangePointOptions {
+  algorithm?: ChangePointAlgorithm
+  // 移動平均法用パラメータ
+  windowSize?: number
+  threshold?: number
+  // CUSUM用パラメータ
+  cusumThreshold?: number
+  delta?: number
+  // EWMA用パラメータ
+  lambda?: number
+  ewmaThreshold?: number
+  // Binary Segmentation用パラメータ
+  minSegmentSize?: number
+}
+
 // 数値に変換できるかチェック
 function isNumeric(value: any): boolean {
   return !isNaN(parseFloat(value)) && isFinite(value)
@@ -172,9 +189,133 @@ export async function getCorrelationMatrix(
   }
 }
 
+// CUSUM変化点検出アルゴリズム
+function detectCUSUM(data: Array<{index: number, value: number}>, threshold: number = 5, delta: number = 1) {
+  const values = data.map(d => d.value)
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length
+  
+  let cusumPlus = 0
+  let cusumMinus = 0
+  const changePoints = []
+  
+  for (let i = 0; i < data.length; i++) {
+    cusumPlus = Math.max(0, cusumPlus + data[i].value - mean - delta)
+    cusumMinus = Math.min(0, cusumMinus + data[i].value - mean + delta)
+    
+    if (cusumPlus > threshold || Math.abs(cusumMinus) > threshold) {
+      const confidence = Math.min(Math.max(cusumPlus, Math.abs(cusumMinus)) / threshold, 3.0) / 3.0
+      changePoints.push({
+        index: data[i].index,
+        originalIndex: i,
+        value: data[i].value,
+        confidence,
+        cusumPlus,
+        cusumMinus,
+        algorithm: 'CUSUM'
+      })
+      // CUSUMをリセット
+      cusumPlus = 0
+      cusumMinus = 0
+    }
+  }
+  
+  return changePoints
+}
+
+// EWMA変化点検出アルゴリズム
+function detectEWMA(data: Array<{index: number, value: number}>, lambda: number = 0.1, threshold: number = 3) {
+  const values = data.map(d => d.value)
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length
+  const std = Math.sqrt(values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length)
+  
+  let ewma = mean
+  const changePoints = []
+  
+  for (let i = 0; i < data.length; i++) {
+    ewma = lambda * data[i].value + (1 - lambda) * ewma
+    const deviation = Math.abs(data[i].value - ewma) / std
+    
+    if (deviation > threshold) {
+      const confidence = Math.min(deviation / threshold, 3.0) / 3.0
+      changePoints.push({
+        index: data[i].index,
+        originalIndex: i,
+        value: data[i].value,
+        confidence,
+        ewma,
+        deviation,
+        algorithm: 'EWMA'
+      })
+    }
+  }
+  
+  return changePoints
+}
+
+// Binary Segmentation変化点検出アルゴリズム
+function detectBinarySegmentation(data: Array<{index: number, value: number}>, minSegmentSize: number = 5) {
+  const values = data.map(d => d.value)
+  
+  function calculateVariance(segment: number[], start: number, end: number): number {
+    const segmentData = segment.slice(start, end)
+    const mean = segmentData.reduce((sum, val) => sum + val, 0) / segmentData.length
+    return segmentData.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0)
+  }
+  
+  function findBestSplit(start: number, end: number): {index: number, score: number} | null {
+    if (end - start < 2 * minSegmentSize) return null
+    
+    let bestSplit = -1
+    let bestScore = Infinity
+    
+    for (let i = start + minSegmentSize; i < end - minSegmentSize; i++) {
+      const leftVariance = calculateVariance(values, start, i)
+      const rightVariance = calculateVariance(values, i, end)
+      const totalVariance = leftVariance + rightVariance
+      
+      if (totalVariance < bestScore) {
+        bestScore = totalVariance
+        bestSplit = i
+      }
+    }
+    
+    return bestSplit > -1 ? {index: bestSplit, score: bestScore} : null
+  }
+  
+  const changePoints = []
+  const segments = [{start: 0, end: values.length}]
+  
+  while (segments.length > 0) {
+    const segment = segments.pop()!
+    const split = findBestSplit(segment.start, segment.end)
+    
+    if (split) {
+      const globalVariance = calculateVariance(values, 0, values.length)
+      const confidence = Math.min(1 - (split.score / globalVariance), 1.0)
+      
+      if (confidence > 0.1) { // 閾値
+        changePoints.push({
+          index: data[split.index].index,
+          originalIndex: split.index,
+          value: data[split.index].value,
+          confidence,
+          score: split.score,
+          algorithm: 'Binary Segmentation'
+        })
+        
+        segments.push({start: segment.start, end: split.index})
+        segments.push({start: split.index, end: segment.end})
+      }
+    }
+  }
+  
+  return changePoints.sort((a, b) => a.originalIndex - b.originalIndex)
+}
+
 export async function detectChangePoints(
   tableName: string,
-  columnName: string
+  columnName: string,
+  options: ChangePointOptions = {}
 ): Promise<any> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
@@ -202,59 +343,84 @@ export async function detectChangePoints(
     const sampledResult = sampleForChangePoint(rawData, 2000)
     const workingData = sampledResult.data
 
-    // 効率的な変化点検出（O(n)アルゴリズム）
-    const windowSize = Math.max(3, Math.min(10, Math.floor(workingData.length / 20)))
-    const changePoints = []
-    
-    // 移動平均と分散を効率的に計算
-    let beforeSum = 0
-    let afterSum = 0
-    
-    // 初期窓の計算
-    for (let i = 0; i < windowSize; i++) {
-      beforeSum += workingData[i].value
-    }
-    for (let i = windowSize; i < Math.min(windowSize * 2, workingData.length); i++) {
-      afterSum += workingData[i].value
-    }
-    
-    const beforeMean = beforeSum / windowSize
-    let afterMean = afterSum / Math.min(windowSize, workingData.length - windowSize)
-    
-    // 全体の標準偏差を計算
-    const allValues = workingData.map(d => d.value)
-    const globalMean = allValues.reduce((sum, val) => sum + val, 0) / allValues.length
-    const globalStd = Math.sqrt(
-      allValues.reduce((sum, val) => sum + Math.pow(val - globalMean, 2), 0) / allValues.length
-    )
-    
-    const threshold = globalStd * 2 // 2σルール
-    
-    for (let i = windowSize; i < workingData.length - windowSize; i++) {
-      // 移動窓の効率的更新
-      if (i > windowSize) {
-        beforeSum = beforeSum - workingData[i - windowSize - 1].value + workingData[i - 1].value
-        afterSum = afterSum - workingData[i + windowSize - 1].value + workingData[Math.min(i + windowSize, workingData.length - 1)].value
-      }
-      
-      const beforeMeanCurrent = beforeSum / windowSize
-      const afterMeanCurrent = afterSum / windowSize
-      
-      const difference = Math.abs(afterMeanCurrent - beforeMeanCurrent)
-      
-      if (difference > threshold) {
-        const confidence = Math.min(difference / threshold, 3.0) / 3.0 // 0-1に正規化
+    // アルゴリズムの選択とパラメータの設定
+    const {
+      algorithm = 'moving_average',
+      windowSize = Math.max(3, Math.min(10, Math.floor(workingData.length / 20))),
+      threshold = 2,
+      cusumThreshold = 5,
+      delta = 1,
+      lambda = 0.1,
+      ewmaThreshold = 3,
+      minSegmentSize = 5
+    } = options
+
+    // 選択されたアルゴリズムで変化点検出を実行
+    let changePoints: any[] = []
+    let algorithmName = ''
+
+    switch (algorithm) {
+      case 'cusum':
+        changePoints = detectCUSUM(workingData, cusumThreshold, delta)
+        algorithmName = 'CUSUM'
+        break
+      case 'ewma':
+        changePoints = detectEWMA(workingData, lambda, ewmaThreshold)
+        algorithmName = 'EWMA'
+        break
+      case 'binary_segmentation':
+        changePoints = detectBinarySegmentation(workingData, minSegmentSize)
+        algorithmName = 'Binary Segmentation'
+        break
+      case 'moving_average':
+      default:
+        // 元の移動平均法を実行
+        const allValues = workingData.map(d => d.value)
+        const globalMean = allValues.reduce((sum, val) => sum + val, 0) / allValues.length
+        const globalStd = Math.sqrt(
+          allValues.reduce((sum, val) => sum + Math.pow(val - globalMean, 2), 0) / allValues.length
+        )
         
-        changePoints.push({
-          index: workingData[i].index, // 元のインデックス
-          originalIndex: i, // サンプリング後のインデックス
-          value: workingData[i].value,
-          confidence,
-          beforeMean: beforeMeanCurrent,
-          afterMean: afterMeanCurrent,
-          difference
-        })
-      }
+        const detectionThreshold = globalStd * threshold
+        let beforeSum = 0
+        let afterSum = 0
+        
+        // 初期窓の計算
+        for (let i = 0; i < windowSize; i++) {
+          beforeSum += workingData[i].value
+        }
+        for (let i = windowSize; i < Math.min(windowSize * 2, workingData.length); i++) {
+          afterSum += workingData[i].value
+        }
+        
+        for (let i = windowSize; i < workingData.length - windowSize; i++) {
+          // 移動窓の効率的更新
+          if (i > windowSize) {
+            beforeSum = beforeSum - workingData[i - windowSize - 1].value + workingData[i - 1].value
+            afterSum = afterSum - workingData[i + windowSize - 1].value + workingData[Math.min(i + windowSize, workingData.length - 1)].value
+          }
+          
+          const beforeMeanCurrent = beforeSum / windowSize
+          const afterMeanCurrent = afterSum / windowSize
+          const difference = Math.abs(afterMeanCurrent - beforeMeanCurrent)
+          
+          if (difference > detectionThreshold) {
+            const confidence = Math.min(difference / detectionThreshold, 3.0) / 3.0
+            
+            changePoints.push({
+              index: workingData[i].index,
+              originalIndex: i,
+              value: workingData[i].value,
+              confidence,
+              beforeMean: beforeMeanCurrent,
+              afterMean: afterMeanCurrent,
+              difference,
+              algorithm: 'Moving Average'
+            })
+          }
+        }
+        algorithmName = 'Moving Average'
+        break
     }
     
     // チャート用データの準備
@@ -307,9 +473,8 @@ export async function detectChangePoints(
         averageConfidence: changePoints.length > 0 
           ? changePoints.reduce((sum, cp) => sum + cp.confidence, 0) / changePoints.length 
           : 0,
-        globalMean,
-        globalStd,
-        threshold
+        algorithm: algorithmName,
+        algorithmOptions: options
       }
     }
   } catch (error) {
