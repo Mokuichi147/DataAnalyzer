@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { BarChart, LineChart, PieChart, TrendingUp, Activity, Zap, Database, Type } from 'lucide-react'
 import { Line, Bar, Scatter, Doughnut } from 'react-chartjs-2'
 import {
@@ -125,23 +125,45 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   console.log('AnalysisPanel props:', { tableName, columns })
   console.log('AnalysisPanel state:', { activeAnalysis, selectedColumns, analysisResults, isLoading })
   
-  // 分析タイプが変更されたときに結果をクリアし、カラム分析の場合は自動実行
-  useEffect(() => {
-    setAnalysisResults(null)
-    setSelectedColumns([])
-    
-    // カラム分析の場合は自動的に全カラムを選択して実行
-    if (activeAnalysis === 'column' && availableColumns.length > 0) {
-      const autoSelectedColumns = availableColumns.slice(0, 10).map(col => col.name) // 最大10カラム
-      setSelectedColumns(autoSelectedColumns)
+  // デフォルト選択ロジックを実行する関数
+  const applyDefaultSelection = useCallback(() => {
+    const currentAvailableColumns = getAvailableColumns()
+    if (currentAvailableColumns.length > 0) {
+      const currentType = analysisTypes.find(type => type.key === activeAnalysis)
+      if (currentType) {
+        let defaultColumns: string[] = []
+        
+        if (currentType.minColumns === 1 && currentType.maxColumns === 1) {
+          // 単一選択の場合：最初のカラムを選択
+          defaultColumns = [currentAvailableColumns[0].name]
+        } else if (currentType.minColumns >= 2) {
+          // 複数選択必須の場合：最小必要数まで選択（最大10カラム）
+          const selectCount = Math.min(currentType.maxColumns, currentAvailableColumns.length)
+          defaultColumns = currentAvailableColumns.slice(0, selectCount).map(col => col.name)
+        } else {
+          // その他の複数選択可能な場合：全カラムを選択（最大10カラム）
+          const selectCount = Math.min(currentType.maxColumns, currentAvailableColumns.length)
+          defaultColumns = currentAvailableColumns.slice(0, selectCount).map(col => col.name)
+        }
+        
+        setSelectedColumns(defaultColumns)
+      }
     }
-  }, [activeAnalysis])
+  }, [activeAnalysis, columns])
   
-  // テーブルが変更されたときに結果をクリア
+  // 分析タイプが変更されたときに結果をクリアし、デフォルト選択を実行
   useEffect(() => {
     setAnalysisResults(null)
     setSelectedColumns([])
-  }, [tableName])
+    applyDefaultSelection()
+  }, [activeAnalysis, applyDefaultSelection])
+  
+  // テーブルが変更されたときに結果をクリアし、デフォルト選択を実行
+  useEffect(() => {
+    setAnalysisResults(null)
+    setSelectedColumns([])
+    applyDefaultSelection()
+  }, [tableName, applyDefaultSelection])
 
   // 選択されたカラムが変更されたとき、条件を満たしていれば自動実行
   useEffect(() => {
@@ -154,7 +176,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   useEffect(() => {
     const handleDataChange = (event: CustomEvent) => {
       console.log('🔄 dataChanged event received:', event.detail)
-      const { tableName: changedTable, changeType, count } = event.detail
+      const { tableName: changedTable } = event.detail
       
       console.log('📊 Analysis Panel state:', {
         currentTableName: tableName,
