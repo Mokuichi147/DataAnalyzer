@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { Play, Pause, Database, TrendingUp } from 'lucide-react'
-import { executeQuery } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
 
 export function DataSimulator() {
@@ -15,18 +14,21 @@ export function DataSimulator() {
 
   const createSampleTable = async () => {
     try {
-      // サンプルテーブルを作成
-      await executeQuery(`
-        CREATE TABLE IF NOT EXISTS ${simulationSettings.tableName} (
-          id INTEGER,
-          timestamp TIMESTAMP,
-          value DOUBLE,
-          category VARCHAR,
-          status VARCHAR
-        )
-      `)
+      console.log('Creating sample table:', simulationSettings.tableName)
+      
+      // メモリストアを使用してテーブルを作成
+      const { memoryDataStore } = await import('@/lib/memoryDataStore')
+      
+      // テーブルが既に存在する場合は削除
+      try {
+        memoryDataStore.dropTable(simulationSettings.tableName)
+        console.log('Existing table dropped:', simulationSettings.tableName)
+      } catch (e) {
+        // テーブルが存在しない場合は無視
+        console.log('Table did not exist, proceeding with creation')
+      }
 
-      // 初期データを挿入
+      // 初期データを生成
       const initialData = Array.from({ length: 20 }, (_, i) => ({
         id: i + 1,
         timestamp: new Date(Date.now() - (20 - i) * 60000).toISOString(),
@@ -35,31 +37,50 @@ export function DataSimulator() {
         status: ['active', 'inactive'][Math.floor(Math.random() * 2)]
       }))
 
+      console.log('Generated initial data:', initialData.length, 'records')
+
+      // メモリストアにテーブルを作成
+      memoryDataStore.createTable(simulationSettings.tableName, [
+        { name: 'id', type: 'INTEGER', nullable: false },
+        { name: 'timestamp', type: 'TEXT', nullable: false },
+        { name: 'value', type: 'TEXT', nullable: false },
+        { name: 'category', type: 'TEXT', nullable: false },
+        { name: 'status', type: 'TEXT', nullable: false },
+      ])
+
+      // 初期データを挿入
       for (const record of initialData) {
-        await executeQuery(`
-          INSERT INTO ${simulationSettings.tableName} 
-          VALUES (${record.id}, '${record.timestamp}', ${record.value}, '${record.category}', '${record.status}')
-        `)
+        memoryDataStore.insertRow(simulationSettings.tableName, {
+          id: record.id.toString(),
+          timestamp: record.timestamp,
+          value: record.value.toString(),
+          category: record.category,
+          status: record.status
+        })
       }
+
+      console.log('Data inserted into memory store')
 
       // テーブルをストアに追加
       addTable({
         name: simulationSettings.tableName,
         connectionId: 'file',
         columns: [
-          { name: 'id', type: 'INTEGER', nullable: false },
-          { name: 'timestamp', type: 'TIMESTAMP', nullable: false },
-          { name: 'value', type: 'DOUBLE', nullable: false },
-          { name: 'category', type: 'VARCHAR', nullable: false },
-          { name: 'status', type: 'VARCHAR', nullable: false },
+          { name: 'id', type: 'TEXT', nullable: false },
+          { name: 'timestamp', type: 'TEXT', nullable: false },
+          { name: 'value', type: 'TEXT', nullable: false },
+          { name: 'category', type: 'TEXT', nullable: false },
+          { name: 'status', type: 'TEXT', nullable: false },
         ],
+        rowCount: initialData.length,
         isLoaded: true
       })
 
-      alert(`サンプルテーブル「${simulationSettings.tableName}」を作成しました`)
+      console.log('Table added to store')
+      alert(`サンプルテーブル「${simulationSettings.tableName}」を作成しました（${initialData.length}件のデータ）`)
     } catch (error) {
       console.error('Failed to create sample table:', error)
-      alert('サンプルテーブルの作成に失敗しました')
+      alert(`サンプルテーブルの作成に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -68,27 +89,35 @@ export function DataSimulator() {
 
     const id = setInterval(async () => {
       try {
-        // 最新のIDを取得
-        const result = await executeQuery(`
-          SELECT MAX(id) as maxId FROM ${simulationSettings.tableName}
-        `)
-        const maxId = result[0]?.maxId || 0
+        // メモリストアを使用してデータを挿入
+        const { memoryDataStore } = await import('@/lib/memoryDataStore')
+        
+        // テーブルが存在するかチェック
+        const tables = memoryDataStore.listTables()
+        if (!tables.includes(simulationSettings.tableName)) {
+          console.warn(`Table ${simulationSettings.tableName} does not exist in memory store`)
+          return
+        }
+
+        // 現在のデータを取得して最新のIDを算出
+        const tableSchema = memoryDataStore.getTableSchema(simulationSettings.tableName)
+        const currentData = tableSchema?.data || []
+        const maxId = currentData.length > 0 
+          ? Math.max(...currentData.map(row => parseInt(row.id || '0', 10))) 
+          : 0
 
         // 新しいレコードを生成
         const newRecords = Array.from({ length: simulationSettings.recordsPerBatch }, (_, i) => ({
-          id: maxId + i + 1,
+          id: (maxId + i + 1).toString(),
           timestamp: new Date().toISOString(),
-          value: Math.random() * 100,
+          value: (Math.random() * 100).toFixed(2),
           category: ['A', 'B', 'C'][Math.floor(Math.random() * 3)],
           status: ['active', 'inactive'][Math.floor(Math.random() * 2)]
         }))
 
         // データを挿入
         for (const record of newRecords) {
-          await executeQuery(`
-            INSERT INTO ${simulationSettings.tableName} 
-            VALUES (${record.id}, '${record.timestamp}', ${record.value}, '${record.category}', '${record.status}')
-          `)
+          memoryDataStore.insertRow(simulationSettings.tableName, record)
         }
 
         console.log(`Inserted ${newRecords.length} records into ${simulationSettings.tableName}`)
