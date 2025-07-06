@@ -1,4 +1,5 @@
 import { memoryDataStore } from './memoryDataStore'
+import { sampleForChangePoint, sampleTimeSeries, type SampledData } from './dataSampling'
 
 export interface BasicStats {
   count: number
@@ -174,43 +175,143 @@ export async function getCorrelationMatrix(
 export async function detectChangePoints(
   tableName: string,
   columnName: string
-): Promise<any[]> {
+): Promise<any> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
     if (!table) {
       throw new Error(`Table ${tableName} not found`)
     }
 
-    const numericValues = getNumericValues(table.data, columnName)
+    const rawData = table.data.map((row, index) => ({
+      index,
+      value: parseFloat(row[columnName] || '0') || 0
+    })).filter(item => !isNaN(item.value))
     
-    if (numericValues.length < 10) {
-      return []
+    if (rawData.length < 10) {
+      return {
+        changePoints: [],
+        chartData: [],
+        samplingInfo: null,
+        performanceMetrics: { processingTime: 0, originalSize: rawData.length }
+      }
     }
 
-    // 簡単な変化点検出（移動平均ベース）
-    const windowSize = Math.max(3, Math.floor(numericValues.length / 10))
+    const startTime = performance.now()
+    
+    // 大量データの場合はサンプリング
+    const sampledResult = sampleForChangePoint(rawData, 2000)
+    const workingData = sampledResult.data
+
+    // 効率的な変化点検出（O(n)アルゴリズム）
+    const windowSize = Math.max(3, Math.min(10, Math.floor(workingData.length / 20)))
     const changePoints = []
     
-    for (let i = windowSize; i < numericValues.length - windowSize; i++) {
-      const beforeWindow = numericValues.slice(i - windowSize, i)
-      const afterWindow = numericValues.slice(i, i + windowSize)
+    // 移動平均と分散を効率的に計算
+    let beforeSum = 0
+    let afterSum = 0
+    
+    // 初期窓の計算
+    for (let i = 0; i < windowSize; i++) {
+      beforeSum += workingData[i].value
+    }
+    for (let i = windowSize; i < Math.min(windowSize * 2, workingData.length); i++) {
+      afterSum += workingData[i].value
+    }
+    
+    const beforeMean = beforeSum / windowSize
+    let afterMean = afterSum / Math.min(windowSize, workingData.length - windowSize)
+    
+    // 全体の標準偏差を計算
+    const allValues = workingData.map(d => d.value)
+    const globalMean = allValues.reduce((sum, val) => sum + val, 0) / allValues.length
+    const globalStd = Math.sqrt(
+      allValues.reduce((sum, val) => sum + Math.pow(val - globalMean, 2), 0) / allValues.length
+    )
+    
+    const threshold = globalStd * 2 // 2σルール
+    
+    for (let i = windowSize; i < workingData.length - windowSize; i++) {
+      // 移動窓の効率的更新
+      if (i > windowSize) {
+        beforeSum = beforeSum - workingData[i - windowSize - 1].value + workingData[i - 1].value
+        afterSum = afterSum - workingData[i + windowSize - 1].value + workingData[Math.min(i + windowSize, workingData.length - 1)].value
+      }
       
-      const beforeMean = beforeWindow.reduce((sum, val) => sum + val, 0) / beforeWindow.length
-      const afterMean = afterWindow.reduce((sum, val) => sum + val, 0) / afterWindow.length
+      const beforeMeanCurrent = beforeSum / windowSize
+      const afterMeanCurrent = afterSum / windowSize
       
-      const difference = Math.abs(afterMean - beforeMean)
-      const threshold = Math.abs(beforeMean) * 0.2 // 20%の変化を検出
+      const difference = Math.abs(afterMeanCurrent - beforeMeanCurrent)
       
       if (difference > threshold) {
+        const confidence = Math.min(difference / threshold, 3.0) / 3.0 // 0-1に正規化
+        
         changePoints.push({
-          index: i,
-          value: numericValues[i],
-          confidence: Math.min(difference / threshold, 1.0)
+          index: workingData[i].index, // 元のインデックス
+          originalIndex: i, // サンプリング後のインデックス
+          value: workingData[i].value,
+          confidence,
+          beforeMean: beforeMeanCurrent,
+          afterMean: afterMeanCurrent,
+          difference
         })
       }
     }
     
-    return changePoints
+    // チャート用データの準備
+    const chartData = {
+      labels: workingData.map(d => d.index),
+      datasets: [
+        {
+          label: 'データ値',
+          data: workingData.map(d => d.value),
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.1,
+          pointRadius: 1,
+          pointHoverRadius: 4
+        },
+        {
+          label: '変化点',
+          data: changePoints.map(cp => ({
+            x: cp.originalIndex,
+            y: cp.value
+          })),
+          borderColor: 'rgb(239, 68, 68)',
+          backgroundColor: 'rgba(239, 68, 68, 0.8)',
+          type: 'scatter' as const,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          showLine: false
+        }
+      ]
+    }
+    
+    const endTime = performance.now()
+    
+    return {
+      changePoints,
+      chartData,
+      samplingInfo: sampledResult.isReduced ? {
+        originalSize: sampledResult.originalSize,
+        sampledSize: sampledResult.sampledSize,
+        samplingRatio: sampledResult.samplingRatio,
+        method: sampledResult.method
+      } : null,
+      performanceMetrics: {
+        processingTime: endTime - startTime,
+        originalSize: rawData.length,
+        processedSize: workingData.length
+      },
+      statistics: {
+        totalChangePoints: changePoints.length,
+        averageConfidence: changePoints.length > 0 
+          ? changePoints.reduce((sum, cp) => sum + cp.confidence, 0) / changePoints.length 
+          : 0,
+        globalMean,
+        globalStd,
+        threshold
+      }
+    }
   } catch (error) {
     console.error('Error detecting change points:', error)
     throw error
@@ -308,14 +409,135 @@ export async function getTimeSeriesData(
       throw new Error(`Table ${tableName} not found`)
     }
 
-    // 簡略化：インデックスを時間軸として使用
-    const result = table.data.map((row, index) => ({
-      time: index.toString(),
+    const startTime = performance.now()
+
+    // データの準備
+    const rawData = table.data.map((row, index) => ({
+      time: row[dateColumn] || index.toString(),
       value: isNumeric(row[valueColumn]) ? parseFloat(row[valueColumn]) : 0,
-      count: 1
-    }))
+      index
+    })).filter(item => !isNaN(item.value))
+
+    if (rawData.length === 0) {
+      return {
+        data: [],
+        chartData: { labels: [], datasets: [] },
+        samplingInfo: null,
+        performanceMetrics: { processingTime: 0, originalSize: 0 }
+      }
+    }
+
+    // 大量データの場合はサンプリング
+    const sampledResult = sampleTimeSeries(rawData, 1500)
+    const workingData = sampledResult.data
+
+    // 時系列統計の計算
+    const values = workingData.map(d => d.value)
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length
     
-    return result
+    // 移動平均の計算（効率的な実装）
+    const movingAverageWindow = Math.max(3, Math.floor(workingData.length / 20))
+    const movingAverage = []
+    let windowSum = 0
+    
+    // 初期窓の計算
+    for (let i = 0; i < Math.min(movingAverageWindow, workingData.length); i++) {
+      windowSum += workingData[i].value
+    }
+    
+    for (let i = 0; i < workingData.length; i++) {
+      if (i >= movingAverageWindow) {
+        // 窓をスライド
+        windowSum = windowSum - workingData[i - movingAverageWindow].value + workingData[i].value
+      }
+      
+      const currentWindowSize = Math.min(movingAverageWindow, i + 1)
+      movingAverage.push(windowSum / currentWindowSize)
+    }
+
+    // トレンド分析（線形回帰）
+    const n = workingData.length
+    const sumX = workingData.reduce((sum, _, i) => sum + i, 0)
+    const sumY = values.reduce((sum, val) => sum + val, 0)
+    const sumXY = workingData.reduce((sum, d, i) => sum + i * d.value, 0)
+    const sumXX = workingData.reduce((sum, _, i) => sum + i * i, 0)
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+    const intercept = (sumY - slope * sumX) / n
+    
+    // チャート用データの準備
+    const chartData = {
+      labels: workingData.map(d => d.time),
+      datasets: [
+        {
+          label: '実際の値',
+          data: values,
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.1,
+          pointRadius: 1,
+          pointHoverRadius: 4,
+          fill: false
+        },
+        {
+          label: `移動平均 (${movingAverageWindow}期間)`,
+          data: movingAverage,
+          borderColor: 'rgb(239, 68, 68)',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          tension: 0.2,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          borderWidth: 2,
+          fill: false
+        },
+        {
+          label: 'トレンドライン',
+          data: workingData.map((_, i) => slope * i + intercept),
+          borderColor: 'rgb(34, 197, 94)',
+          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+          tension: 0,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          borderWidth: 2,
+          borderDash: [5, 5],
+          fill: false
+        }
+      ]
+    }
+
+    const endTime = performance.now()
+
+    return {
+      data: workingData.map((d, i) => ({
+        time: d.time,
+        value: d.value,
+        movingAverage: movingAverage[i],
+        trend: slope * i + intercept,
+        index: d.index
+      })),
+      chartData,
+      samplingInfo: sampledResult.isReduced ? {
+        originalSize: sampledResult.originalSize,
+        sampledSize: sampledResult.sampledSize,
+        samplingRatio: sampledResult.samplingRatio,
+        method: sampledResult.method
+      } : null,
+      performanceMetrics: {
+        processingTime: endTime - startTime,
+        originalSize: rawData.length,
+        processedSize: workingData.length
+      },
+      statistics: {
+        mean,
+        trend: {
+          slope,
+          intercept,
+          direction: slope > 0 ? 'increasing' : slope < 0 ? 'decreasing' : 'stable'
+        },
+        movingAverageWindow,
+        totalPoints: workingData.length
+      }
+    }
   } catch (error) {
     console.error('Error generating time series data:', error)
     throw error

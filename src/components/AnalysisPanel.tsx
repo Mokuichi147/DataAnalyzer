@@ -55,6 +55,11 @@ import {
   type ReadabilityAnalysis
 } from '@/lib/textAnalysis'
 
+import {
+  getChangePointChartOptions,
+  getTimeSeriesChartOptions
+} from '@/lib/chartOptimization'
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -703,32 +708,57 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           </div>
         </div>
       )}
-      
-      {/* 常に表示されるデバッグ情報（一時的） */}
-      <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-xs">
-        <p><strong>Debug Info:</strong></p>
-        <p>activeAnalysis: {activeAnalysis}</p>
-        <p>hasResults: {analysisResults ? 'true' : 'false'}</p>
-        <p>isLoading: {isLoading ? 'true' : 'false'}</p>
-        <p>selectedColumns: [{selectedColumns.join(', ')}]</p>
-        <p>numericColumns: [{numericColumns.map(c => c.name).join(', ')}]</p>
-        <p>canRunAnalysis: {canRunAnalysis ? 'true' : 'false'}</p>
-        {analysisResults && <p>Results type: {typeof analysisResults}</p>}
+    </div>
+  )
+}
+
+// パフォーマンス情報表示コンポーネント
+function PerformanceInfo({ performanceInfo, samplingInfo }: { 
+  performanceInfo?: any, 
+  samplingInfo?: any 
+}) {
+  if (!performanceInfo && !samplingInfo) return null
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+      <div className="flex items-center space-x-2 mb-2">
+        <Activity className="h-4 w-4 text-blue-600" />
+        <span className="text-sm font-medium text-blue-900">パフォーマンス情報</span>
       </div>
       
-      {/* 強制的に結果表示テスト */}
-      <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded">
-        <p className="text-sm font-bold">Force Display Test:</p>
-        {analysisResults ? (
-          <div>
-            <p>✅ Results exist</p>
-            <p>Type: {activeAnalysis}</p>
-            <AnalysisResults type={activeAnalysis} results={analysisResults} />
-          </div>
-        ) : (
-          <p>❌ No results to display</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        {performanceInfo && (
+          <>
+            <div>
+              <div className="text-blue-600 font-medium">処理時間</div>
+              <div className="text-blue-900">{performanceInfo.processingTime}ms</div>
+            </div>
+            <div>
+              <div className="text-blue-600 font-medium">データサイズ</div>
+              <div className="text-blue-900">{performanceInfo.originalSize.toLocaleString()} → {performanceInfo.processedSize.toLocaleString()}</div>
+            </div>
+          </>
+        )}
+        
+        {samplingInfo && (
+          <>
+            <div>
+              <div className="text-blue-600 font-medium">サンプリング率</div>
+              <div className="text-blue-900">{(samplingInfo.samplingRatio * 100).toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-blue-600 font-medium">手法</div>
+              <div className="text-blue-900">{samplingInfo.method}</div>
+            </div>
+          </>
         )}
       </div>
+      
+      {samplingInfo && (
+        <div className="mt-2 text-xs text-blue-700">
+          💡 大量データのため、{samplingInfo.method}手法でサンプリングを適用しました
+        </div>
+      )}
     </div>
   )
 }
@@ -924,15 +954,111 @@ function CorrelationResults({ correlations }: { correlations: CorrelationResult[
   )
 }
 
-function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[] }) {
+function ChangePointResults({ changePoints }: { changePoints: any }) {
   console.log('ChangePointResults received:', changePoints)
-  console.log('First change point structure:', changePoints?.[0])
   
+  // 新しい形式の結果（最適化済み）かどうかを判定
+  const isOptimizedResult = changePoints && typeof changePoints === 'object' && 
+    'changePoints' in changePoints && 'chartData' in changePoints
+  
+  if (isOptimizedResult) {
+    // 最適化された結果の表示
+    const { changePoints: points, chartData, samplingInfo, performanceMetrics, statistics } = changePoints
+    
+    if (!points || points.length === 0) {
+      return (
+        <div>
+          <PerformanceInfo 
+            performanceInfo={performanceMetrics} 
+            samplingInfo={samplingInfo} 
+          />
+          <div className="text-center py-4 text-gray-600">
+            <p>変化点が検出されませんでした。</p>
+          </div>
+        </div>
+      )
+    }
+
+    const options = getChangePointChartOptions(performanceMetrics?.processedSize || points.length) as any
+
+    return (
+      <div>
+        <PerformanceInfo 
+          performanceInfo={performanceMetrics} 
+          samplingInfo={samplingInfo} 
+        />
+        
+        {/* 統計情報の表示 */}
+        {statistics && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{points.length}</div>
+              <div className="text-sm text-gray-600">変化点数</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{(statistics.averageConfidence * 100).toFixed(1)}%</div>
+              <div className="text-sm text-gray-600">平均信頼度</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{formatNumber(statistics.threshold)}</div>
+              <div className="text-sm text-gray-600">検出閾値</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{formatNumber(statistics.globalStd)}</div>
+              <div className="text-sm text-gray-600">標準偏差</div>
+            </div>
+          </div>
+        )}
+
+        <div className="h-80 mb-6">
+          <Line data={chartData} options={options} />
+        </div>
+
+        {/* 変化点詳細テーブル */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-left p-3 font-medium text-gray-900">インデックス</th>
+                <th className="text-right p-3 font-medium text-gray-900">値</th>
+                <th className="text-right p-3 font-medium text-gray-900">信頼度</th>
+                <th className="text-right p-3 font-medium text-gray-900">変化前平均</th>
+                <th className="text-right p-3 font-medium text-gray-900">変化後平均</th>
+                <th className="text-right p-3 font-medium text-gray-900">差分</th>
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((point: any, index: number) => (
+                <tr key={index} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <td className="p-3 font-medium text-gray-900">{point.index}</td>
+                  <td className="p-3 text-right font-mono">{formatNumber(point.value)}</td>
+                  <td className="p-3 text-right">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      point.confidence > 0.8 ? 'bg-red-100 text-red-800' :
+                      point.confidence > 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {(point.confidence * 100).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="p-3 text-right font-mono">{formatNumber(point.beforeMean)}</td>
+                  <td className="p-3 text-right font-mono">{formatNumber(point.afterMean)}</td>
+                  <td className="p-3 text-right font-mono">{formatNumber(point.difference)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  // 従来形式の結果（配列）の処理
   if (!changePoints || !Array.isArray(changePoints)) {
     return (
       <div className="text-center py-4 text-red-600">
         <p>変化点検出の結果が無効です。</p>
-        <p className="text-xs mt-2">Expected array, got: {typeof changePoints}</p>
+        <p className="text-xs mt-2">Expected array or optimized result, got: {typeof changePoints}</p>
       </div>
     )
   }
@@ -960,65 +1086,13 @@ function ChangePointResults({ changePoints }: { changePoints: ChangePointResult[
         (cp.confidence || 0) > 0.8 ? '#dc2626' : 
         (cp.confidence || 0) > 0.6 ? '#f59e0b' : '#6b7280'
       ),
-      pointBorderWidth: 0, // アウトラインを削除
-      pointRadius: changePoints.map(cp => 1 + (cp.confidence || 0) * 2), // 1-3の範囲でより小さく
-      pointHoverRadius: changePoints.map(cp => 2 + (cp.confidence || 0) * 3), // ホバー時は2-5の範囲
+      pointBorderWidth: 0,
+      pointRadius: changePoints.map(cp => 1 + (cp.confidence || 0) * 2),
+      pointHoverRadius: changePoints.map(cp => 2 + (cp.confidence || 0) * 3),
     }]
   }
 
-  const options = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-      title: {
-        display: true,
-        text: '変化点検出結果',
-      },
-      tooltip: {
-        callbacks: {
-          afterLabel: function(context: any) {
-            const dataIndex = context.dataIndex
-            const confidence = changePoints[dataIndex]?.confidence
-            return confidence !== undefined ? `信頼度: ${(confidence * 100).toFixed(1)}%` : ''
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: false,
-        grid: {
-          color: '#f3f4f6',
-        },
-        ticks: {
-          font: {
-            size: 11
-          }
-        }
-      },
-      x: {
-        grid: {
-          color: '#f3f4f6',
-        },
-        ticks: {
-          font: {
-            size: 11
-          }
-        }
-      }
-    },
-    elements: {
-      line: {
-        tension: 0.2, // 線をより滑らかに
-        borderWidth: 2 // 線の太さを調整
-      },
-      point: {
-        hitRadius: 8 // クリック/ホバーの反応範囲を広く
-      }
-    }
-  }
+  const options = getChangePointChartOptions(changePoints.length) as any
 
   return (
     <div>
@@ -1198,9 +1272,127 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
   )
 }
 
-function TimeSeriesResults({ data }: { data: Array<{ time: string; value: number; count: number }> }) {
+function TimeSeriesResults({ data }: { data: any }) {
   console.log('TimeSeriesResults received:', data)
   
+  // 新しい形式の結果（最適化済み）かどうかを判定
+  const isOptimizedResult = data && typeof data === 'object' && 
+    'data' in data && 'chartData' in data
+  
+  if (isOptimizedResult) {
+    // 最適化された結果の表示
+    const { data: timeSeriesData, chartData, samplingInfo, performanceMetrics, statistics } = data
+    
+    if (!timeSeriesData || timeSeriesData.length === 0) {
+      return (
+        <div>
+          <PerformanceInfo 
+            performanceInfo={performanceMetrics} 
+            samplingInfo={samplingInfo} 
+          />
+          <div className="text-center py-4 text-gray-600">
+            <p>時系列データがありません。</p>
+          </div>
+        </div>
+      )
+    }
+
+    const options = getTimeSeriesChartOptions(performanceMetrics?.processedSize || timeSeriesData.length) as any
+
+    return (
+      <div>
+        <PerformanceInfo 
+          performanceInfo={performanceMetrics} 
+          samplingInfo={samplingInfo} 
+        />
+        
+        {/* 統計情報の表示 */}
+        {statistics && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{timeSeriesData.length}</div>
+              <div className="text-sm text-gray-600">データ点数</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{formatNumber(statistics.mean)}</div>
+              <div className="text-sm text-gray-600">平均値</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{statistics.trend.direction === 'increasing' ? '↗️' : statistics.trend.direction === 'decreasing' ? '↘️' : '→'}</div>
+              <div className="text-sm text-gray-600">トレンド</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-xl font-bold text-gray-900">{statistics.movingAverageWindow}</div>
+              <div className="text-sm text-gray-600">移動平均期間</div>
+            </div>
+          </div>
+        )}
+
+        <div className="h-80 mb-6">
+          <Line data={chartData} options={options} />
+        </div>
+
+        {/* トレンド情報 */}
+        {statistics?.trend && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <h4 className="font-medium text-gray-900 mb-2">トレンド分析</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">傾き: </span>
+                <span className="font-mono">{formatNumber(statistics.trend.slope)}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">切片: </span>
+                <span className="font-mono">{formatNumber(statistics.trend.intercept)}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">方向: </span>
+                <span className={`font-medium ${
+                  statistics.trend.direction === 'increasing' ? 'text-green-600' :
+                  statistics.trend.direction === 'decreasing' ? 'text-red-600' :
+                  'text-gray-600'
+                }`}>
+                  {statistics.trend.direction === 'increasing' ? '上昇傾向' :
+                   statistics.trend.direction === 'decreasing' ? '下降傾向' : '安定'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* データサンプル表示 */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-left p-3 font-medium text-gray-900">時間</th>
+                <th className="text-right p-3 font-medium text-gray-900">実際の値</th>
+                <th className="text-right p-3 font-medium text-gray-900">移動平均</th>
+                <th className="text-right p-3 font-medium text-gray-900">トレンド値</th>
+              </tr>
+            </thead>
+            <tbody>
+              {timeSeriesData.slice(0, 10).map((row: any, index: number) => (
+                <tr key={index} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <td className="p-3 font-medium text-gray-900">{row.time}</td>
+                  <td className="p-3 text-right font-mono">{formatNumber(row.value)}</td>
+                  <td className="p-3 text-right font-mono">{formatNumber(row.movingAverage)}</td>
+                  <td className="p-3 text-right font-mono">{formatNumber(row.trend)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {timeSeriesData.length > 10 && (
+            <div className="text-center py-2 text-sm text-gray-500">
+              表示中: 上位10件 / 全{timeSeriesData.length}件
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // 従来形式の結果（配列）の処理
   if (!data || !Array.isArray(data)) {
     return (
       <div className="text-center py-4 text-red-600">
