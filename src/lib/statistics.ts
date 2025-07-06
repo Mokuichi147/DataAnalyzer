@@ -152,7 +152,7 @@ export async function performFactorAnalysis(
   numFactors: number = 2
 ): Promise<FactorAnalysisResult> {
   // 簡単な主成分分析的なアプローチ
-  const correlationMatrix = await getCorrelationMatrix(tableName, columns)
+  // const correlationMatrix = await getCorrelationMatrix(tableName, columns) // 将来的に使用予定
   
   // 分散の計算
   const variances: number[] = []
@@ -177,7 +177,7 @@ export async function performFactorAnalysis(
   const factors = eigenvalues.map((eigenvalue, i) => ({
     name: `Factor ${i + 1}`,
     variance: eigenvalue / totalVariance,
-    loadings: columns.map((column, j) => ({
+    loadings: columns.map((column) => ({
       variable: column,
       loading: Math.sqrt(eigenvalue / totalVariance) * (Math.random() - 0.5) * 2 // 簡単な近似
     }))

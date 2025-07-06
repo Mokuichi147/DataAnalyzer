@@ -1,5 +1,5 @@
-import React from 'react'
-import { AlertCircle, FileText, Download, Code } from 'lucide-react'
+// import React from 'react' // React 17+では不要
+import { AlertCircle, FileText, Code } from 'lucide-react'
 
 interface FileUploadAlternativesProps {
   errorMessage: string

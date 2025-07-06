@@ -81,7 +81,7 @@ export interface DataStoreState {
 
 export const useDataStore = create<DataStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       connections: [],
       tables: [],
       currentTable: null,

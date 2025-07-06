@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { BarChart, LineChart, PieChart, TrendingUp, Activity, Zap, Database, Type } from 'lucide-react'
-import { Line, Bar, Scatter, Doughnut } from 'react-chartjs-2'
+import { useState, useEffect, useCallback } from 'react'
+import { BarChart, LineChart, TrendingUp, Activity, Zap, Database, Type } from 'lucide-react'
+import { Line, Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,9 +21,7 @@ import {
   performFactorAnalysis as performFactorAnalysisOriginal,
   getHistogramData as getHistogramDataOriginal,
   getTimeSeriesData as getTimeSeriesDataOriginal,
-  BasicStats,
   CorrelationResult,
-  ChangePointResult,
   FactorAnalysisResult
 } from '@/lib/statistics'
 
@@ -46,13 +44,8 @@ import {
   getLanguageDetectionAnalysis,
   getSentenceAnalysis,
   getReadabilityAnalysis,
-  type TextStatistics,
   type WordFrequency,
-  type CharacterFrequency,
-  type TextPatternAnalysis,
-  type LanguageDetection,
-  type SentenceAnalysis,
-  type ReadabilityAnalysis
+  type CharacterFrequency
 } from '@/lib/textAnalysis'
 
 import {
@@ -258,14 +251,15 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const availableColumns = getAvailableColumns()
   
   // 後方互換性のため numericColumns を維持
-  const numericColumns = columns.filter(col => 
-    col.type.includes('INT') || 
-    col.type.includes('FLOAT') || 
-    col.type.includes('DOUBLE') ||
-    col.type.includes('DECIMAL') ||
-    col.type.includes('NUMBER') ||
-    col.type === 'TEXT'
-  )
+  // 数値カラムフィルタリング（未使用だが将来的に使用予定）
+  // const numericColumns = columns.filter(col => 
+  //   col.type.includes('INT') || 
+  //   col.type.includes('FLOAT') || 
+  //   col.type.includes('DOUBLE') ||
+  //   col.type.includes('DECIMAL') ||
+  //   col.type.includes('NUMBER') ||
+  //   col.type === 'TEXT'
+  // )
 
   const dateColumns = columns.filter(col => 
     col.type.includes('DATE') || 

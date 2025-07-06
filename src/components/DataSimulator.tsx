@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Play, Pause, Database, TrendingUp } from 'lucide-react'
 import { useDataStore } from '@/store/dataStore'
 

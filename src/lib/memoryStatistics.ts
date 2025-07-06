@@ -1,5 +1,5 @@
 import { memoryDataStore } from './memoryDataStore'
-import { sampleForChangePoint, sampleTimeSeries, type SampledData } from './dataSampling'
+import { sampleForChangePoint, sampleTimeSeries } from './dataSampling'
 
 export interface BasicStats {
   count: number
@@ -142,8 +142,8 @@ export async function getCorrelationMatrix(
         const col1 = columnNames[i]
         const col2 = columnNames[j]
         
-        const values1 = getNumericValues(table.data, col1)
-        const values2 = getNumericValues(table.data, col2)
+        // const values1 = getNumericValues(table.data, col1) // 直接使用しない
+        // const values2 = getNumericValues(table.data, col2) // 直接使用しない
         
         // 両方のカラムに値がある行のみを使用
         const validPairs: [number, number][] = []
@@ -484,12 +484,12 @@ export async function detectChangePoints(
 }
 
 export async function performFactorAnalysis(
-  tableName: string,
+  _tableName: string, // 将来的に使用予定
   columnNames: string[]
 ): Promise<any> {
   // 簡略化した因子分析（主成分分析の近似）
   try {
-    const correlationMatrix = await getCorrelationMatrix(tableName, columnNames)
+    // const correlationMatrix = await getCorrelationMatrix(tableName, columnNames) // 将来的に使用予定
     
     return {
       factors: [

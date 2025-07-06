@@ -294,7 +294,7 @@ function App() {
                                         // ストアからテーブル情報を削除
                                         removeTable(table.id)
                                         // 現在選択中のテーブルの場合、選択を解除
-                                        if (currentTable?.id === table.id) {
+                                        if (currentTable && typeof currentTable === 'object' && 'id' in currentTable && (currentTable as any).id === table.id) {
                                           setCurrentTable(null)
                                         }
                                       }

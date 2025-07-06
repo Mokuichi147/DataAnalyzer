@@ -44,5 +44,5 @@ export function isValidFileType(file: File): boolean {
   const fileExtension = file.name.split('.').pop()?.toLowerCase()
   
   return validTypes.includes(file.type) || 
-         (fileExtension && validExtensions.includes(fileExtension))
+         (!!fileExtension && validExtensions.includes(fileExtension))
 }

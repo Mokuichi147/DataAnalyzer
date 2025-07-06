@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Activity, 
   Bell, 
@@ -10,14 +10,12 @@ import {
   Trash2, 
   Clock,
   Database,
-  CheckCircle,
-  AlertCircle
+  CheckCircle
 } from 'lucide-react'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { useDataStore } from '@/store/dataStore'
 import { 
   changeNotificationManager, 
-  setupRealtimeMonitoring, 
   requestNotificationPermission,
   type ChangeNotification 
 } from '@/lib/realtime'
@@ -26,7 +24,7 @@ import { DataSimulator } from './DataSimulator'
 export function RealtimeManager() {
   const [showSettings, setShowSettings] = useState(false)
   const [notifications, setNotifications] = useState<ChangeNotification[]>([])
-  const [monitor] = useState(() => setupRealtimeMonitoring())
+  // const [monitor] = useState(() => setupRealtimeMonitoring()) // 将来的に使用予定
   
   const {
     settings,

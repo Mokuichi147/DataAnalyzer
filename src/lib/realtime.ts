@@ -1,4 +1,4 @@
-import { executeQuery, getTableCount } from './duckdb'
+import { getTableCount } from './duckdb'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { useDataStore } from '@/store/dataStore'
 
@@ -50,7 +50,8 @@ export class RealtimeMonitor {
   }
 
   private async checkForChanges() {
-    const { subscriptions, settings } = useRealtimeStore.getState()
+    const { subscriptions } = useRealtimeStore.getState()
+    // const settings = useRealtimeStore.getState().settings // 将来的に使用予定
     const activeSubscriptions = subscriptions.filter(sub => sub.isActive)
     
     for (const subscription of activeSubscriptions) {

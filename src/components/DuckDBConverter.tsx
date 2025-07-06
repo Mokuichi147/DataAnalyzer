@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Download, FileText, AlertCircle, Copy, CheckCircle } from 'lucide-react'
+import { useState } from 'react'
+import { FileText, AlertCircle, Copy, CheckCircle } from 'lucide-react'
 
 export function DuckDBConverter() {
   const [copied, setCopied] = useState<string | null>(null)

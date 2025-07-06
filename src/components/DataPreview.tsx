@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Eye, Filter, Download, RefreshCw } from 'lucide-react'
 import { useDataStore } from '@/store/dataStore'
 import { useRealtimeStore } from '@/store/realtimeStore'
-import { getTableData, getTableInfo, getTableCount, executeQuery } from '@/lib/duckdb'
+import { getTableInfo, getTableCount, executeQuery } from '@/lib/duckdb'
 
 interface DataPreviewProps {
   tableName: string
@@ -332,7 +332,8 @@ interface FilterPanelProps {
   tableName: string
 }
 
-function FilterPanel({ columns, tableName }: FilterPanelProps) {
+function FilterPanel({ columns }: FilterPanelProps) {
+  // tableName は将来的に使用予定
   const { filters, addFilter, removeFilter, toggleFilter, clearFilters } = useDataStore()
   const [newFilter, setNewFilter] = useState({
     column: '',

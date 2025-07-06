@@ -46,7 +46,7 @@ export interface RealtimeStoreState {
   markLastUpdate: () => void
 }
 
-export const useRealtimeStore = create<RealtimeStoreState>((set, get) => ({
+export const useRealtimeStore = create<RealtimeStoreState>((set) => ({
   settings: {
     isEnabled: false,
     interval: 30, // 30 seconds default
