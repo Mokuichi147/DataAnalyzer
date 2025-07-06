@@ -653,9 +653,11 @@ export async function getTimeSeriesData(
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           tension: 0.1,
-          pointRadius: 1,
-          pointHoverRadius: 4,
-          fill: false
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+          fill: false,
+          order: 3
         },
         {
           label: `移動平均 (${movingAverageWindow}期間)`,
@@ -665,8 +667,9 @@ export async function getTimeSeriesData(
           tension: 0.2,
           pointRadius: 0,
           pointHoverRadius: 3,
-          borderWidth: 2,
-          fill: false
+          borderWidth: 3,
+          fill: false,
+          order: 2
         },
         {
           label: 'トレンドライン',
@@ -678,7 +681,8 @@ export async function getTimeSeriesData(
           pointHoverRadius: 0,
           borderWidth: 2,
           borderDash: [5, 5],
-          fill: false
+          fill: false,
+          order: 1
         }
       ]
     }

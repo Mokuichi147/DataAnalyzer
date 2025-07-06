@@ -203,6 +203,16 @@ export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptio
           weight: 'bold' as const,
         },
       },
+      legend: {
+        ...options.plugins.legend,
+        reverse: false,
+        labels: {
+          ...options.plugins.legend?.labels,
+          sort: (a: any, b: any) => {
+            return (a.datasetIndex || 0) - (b.datasetIndex || 0)
+          }
+        }
+      },
       zoom: {
         pan: {
           enabled: true,
