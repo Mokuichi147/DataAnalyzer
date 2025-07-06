@@ -196,91 +196,86 @@ function ConnectionForm({ connection, onSave, onCancel }: ConnectionFormProps) {
             >
               <option value="postgresql">PostgreSQL</option>
               <option value="mysql">MySQL</option>
-              <option value="sqlite">SQLite</option>
             </select>
           </div>
 
-          {formData.type !== 'sqlite' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ホスト
-                </label>
-                <input
-                  type="text"
-                  value={formData.host}
-                  onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ホスト
+            </label>
+            <input
+              type="text"
+              value={formData.host}
+              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ポート
-                </label>
-                <input
-                  type="number"
-                  value={formData.port}
-                  onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ポート
+            </label>
+            <input
+              type="number"
+              value={formData.port}
+              onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  データベース名
-                </label>
-                <input
-                  type="text"
-                  value={formData.database}
-                  onChange={(e) => setFormData({ ...formData, database: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              データベース名
+            </label>
+            <input
+              type="text"
+              value={formData.database}
+              onChange={(e) => setFormData({ ...formData, database: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ユーザー名
-                </label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              ユーザー名
+            </label>
+            <input
+              type="text"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  パスワード
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              パスワード
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
 
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="ssl"
-                  checked={formData.ssl}
-                  onChange={(e) => setFormData({ ...formData, ssl: e.target.checked })}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="ssl" className="ml-2 block text-sm text-gray-700">
-                  SSL接続を使用
-                </label>
-              </div>
-            </>
-          )}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="ssl"
+              checked={formData.ssl}
+              onChange={(e) => setFormData({ ...formData, ssl: e.target.checked })}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="ssl" className="ml-2 block text-sm text-gray-700">
+              SSL接続を使用
+            </label>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button
