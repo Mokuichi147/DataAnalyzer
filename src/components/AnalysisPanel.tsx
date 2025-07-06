@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BarChart, LineChart, PieChart, TrendingUp, Activity, Zap, Database } from 'lucide-react'
+import { BarChart, LineChart, PieChart, TrendingUp, Activity, Zap, Database, Type } from 'lucide-react'
 import { Line, Bar, Scatter, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -37,6 +37,23 @@ import {
   getColumnAnalysis,
   type ColumnAnalysisResult
 } from '@/lib/memoryStatistics'
+
+import {
+  getTextStatistics,
+  getWordFrequency,
+  getCharacterFrequency,
+  getTextPatternAnalysis,
+  getLanguageDetectionAnalysis,
+  getSentenceAnalysis,
+  getReadabilityAnalysis,
+  type TextStatistics,
+  type WordFrequency,
+  type CharacterFrequency,
+  type TextPatternAnalysis,
+  type LanguageDetection,
+  type SentenceAnalysis,
+  type ReadabilityAnalysis
+} from '@/lib/textAnalysis'
 
 ChartJS.register(
   CategoryScale,
@@ -91,7 +108,7 @@ function formatNumber(value: number | undefined | null): string {
   }
 }
 
-type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column'
+type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text'
 
 interface AnalysisPanelProps {
   tableName: string
@@ -241,6 +258,29 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             results = await getColumnAnalysis(tableName, selectedColumns)
           }
           break
+          
+        case 'text':
+          if (selectedColumns.length === 1) {
+            const columnName = selectedColumns[0]
+            const textStats = await getTextStatistics(tableName, columnName)
+            const wordFreq = await getWordFrequency(tableName, columnName, 15)
+            const charFreq = await getCharacterFrequency(tableName, columnName, 15)
+            const patternAnalysis = await getTextPatternAnalysis(tableName, columnName)
+            const languageAnalysis = await getLanguageDetectionAnalysis(tableName, columnName)
+            const sentenceAnalysis = await getSentenceAnalysis(tableName, columnName)
+            const readabilityAnalysis = await getReadabilityAnalysis(tableName, columnName)
+            
+            results = {
+              statistics: textStats,
+              wordFrequency: wordFreq,
+              characterFrequency: charFreq,
+              patterns: patternAnalysis,
+              language: languageAnalysis,
+              sentences: sentenceAnalysis,
+              readability: readabilityAnalysis
+            }
+          }
+          break
       }
       
       console.log('Analysis results:', results)
@@ -343,6 +383,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       label: '時系列分析', 
       icon: LineChart, 
       description: '時間経過による変化を分析',
+      minColumns: 1,
+      maxColumns: 1
+    },
+    { 
+      key: 'text' as const, 
+      label: 'テキスト分析', 
+      icon: Type, 
+      description: '文字・単語頻度、パターン、言語分析',
       minColumns: 1,
       maxColumns: 1
     }
@@ -556,6 +604,8 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
       return <TimeSeriesResults data={results} />
     case 'column':
       return <ColumnAnalysisResults data={results} />
+    case 'text':
+      return <TextAnalysisResults data={results} />
     default:
       return null
   }
@@ -1209,6 +1259,268 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function TextAnalysisResults({ data }: { data: any }) {
+  console.log('TextAnalysisResults received:', data)
+  
+  if (!data || typeof data !== 'object') {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>テキスト分析の結果が無効です。</p>
+      </div>
+    )
+  }
+
+  const { statistics, wordFrequency, characterFrequency, patterns, language, sentences, readability } = data
+
+  return (
+    <div className="space-y-6">
+      {/* 基本統計 */}
+      {statistics && (
+        <div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">基本統計</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="text-center p-3 bg-blue-50 rounded">
+              <div className="text-2xl font-bold text-blue-700">{formatNumber(statistics.totalRecords)}</div>
+              <div className="text-sm text-gray-600">総レコード数</div>
+            </div>
+            <div className="text-center p-3 bg-green-50 rounded">
+              <div className="text-2xl font-bold text-green-700">{formatNumber(statistics.totalCharacters)}</div>
+              <div className="text-sm text-gray-600">総文字数</div>
+            </div>
+            <div className="text-center p-3 bg-purple-50 rounded">
+              <div className="text-2xl font-bold text-purple-700">{formatNumber(statistics.totalWords)}</div>
+              <div className="text-sm text-gray-600">総単語数</div>
+            </div>
+            <div className="text-center p-3 bg-orange-50 rounded">
+              <div className="text-2xl font-bold text-orange-700">{formatNumber(statistics.uniqueRecords)}</div>
+              <div className="text-sm text-gray-600">ユニーク数</div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-700">{formatNumber(statistics.averageCharactersPerRecord)}</div>
+              <div className="text-sm text-gray-600">平均文字数/レコード</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-700">{formatNumber(statistics.averageWordsPerRecord)}</div>
+              <div className="text-sm text-gray-600">平均単語数/レコード</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-700">{formatNumber(statistics.uniquePercentage)}%</div>
+              <div className="text-sm text-gray-600">ユニーク率</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-700">{formatNumber(statistics.minCharacters)} - {formatNumber(statistics.maxCharacters)}</div>
+              <div className="text-sm text-gray-600">文字数範囲</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-700">{formatNumber(statistics.minWords)} - {formatNumber(statistics.maxWords)}</div>
+              <div className="text-sm text-gray-600">単語数範囲</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-700">{formatNumber(statistics.emptyPercentage)}%</div>
+              <div className="text-sm text-gray-600">空レコード率</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* 単語頻度 */}
+        {wordFrequency && wordFrequency.length > 0 && (
+          <div>
+            <h4 className="text-lg font-medium text-gray-900 mb-4">単語頻度 (上位15件)</h4>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {wordFrequency.map((item: WordFrequency, idx: number) => (
+                <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 rounded text-sm">
+                  <span className="font-mono text-blue-900 font-medium">
+                    {item.word}
+                  </span>
+                  <div className="text-right">
+                    <span className="font-bold text-blue-700">{formatNumber(item.count)}</span>
+                    <span className="text-blue-500 ml-2">({formatNumber(item.percentage)}%)</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 文字頻度 */}
+        {characterFrequency && characterFrequency.length > 0 && (
+          <div>
+            <h4 className="text-lg font-medium text-gray-900 mb-4">文字頻度 (上位15件)</h4>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {characterFrequency.map((item: CharacterFrequency, idx: number) => (
+                <div key={idx} className="flex justify-between items-center p-3 bg-green-50 rounded text-sm">
+                  <span className="font-mono text-green-900 font-bold text-lg">
+                    {item.character}
+                  </span>
+                  <div className="text-right">
+                    <span className="font-bold text-green-700">{formatNumber(item.count)}</span>
+                    <span className="text-green-500 ml-2">({formatNumber(item.percentage)}%)</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 言語・文字種分析 */}
+      {language && language.languagePatterns && language.languagePatterns.length > 0 && (
+        <div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">言語・文字種分析</h4>
+          <div className="mb-2">
+            <span className="text-sm text-gray-600">
+              平均文字列長: <span className="font-bold">{formatNumber(language.averageLength)}</span>文字
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {language.languagePatterns.map((pattern: any, idx: number) => (
+              <div key={idx} className="text-center p-3 bg-purple-50 rounded">
+                <div className="text-lg font-bold text-purple-700">{formatNumber(pattern.percentage)}%</div>
+                <div className="text-sm text-gray-600">{pattern.pattern}</div>
+                <div className="text-xs text-gray-500">({formatNumber(pattern.count)}文字)</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* パターン分析 */}
+      {patterns && patterns.patterns && patterns.patterns.length > 0 && (
+        <div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">パターン分析</h4>
+          <div className="space-y-3">
+            {patterns.patterns.map((pattern: any, idx: number) => (
+              <div key={idx} className="p-4 bg-orange-50 border border-orange-200 rounded">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium text-orange-900">{pattern.description}</span>
+                  <div className="text-right">
+                    <span className="font-bold text-orange-700">{formatNumber(pattern.count)}</span>
+                    <span className="text-orange-500 ml-2">({formatNumber(pattern.percentage)}%)</span>
+                  </div>
+                </div>
+                {pattern.examples && pattern.examples.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-xs text-gray-600 mb-1">例:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {pattern.examples.map((example: string, exIdx: number) => (
+                        <span
+                          key={exIdx}
+                          className="inline-block bg-white text-orange-800 text-xs px-2 py-1 rounded border font-mono"
+                        >
+                          {example}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 文分析 */}
+      {sentences && (
+        <div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">文分析</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+            <div className="text-center p-3 bg-blue-50 rounded">
+              <div className="text-2xl font-bold text-blue-700">{formatNumber(sentences.totalSentences)}</div>
+              <div className="text-sm text-gray-600">総文数</div>
+            </div>
+            <div className="text-center p-3 bg-green-50 rounded">
+              <div className="text-2xl font-bold text-green-700">{formatNumber(sentences.averageSentenceLength)}</div>
+              <div className="text-sm text-gray-600">平均文長(語数)</div>
+            </div>
+          </div>
+          
+          {/* 文長分布 */}
+          {sentences.sentenceLengthDistribution && sentences.sentenceLengthDistribution.length > 0 && (
+            <div className="mb-6">
+              <h5 className="font-medium text-gray-900 mb-3">文長分布</h5>
+              <div className="space-y-2">
+                {sentences.sentenceLengthDistribution.map((item: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 rounded">
+                    <span className="font-medium text-blue-900">{item.range}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-blue-700">{formatNumber(item.count)}</span>
+                      <span className="text-blue-500 ml-2">({formatNumber(item.percentage)}%)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* 句読点使用分析 */}
+          {sentences.punctuationUsage && sentences.punctuationUsage.length > 0 && (
+            <div>
+              <h5 className="font-medium text-gray-900 mb-3">句読点使用状況</h5>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {sentences.punctuationUsage.map((item: any, idx: number) => (
+                  <div key={idx} className="text-center p-3 bg-indigo-50 rounded">
+                    <div className="text-2xl font-bold text-indigo-700 font-mono">{item.punctuation}</div>
+                    <div className="text-sm font-bold text-indigo-600">{formatNumber(item.count)}</div>
+                    <div className="text-xs text-gray-600">({formatNumber(item.percentage)}%)</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 読みやすさ分析 */}
+      {readability && (
+        <div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">読みやすさ分析</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="text-center p-4 bg-teal-50 rounded-lg">
+              <div className="text-3xl font-bold text-teal-700">{formatNumber(readability.readabilityScore)}</div>
+              <div className="text-sm text-gray-600">読みやすさスコア</div>
+              <div className="text-xs text-teal-600 mt-1">(0-100)</div>
+            </div>
+            <div className="text-center p-4 bg-teal-50 rounded-lg">
+              <div className="text-lg font-bold text-teal-700">{readability.complexityLevel}</div>
+              <div className="text-sm text-gray-600">複雑度レベル</div>
+            </div>
+            <div className="text-center p-4 bg-teal-50 rounded-lg">
+              <div className="text-lg font-bold text-teal-700">{formatNumber(readability.averageWordsPerSentence)}</div>
+              <div className="text-sm text-gray-600">平均語数/文</div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-700">{formatNumber(readability.averageCharactersPerWord)}</div>
+              <div className="text-sm text-gray-600">平均文字数/語</div>
+            </div>
+          </div>
+          
+          {/* 改善提案 */}
+          {readability.recommendations && readability.recommendations.length > 0 && (
+            <div>
+              <h5 className="font-medium text-gray-900 mb-3">改善提案</h5>
+              <div className="space-y-2">
+                {readability.recommendations.map((recommendation: string, idx: number) => (
+                  <div key={idx} className="p-3 bg-amber-50 border-l-4 border-amber-300 rounded">
+                    <span className="text-amber-800">{recommendation}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
