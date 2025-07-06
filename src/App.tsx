@@ -13,29 +13,21 @@ function App() {
   const [activeTab, setActiveTab] = useState('data')
   const { currentTable, tables, setCurrentTable, removeTable } = useDataStore()
 
-  // アプリ初期化時にメモリ内データストアと同期
+  // アプリ初期化時に現在のテーブル選択状態をチェック（自動削除は無効化）
   useEffect(() => {
-    const syncTablesWithMemoryStore = () => {
-      const memoryTables = memoryDataStore.listTables()
-      const storeTables = tables.filter(table => table.connectionId === 'file')
-      
-      // メモリに存在しないテーブルをストアから削除
-      storeTables.forEach(table => {
-        if (!memoryTables.includes(table.name)) {
-          console.log(`Removing stale table from store: ${table.name}`)
-          removeTable(table.id)
+    const checkCurrentTableStatus = () => {
+      // 現在選択されているテーブルがメモリに存在しない場合のみ、選択を解除
+      if (currentTable && currentTable.connectionId === 'file') {
+        const memoryTables = memoryDataStore.listTables()
+        if (!memoryTables.includes(currentTable.name)) {
+          console.log(`Current table ${currentTable.name} not found in memory, clearing selection`)
+          setCurrentTable(null)
         }
-      })
-      
-      // 現在選択されているテーブルがメモリに存在しない場合、選択を解除
-      if (currentTable && currentTable.connectionId === 'file' && !memoryTables.includes(currentTable.name)) {
-        console.log(`Current table ${currentTable.name} not found in memory, clearing selection`)
-        setCurrentTable(null)
       }
     }
 
-    syncTablesWithMemoryStore()
-  }, [tables, currentTable, removeTable, setCurrentTable])
+    checkCurrentTableStatus()
+  }, [currentTable, setCurrentTable])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -157,19 +149,31 @@ function App() {
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-lg font-medium text-gray-900">テーブル選択</h2>
-                    {tables.some(table => table.connectionId === 'file' && !memoryDataStore.listTables().includes(table.name)) && (
+                    {tables.length > 0 && (
                       <button
                         onClick={() => {
-                          const memoryTables = memoryDataStore.listTables()
-                          tables.forEach(table => {
-                            if (table.connectionId === 'file' && !memoryTables.includes(table.name)) {
+                          if (window.confirm(`すべてのテーブル（${tables.length}個）を削除しますか？\n\nこの操作は取り消すことができません。\nメモリ内のデータもすべて削除されます。`)) {
+                            // 全テーブルのメモリ内データを削除
+                            tables.forEach(table => {
+                              if (table.connectionId === 'file') {
+                                const memoryTables = memoryDataStore.listTables()
+                                if (memoryTables.includes(table.name)) {
+                                  try {
+                                    memoryDataStore.dropTable(table.name)
+                                  } catch (error) {
+                                    console.warn(`Failed to drop table ${table.name} from memory:`, error)
+                                  }
+                                }
+                              }
                               removeTable(table.id)
-                            }
-                          })
+                            })
+                            // 現在のテーブル選択を解除
+                            setCurrentTable(null)
+                          }
                         }}
                         className="text-sm text-red-600 hover:text-red-800 underline"
                       >
-                        古いテーブルをすべて削除
+                        すべてのテーブルを削除
                       </button>
                     )}
                   </div>
@@ -201,17 +205,35 @@ function App() {
                                   <span className="text-xs text-gray-500">
                                     {table.columns.length} 列
                                   </span>
-                                  {!isTableInMemory && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (window.confirm(`テーブル "${table.name}" を削除しますか？\n\nこの操作は取り消すことができません。${isTableInMemory ? '\n\nメモリ内のデータも削除されます。' : ''}`)) {
+                                        // メモリ内のデータも削除
+                                        if (isTableInMemory && table.connectionId === 'file') {
+                                          try {
+                                            memoryDataStore.dropTable(table.name)
+                                          } catch (error) {
+                                            console.warn(`Failed to drop table ${table.name} from memory:`, error)
+                                          }
+                                        }
+                                        // ストアからテーブル情報を削除
                                         removeTable(table.id)
-                                      }}
-                                      className="text-xs text-red-600 hover:text-red-800 underline"
-                                    >
-                                      削除
-                                    </button>
-                                  )}
+                                        // 現在選択中のテーブルの場合、選択を解除
+                                        if (currentTable?.id === table.id) {
+                                          setCurrentTable(null)
+                                        }
+                                      }
+                                    }}
+                                    className={`text-xs hover:underline ${
+                                      isTableInMemory 
+                                        ? 'text-gray-600 hover:text-red-600' 
+                                        : 'text-red-600 hover:text-red-800'
+                                    }`}
+                                    title="テーブルを削除"
+                                  >
+                                    削除
+                                  </button>
                                 </div>
                               </div>
                               <p className="text-sm text-gray-600 mb-2">
