@@ -1,4 +1,6 @@
 import { memoryDataStore } from './memoryDataStore'
+// @ts-ignore
+import TinySegmenter from 'tiny-segmenter'
 
 export interface TextStatistics {
   columnName: string
@@ -132,17 +134,78 @@ function splitIntoParagraphs(text: string): string[] {
     .filter(p => p.length > 0)
 }
 
-// 簡単な単語分割（文章レベル対応）
+// TinySegmenterのインスタンスを作成
+const segmenter = new TinySegmenter()
+
+// 言語検出（簡易版） - tokenizeTextで使用するため前方宣言
+function detectLanguageForTokenizer(text: string): { language: string; confidence: number } {
+  if (!text || typeof text !== 'string') return { language: 'unknown', confidence: 0 }
+  
+  const cleanText = text.replace(/\s+/g, '').toLowerCase()
+  let japaneseChars = 0
+  let englishChars = 0
+  let totalChars = 0
+  
+  for (const char of cleanText) {
+    const type = getCharacterType(char)
+    totalChars++
+    
+    if (type === 'hiragana' || type === 'katakana' || type === 'kanji') {
+      japaneseChars++
+    } else if (type === 'alphanumeric') {
+      englishChars++
+    }
+  }
+  
+  if (totalChars === 0) return { language: 'unknown', confidence: 0 }
+  
+  const japaneseRatio = japaneseChars / totalChars
+  const englishRatio = englishChars / totalChars
+  
+  if (japaneseRatio > 0.3) {
+    return { language: 'japanese', confidence: Math.min(japaneseRatio * 2, 1) }
+  } else if (englishRatio > 0.7) {
+    return { language: 'english', confidence: englishRatio }
+  } else if (japaneseRatio > 0.1 && englishRatio > 0.3) {
+    return { language: 'mixed', confidence: 0.8 }
+  } else {
+    return { language: 'other', confidence: 0.5 }
+  }
+}
+
+// 改良された単語分割（日本語形態素解析対応）
 function tokenizeText(text: string): string[] {
   if (!text || typeof text !== 'string') return []
   
-  // 基本的な単語分割（空白、句読点考慮）
-  const words = text
-    .replace(/[.,!?;:'"()[\]{}\-_/\\@#$%^&*+=<>|~`。、！？；：「」『』（）【】]/g, ' ')
-    .split(/\s+/)
-    .filter(word => word.length > 0)
+  // 言語を検出
+  const languageDetection = detectLanguageForTokenizer(text)
   
-  return words
+  if (languageDetection.language === 'japanese' || languageDetection.language === 'mixed') {
+    // 日本語または混在の場合はTinySegmenterを使用
+    try {
+      const segments = segmenter.segment(text)
+      // 空文字列、空白のみ、記号のみの要素を除外
+      return segments.filter((word: string) => 
+        word.trim().length > 0 && 
+        !/^[\s\p{P}\p{S}]+$/u.test(word)
+      )
+    } catch (error) {
+      console.warn('TinySegmenter failed, falling back to simple tokenization:', error)
+      // フォールバック: 簡単な日本語分割
+      return text
+        .replace(/[.,!?;:'"()[\]{}\-_/\\@#$%^&*+=<>|~`。、！？；：「」『』（）【】]/g, ' ')
+        .split(/\s+/)
+        .filter(word => word.length > 0)
+    }
+  } else {
+    // 英語の場合は従来の空白ベース分割
+    const words = text
+      .replace(/[.,!?;:'"()[\]{}\-_/\\@#$%^&*+=<>|~`。、！？；：「」『』（）【】]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 0)
+    
+    return words
+  }
 }
 
 // 言語検出（簡易版）
