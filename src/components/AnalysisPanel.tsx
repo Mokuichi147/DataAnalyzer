@@ -1223,11 +1223,11 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
                 <h5 className="font-medium text-gray-900 mb-3">上位値 (頻度順)</h5>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {column.topValues.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded text-sm">
-                      <span className="truncate flex-1 mr-2 font-mono">
+                    <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 bg-gray-50 rounded text-sm gap-1 min-w-0">
+                      <span className="break-all font-mono text-xs sm:text-sm flex-1 min-w-0">
                         {item.value || '(空)'}
                       </span>
-                      <div className="text-right">
+                      <div className="text-right flex-shrink-0">
                         <span className="font-bold">{formatNumber(item.count)}</span>
                         <span className="text-gray-500 ml-2">({formatPercentage(item.percentage)}%)</span>
                       </div>
@@ -1337,11 +1337,11 @@ function TextAnalysisResults({ data }: { data: any }) {
             <h4 className="text-lg font-medium text-gray-900 mb-4">単語頻度 (上位15件)</h4>
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {wordFrequency.map((item: WordFrequency, idx: number) => (
-                <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 rounded text-sm">
-                  <span className="font-mono text-blue-900 font-medium">
+                <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-blue-50 rounded text-sm gap-1 min-w-0">
+                  <span className="font-mono text-blue-900 font-medium break-all text-xs sm:text-sm flex-1 min-w-0">
                     {item.word}
                   </span>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <span className="font-bold text-blue-700">{formatNumber(item.count)}</span>
                     <span className="text-blue-500 ml-2">({formatNumber(item.percentage)}%)</span>
                   </div>

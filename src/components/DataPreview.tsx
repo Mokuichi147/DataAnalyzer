@@ -178,47 +178,54 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <h3 className="text-lg font-medium text-gray-900">データプレビュー: {tableName}</h3>
-          <span className="text-sm text-gray-500">
-            {totalRows.toLocaleString()} 件のデータ
-          </span>
-          {realtimeSettings.autoRefresh && (
-            <div className="flex items-center space-x-2 text-sm text-green-600">
-              <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
-              <span>リアルタイム更新</span>
-            </div>
-          )}
-          <span className="text-xs text-gray-400">
-            最終更新: {lastRefresh.toLocaleTimeString()}
-          </span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={handleManualRefresh}
-            disabled={isLoading}
-            className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 inline mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-            更新
-          </button>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-3 py-1 rounded-md text-sm ${
-              showFilters ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-            }`}
-          >
-            <Filter className="h-4 w-4 inline mr-1" />
-            フィルタ
-          </button>
-          <button
-            onClick={exportData}
-            className="px-3 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
-          >
-            <Download className="h-4 w-4 inline mr-1" />
-            エクスポート
-          </button>
+      {/* ヘッダー部分：モバイル対応 */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
+            <h3 className="text-lg font-medium text-gray-900 break-words">
+              データプレビュー: {tableName}
+            </h3>
+            <span className="text-sm text-gray-500">
+              {totalRows.toLocaleString()} 件のデータ
+            </span>
+            {realtimeSettings.autoRefresh && (
+              <div className="flex items-center space-x-2 text-sm text-green-600">
+                <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+                <span>リアルタイム更新</span>
+              </div>
+            )}
+            <span className="text-xs text-gray-400">
+              最終更新: {lastRefresh.toLocaleTimeString()}
+            </span>
+          </div>
+          
+          {/* ボタン群：モバイルでは縦並び、デスクトップでは横並び */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 sm:gap-0">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+              className="flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+              更新
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center justify-center px-3 py-2 rounded-md text-sm ${
+                showFilters ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              <Filter className="h-4 w-4 mr-1" />
+              フィルタ
+            </button>
+            <button
+              onClick={exportData}
+              className="flex items-center justify-center px-3 py-2 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              エクスポート
+            </button>
+          </div>
         </div>
       </div>
 
@@ -271,13 +278,14 @@ export function DataPreview({ tableName }: DataPreviewProps) {
             </div>
           </div>
 
-          <div className="flex justify-between items-center">
+          {/* ページネーション：モバイル対応 */}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-700">表示件数:</label>
+              <label className="text-sm text-gray-700 whitespace-nowrap">表示件数:</label>
               <select
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                className="px-2 py-1 border border-gray-300 rounded text-sm min-w-0"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -287,23 +295,23 @@ export function DataPreview({ tableName }: DataPreviewProps) {
               </select>
             </div>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-center space-x-2">
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
+                className="flex items-center justify-center px-3 py-1 border border-gray-300 rounded disabled:opacity-50 min-w-0"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               
-              <span className="text-sm text-gray-700">
+              <span className="text-sm text-gray-700 whitespace-nowrap">
                 {currentPage} / {totalPages}
               </span>
               
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50"
+                className="flex items-center justify-center px-3 py-1 border border-gray-300 rounded disabled:opacity-50 min-w-0"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -339,45 +347,48 @@ function FilterPanel({ columns, tableName }: FilterPanelProps) {
     <div className="bg-gray-50 p-4 rounded-lg">
       <h4 className="font-medium text-gray-900 mb-3">フィルタ設定</h4>
       
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-        <select
-          value={newFilter.column}
-          onChange={(e) => setNewFilter({ ...newFilter, column: e.target.value })}
-          className="px-3 py-2 border border-gray-300 rounded-md"
-        >
-          <option value="">カラムを選択</option>
-          {columns.map((col) => (
-            <option key={col.column_name} value={col.column_name}>
-              {col.column_name}
-            </option>
-          ))}
-        </select>
-        
-        <select
-          value={newFilter.operator}
-          onChange={(e) => setNewFilter({ ...newFilter, operator: e.target.value as any })}
-          className="px-3 py-2 border border-gray-300 rounded-md"
-        >
-          <option value="equals">等しい</option>
-          <option value="contains">含む</option>
-          <option value="greater">より大きい</option>
-          <option value="less">より小さい</option>
-        </select>
-        
-        <input
-          type="text"
-          value={newFilter.value}
-          onChange={(e) => setNewFilter({ ...newFilter, value: e.target.value })}
-          placeholder="値を入力"
-          className="px-3 py-2 border border-gray-300 rounded-md"
-        />
-        
-        <button
-          onClick={handleAddFilter}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          追加
-        </button>
+      {/* フィルタ追加フォーム：モバイル対応 */}
+      <div className="space-y-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <select
+            value={newFilter.column}
+            onChange={(e) => setNewFilter({ ...newFilter, column: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-md w-full"
+          >
+            <option value="">カラムを選択</option>
+            {columns.map((col) => (
+              <option key={col.column_name} value={col.column_name}>
+                {col.column_name}
+              </option>
+            ))}
+          </select>
+          
+          <select
+            value={newFilter.operator}
+            onChange={(e) => setNewFilter({ ...newFilter, operator: e.target.value as any })}
+            className="px-3 py-2 border border-gray-300 rounded-md w-full"
+          >
+            <option value="equals">等しい</option>
+            <option value="contains">含む</option>
+            <option value="greater">より大きい</option>
+            <option value="less">より小さい</option>
+          </select>
+          
+          <input
+            type="text"
+            value={newFilter.value}
+            onChange={(e) => setNewFilter({ ...newFilter, value: e.target.value })}
+            placeholder="値を入力"
+            className="px-3 py-2 border border-gray-300 rounded-md w-full"
+          />
+          
+          <button
+            onClick={handleAddFilter}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 w-full sm:w-auto"
+          >
+            追加
+          </button>
+        </div>
       </div>
       
       {filters.length > 0 && (
@@ -393,21 +404,21 @@ function FilterPanel({ columns, tableName }: FilterPanelProps) {
           </div>
           
           {filters.map((filter, index) => (
-            <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
-              <div className="flex items-center space-x-2">
+            <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-3 rounded border gap-2">
+              <div className="flex items-center space-x-2 min-w-0">
                 <input
                   type="checkbox"
                   checked={filter.isActive}
                   onChange={() => toggleFilter(index)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded flex-shrink-0"
                 />
-                <span className="text-sm">
+                <span className="text-sm break-words">
                   {filter.column} {filter.operator} {filter.value}
                 </span>
               </div>
               <button
                 onClick={() => removeFilter(index)}
-                className="text-red-600 hover:text-red-800"
+                className="text-red-600 hover:text-red-800 text-sm self-start sm:self-auto flex-shrink-0"
               >
                 削除
               </button>

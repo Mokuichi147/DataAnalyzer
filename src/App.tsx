@@ -13,6 +13,17 @@ function App() {
   const [activeTab, setActiveTab] = useState('data')
   const { currentTable, tables, setCurrentTable, removeTable } = useDataStore()
 
+  // Webkitスクロールバーを隠すためのスタイル
+  const scrollbarHiddenStyle = `
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  `
+
   // アプリ初期化時に現在のテーブル選択状態をチェック（自動削除は無効化）
   useEffect(() => {
     const checkCurrentTableStatus = () => {
@@ -31,6 +42,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <style dangerouslySetInnerHTML={{ __html: scrollbarHiddenStyle }} />
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -44,7 +56,8 @@ function App() {
 
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
+          {/* デスクトップ用のタブ */}
+          <div className="hidden md:flex space-x-8">
             <button
               onClick={() => setActiveTab('data')}
               className={`py-3 px-1 border-b-2 font-medium text-sm ${
@@ -101,23 +114,84 @@ function App() {
               設定
             </button>
           </div>
+
+          {/* モバイル用のスクロール可能なタブ */}
+          <div className="md:hidden">
+            <div className="flex overflow-x-auto scrollbar-hide space-x-1 py-2">
+              <button
+                onClick={() => setActiveTab('data')}
+                className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
+                  activeTab === 'data'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Database className="h-4 w-4 mx-auto mb-1" />
+                <span className="block">データソース</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('upload')}
+                className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
+                  activeTab === 'upload'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Upload className="h-4 w-4 mx-auto mb-1" />
+                <span className="block">アップロード</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('analysis')}
+                className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
+                  activeTab === 'analysis'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <BarChart3 className="h-4 w-4 mx-auto mb-1" />
+                <span className="block">分析・可視化</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('realtime')}
+                className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
+                  activeTab === 'realtime'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Activity className="h-4 w-4 mx-auto mb-1" />
+                <span className="block">リアルタイム</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
+                  activeTab === 'settings'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Settings className="h-4 w-4 mx-auto mb-1" />
+                <span className="block">設定</span>
+              </button>
+            </div>
+          </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
+      <main className="max-w-7xl mx-auto py-4 sm:py-6 px-4 sm:px-6 lg:px-8">
+        <div className="py-4 sm:py-6">
           {activeTab === 'data' && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
               <DataSourceManager />
             </div>
           )}
           {activeTab === 'upload' && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
               <FileUpload onNavigateToSettings={() => setActiveTab('settings')} />
             </div>
           )}
           {activeTab === 'analysis' && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
               {currentTable ? (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between mb-4">
@@ -266,12 +340,12 @@ function App() {
             </div>
           )}
           {activeTab === 'realtime' && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
               <RealtimeManager />
             </div>
           )}
           {activeTab === 'settings' && (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">設定</h2>
               
               <div className="mb-6">
