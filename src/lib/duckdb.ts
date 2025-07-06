@@ -1210,3 +1210,279 @@ export async function getTableCount(tableName: string): Promise<number> {
   const rows = result.toArray()
   return rows[0].count
 }
+
+// TEXTカラムのJSONデータからテーブルを作成する関数
+export async function createTablesFromJsonColumns(tableName: string): Promise<string[]> {
+  const createdTables: string[] = []
+  
+  try {
+    console.log(`🔍 JSONカラムチェック開始: ${tableName}`)
+    
+    // テーブルの全データを取得
+    const instance = await initDuckDB()
+    let tableData: any[]
+    
+    if (useFallback || !instance) {
+      console.log('📊 メモリストアからデータを取得')
+      const schema = memoryDataStore.getTableSchema(tableName)
+      if (!schema || !schema.data) {
+        throw new Error(`テーブル ${tableName} が見つかりません`)
+      }
+      tableData = schema.data
+      console.log(`📊 メモリストアデータ行数: ${tableData.length}`)
+    } else {
+      console.log('📊 DuckDBからデータを取得')
+      const result = await instance.conn.query(`SELECT * FROM ${tableName}`)
+      tableData = result.toArray()
+      console.log(`📊 DuckDBデータ行数: ${tableData.length}`)
+    }
+    
+    if (tableData.length === 0) {
+      console.log('⚠️ テーブルにデータが存在しません')
+      return createdTables
+    }
+    
+    // 各カラムをチェックしてJSONデータが含まれているかを確認
+    const firstRow = tableData[0]
+    const columnNames = Object.keys(firstRow)
+    console.log(`📊 チェック対象カラム: ${columnNames.join(', ')}`)
+    
+    for (const columnName of columnNames) {
+      let jsonCount = 0
+      const jsonData: any[] = []
+      
+      // サンプル行をチェック（最大100行）
+      const sampleSize = Math.min(tableData.length, 100)
+      console.log(`🔍 カラム ${columnName} をチェック中（サンプルサイズ: ${sampleSize}）`)
+      
+      for (let i = 0; i < sampleSize; i++) {
+        const cellValue = tableData[i][columnName]
+        
+        // セルの値を詳細にログ出力（最初の3つまで）
+        if (i < 3) {
+          console.log(`📝 行${i} カラム${columnName}: タイプ=${typeof cellValue}, 値=${cellValue === null ? 'null' : cellValue === undefined ? 'undefined' : `"${String(cellValue).substring(0, 100)}..."`}`)
+        }
+        
+        // NULL値や空文字列をスキップ
+        if (!cellValue || typeof cellValue !== 'string') {
+          if (i < 3) {
+            console.log(`⏭️ 行${i}: スキップ（NULL値または文字列でない）`)
+          }
+          continue
+        }
+        
+        try {
+          const parsed = JSON.parse(cellValue)
+          // 解析されたJSONがオブジェクトの場合のみカウント
+          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+            jsonCount++
+            jsonData.push(parsed)
+            if (i < 3) {
+              console.log(`✅ 行${i}: JSON解析成功 ->`, Object.keys(parsed))
+            }
+          }
+        } catch (e) {
+          // JSONとして解析できない場合は無視
+          if (i < 3) {
+            console.log(`❌ 行${i}: JSON解析失敗`)
+          }
+          continue
+        }
+      }
+      
+      // 30%以上のデータがJSONオブジェクトの場合、新しいテーブルを作成（閾値を下げて検出しやすく）
+      const jsonRatio = jsonCount / sampleSize
+      console.log(`📊 カラム ${columnName}: JSON率 ${(jsonRatio * 100).toFixed(1)}% (${jsonCount}/${sampleSize})`)
+      
+      if (jsonRatio >= 0.3 && jsonData.length > 0) {
+        console.log(`🎯 カラム ${columnName} でJSONデータを検出 (${(jsonRatio * 100).toFixed(1)}%)`)
+        
+        // 全データからJSONを抽出
+        const allJsonData: any[] = []
+        console.log(`📊 全${tableData.length}行からJSONデータを抽出中...`)
+        
+        for (let rowIndex = 0; rowIndex < tableData.length; rowIndex++) {
+          const row = tableData[rowIndex]
+          const cellValue = row[columnName]
+          
+          if (cellValue && typeof cellValue === 'string') {
+            try {
+              const parsed = JSON.parse(cellValue)
+              if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                // 元の行IDを追加
+                const jsonRow = {
+                  ...parsed,
+                  _source_row_id: rowIndex + 1,
+                  _source_table: tableName,
+                  _source_column: columnName
+                }
+                allJsonData.push(jsonRow)
+                
+                // 最初の3件のJSONデータの構造をログ出力
+                if (allJsonData.length <= 3) {
+                  console.log(`✅ JSON行${allJsonData.length}:`, Object.keys(jsonRow))
+                }
+              } else {
+                if (rowIndex < 3) {
+                  console.log(`⏭️ 行${rowIndex}: JSONだが配列またはプリミティブ値のためスキップ`)
+                }
+              }
+            } catch (e) {
+              // 解析できない行はスキップ（詳細ログは既に出力済み）
+            }
+          }
+        }
+        
+        console.log(`📊 JSONデータ抽出完了: ${allJsonData.length}行（全${tableData.length}行中）`)
+        
+        if (allJsonData.length > 0) {
+          const newTableName = `${tableName}_${columnName}_json`
+          console.log(`🛠️ テーブル作成開始: ${newTableName}`)
+          
+          // 新しいテーブルを作成
+          if (useFallback || !instance) {
+            console.log(`💾 メモリストアにテーブルを作成: ${newTableName}`)
+            // メモリストアに保存
+            const columns = extractColumnsFromObjects(allJsonData)
+            console.log(`📋 カラム定義:`, columns.map(col => `${col.name}(${col.type})`).join(', '))
+            console.log(`📊 保存するデータ:`, allJsonData.length, '行')
+            console.log(`📝 サンプルデータ:`, allJsonData[0])
+            memoryDataStore.createTable(newTableName, columns, allJsonData)
+            
+            // 保存後の確認
+            const savedCount = memoryDataStore.getTableCount(newTableName)
+            console.log(`✅ メモリストアテーブル作成完了: ${newTableName} (${savedCount}行保存済み)`)
+          } else {
+            console.log(`🦆 DuckDBにテーブルを作成: ${newTableName}`)
+            // DuckDBに保存
+            const columns = extractColumnsFromObjects(allJsonData)
+            console.log(`📋 カラム定義:`, columns.map(col => `${col.name}(${col.type})`).join(', '))
+            await createTableFromObjects(allJsonData, newTableName)
+            console.log(`✅ DuckDBテーブル作成完了: ${newTableName}`)
+          }
+          
+          createdTables.push(newTableName)
+          console.log(`🎉 新しいテーブル ${newTableName} を作成しました (${allJsonData.length}行)`)
+        }
+      } else {
+        console.log(`⏭️ カラム ${columnName}: JSON率が閾値未満のためスキップ`)
+      }
+    }
+    
+  } catch (error) {
+    console.error('JSONカラムからのテーブル作成エラー:', error)
+    throw new Error(`JSONカラムからのテーブル作成に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+  
+  console.log(`🏁 JSONカラムチェック完了: ${createdTables.length}個のテーブルを作成`)
+  return createdTables
+}
+
+// オブジェクト配列からカラム定義を抽出する関数
+function extractColumnsFromObjects(objects: any[]): Column[] {
+  const columnMap = new Map<string, Set<string>>()
+  
+  // 全オブジェクトのキーを収集し、型を推定
+  for (const obj of objects) {
+    for (const [key, value] of Object.entries(obj)) {
+      if (!columnMap.has(key)) {
+        columnMap.set(key, new Set())
+      }
+      
+      const type = typeof value
+      if (value === null) {
+        columnMap.get(key)!.add('null')
+      } else if (type === 'number') {
+        columnMap.get(key)!.add(Number.isInteger(value) ? 'integer' : 'double')
+      } else if (type === 'boolean') {
+        columnMap.get(key)!.add('boolean')
+      } else {
+        columnMap.get(key)!.add('text')
+      }
+    }
+  }
+  
+  // カラム定義を作成
+  const columns: Column[] = []
+  for (const [columnName, types] of columnMap) {
+    let finalType: string
+    
+    if (types.has('text')) {
+      finalType = 'TEXT'
+    } else if (types.has('double')) {
+      finalType = 'DOUBLE'
+    } else if (types.has('integer')) {
+      finalType = 'INTEGER'
+    } else if (types.has('boolean')) {
+      finalType = 'BOOLEAN'
+    } else {
+      finalType = 'TEXT'
+    }
+    
+    columns.push({
+      name: columnName,
+      type: finalType,
+      nullable: types.has('null')
+    })
+  }
+  
+  return columns
+}
+
+// オブジェクト配列からDuckDBテーブルを作成する関数
+async function createTableFromObjects(objects: any[], tableName: string): Promise<void> {
+  console.log(`🦆 DuckDBテーブル作成開始: ${tableName}, データ数: ${objects.length}`)
+  
+  const instance = await initDuckDB()
+  if (!instance) {
+    throw new Error('DuckDB instance not available')
+  }
+  
+  // カラム定義を取得
+  const columns = extractColumnsFromObjects(objects)
+  console.log(`📊 作成するカラム数: ${columns.length}`)
+  
+  // テーブル作成SQL
+  const columnDefs = columns.map(col => 
+    `${col.name} ${col.type}${col.nullable ? '' : ' NOT NULL'}`
+  ).join(', ')
+  
+  const createSQL = `CREATE TABLE ${tableName} (${columnDefs})`
+  console.log(`🔨 テーブル作成SQL: ${createSQL}`)
+  await instance.conn.query(createSQL)
+  console.log(`✅ テーブル作成完了: ${tableName}`)
+  
+  // データ挿入
+  console.log(`📝 データ挿入開始: ${objects.length}行`)
+  let insertedCount = 0
+  
+  for (const obj of objects) {
+    const columnNames = columns.map(col => col.name)
+    const values = columnNames.map(name => {
+      const value = obj[name]
+      if (value === null || value === undefined) {
+        return null
+      }
+      return value
+    })
+    
+    const placeholders = values.map(() => '?').join(', ')
+    const insertSQL = `INSERT INTO ${tableName} (${columnNames.join(', ')}) VALUES (${placeholders})`
+    
+    try {
+      await instance.conn.query(insertSQL, values)
+      insertedCount++
+      
+      // 進捗表示（最初の3件と以降は10件ごと）
+      if (insertedCount <= 3 || insertedCount % 10 === 0) {
+        console.log(`📝 挿入済み: ${insertedCount}/${objects.length}行`)
+      }
+    } catch (insertError) {
+      console.error(`❌ データ挿入エラー (行${insertedCount + 1}):`, insertError)
+      console.error(`❌ 問題のデータ:`, obj)
+      throw insertError
+    }
+  }
+  
+  console.log(`🎉 DuckDBデータ挿入完了: ${insertedCount}行挿入`)
+}

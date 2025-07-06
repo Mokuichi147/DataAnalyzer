@@ -14,11 +14,11 @@ export interface TableSchema {
 class MemoryDataStore {
   private tables: Map<string, TableSchema> = new Map()
 
-  createTable(tableName: string, columns: Column[]): void {
+  createTable(tableName: string, columns: Column[], data: Record<string, any>[] = []): void {
     const table: TableSchema = {
       name: tableName,
       columns,
-      data: []
+      data: data.map(row => ({ ...row }))
     }
     this.tables.set(tableName, table)
   }

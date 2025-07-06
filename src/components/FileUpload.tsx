@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Upload, FileText, X, CheckCircle, Database, AlertTriangle } from 'lucide-react'
 import { isValidFileType, formatBytes } from '@/lib/utils'
-import { createTableFromFile, getTableCount, loadDuckDBFile, getTableInfo } from '@/lib/duckdb'
+import { createTableFromFile, getTableCount, loadDuckDBFile, getTableInfo, createTablesFromJsonColumns } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { FileUploadAlternatives } from './FileUploadAlternatives'
@@ -15,6 +15,7 @@ interface UploadedFile {
   error?: string
   isDuckDBFile?: boolean
   extractedTables?: string[]
+  jsonTables?: string[] // JSONカラムから作成されたテーブル
 }
 
 interface FileUploadProps {
@@ -90,8 +91,8 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
 
     const uploadedFiles: UploadedFile[] = validFiles.map(file => {
       const fileExtension = file.name.split('.').pop()?.toLowerCase()
-      const isDuckDBFile = fileExtension === 'duckdb' || fileExtension === 'db'
-      // .db および .duckdb ファイルはデータベースファイルとして扱う
+      const isDuckDBFile = false
+      // DuckDBファイル対応は現状非対応
       
       const uploadedFile = {
         id: generateUUID(),
@@ -189,43 +190,6 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
 
       console.log('📁 File validation passed, processing...')
 
-      if (uploadedFile.isDuckDBFile) {
-        // DuckDBファイルの処理
-        const extractedTables = await loadDuckDBFile(uploadedFile.file)
-        
-        setFiles(prev => prev.map(f => 
-          f.id === uploadedFile.id ? { 
-            ...f, 
-            status: 'success',
-            extractedTables
-          } : f
-        ))
-
-        // 各テーブルをストアに追加
-        for (const tableName of extractedTables) {
-          const tableInfo = await getTableInfo(tableName)
-          const columns = tableInfo.map(col => ({
-            name: col.column_name,
-            type: col.column_type,
-            nullable: col.null === 'YES'
-          }))
-
-          addTable({
-            name: tableName,
-            connectionId: 'file',
-            columns,
-            isLoaded: true
-          })
-
-          // リアルタイム監視に追加
-          const rowCount = await getTableCount(tableName)
-          addSubscription({
-            tableName,
-            connectionId: 'file',
-            rowCount,
-          })
-        }
-      } else {
         // 通常のファイル処理
         console.log('📊 Processing regular file...')
         
@@ -381,6 +345,72 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
               })
               console.log('✅ Subscription added successfully')
               
+              // JSONカラムのチェックと新しいテーブル作成
+              try {
+                console.log(`🔍 JSONカラムをチェック中: ${tableName}`)
+                console.log(`🔍 テーブル情報:`, { name: tableName, columns: columns.length, rows: rowCount })
+                console.log(`🔍 カラム詳細:`, columns.map(col => `${col.name}(${col.type})`).join(', '))
+                
+                // テーブルが実際に存在するかを確認
+                try {
+                  const testRowCount = await getTableCount(tableName)
+                  console.log(`✅ テーブル ${tableName} の行数確認: ${testRowCount}`)
+                } catch (countError) {
+                  console.error(`❌ テーブル ${tableName} の行数取得エラー:`, countError)
+                }
+                
+                const jsonTables = await createTablesFromJsonColumns(tableName)
+                
+                if (jsonTables.length > 0) {
+                  console.log(`📊 JSONデータから${jsonTables.length}個のテーブルを作成しました`)
+                  
+                  // ファイル状態にJSONテーブル情報を保存
+                  setFiles(prev => prev.map(f => 
+                    f.id === uploadedFile.id ? { ...f, jsonTables } : f
+                  ))
+                  
+                  // 作成されたJSONテーブルもストアに追加
+                  for (const jsonTableName of jsonTables) {
+                    try {
+                      const jsonTableInfo = await getTableInfo(jsonTableName)
+                      const jsonColumns = jsonTableInfo.map(col => ({
+                        name: col.column_name,
+                        type: col.column_type,
+                        nullable: col.null === 'YES'
+                      }))
+                      
+                      const jsonRowCount = await getTableCount(jsonTableName)
+                      console.log(`🔢 JSONテーブル ${jsonTableName} の行数: ${jsonRowCount}`)
+                      
+                      if (jsonRowCount === 0) {
+                        console.warn(`⚠️ JSONテーブル ${jsonTableName} にデータがありません`)
+                      }
+                      
+                      addTable({
+                        name: jsonTableName,
+                        connectionId: 'file',
+                        columns: jsonColumns,
+                        rowCount: jsonRowCount,
+                        isLoaded: true
+                      })
+                      
+                      addSubscription({
+                        tableName: jsonTableName,
+                        connectionId: 'file',
+                        rowCount: jsonRowCount,
+                      })
+                      
+                      console.log(`✅ JSONテーブル ${jsonTableName} をストアに追加 (${jsonColumns.length}カラム, ${jsonRowCount}行)`)
+                    } catch (jsonTableError) {
+                      console.error(`❌ JSONテーブル ${jsonTableName} の追加に失敗:`, jsonTableError)
+                    }
+                  }
+                }
+              } catch (jsonError) {
+                console.error('⚠️ JSONカラムチェックでエラー（処理は継続）:', jsonError)
+                // JSONカラムのチェックでエラーが発生しても、メインの処理は成功として扱う
+              }
+              
               // iOS Safari: 状態の強制更新
               if (isIOS && isSafari) {
                 console.log('🍎 iOS Safari: forcing state update')
@@ -413,7 +443,6 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
             throw new Error(`テーブル ${tableName} の処理でエラーが発生しました: ${errorDetails}`)
           }
         }
-      }
 
     } catch (error) {
       console.error('💥 processFile error:', error)
@@ -636,19 +665,10 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
               <div key={uploadedFile.id} className="bg-white border rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    {uploadedFile.isDuckDBFile ? (
-                      <Database className="h-8 w-8 text-blue-600" />
-                    ) : (
-                      <FileText className="h-8 w-8 text-gray-400" />
-                    )}
+                    <FileText className="h-8 w-8 text-gray-400" />
                     <div>
                       <div className="flex items-center space-x-2">
                         <p className="font-medium text-gray-900">{uploadedFile.file.name}</p>
-                        {uploadedFile.isDuckDBFile && (
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
-                            DuckDB
-                          </span>
-                        )}
                       </div>
                       <p className="text-sm text-gray-500">
                         {formatBytes(uploadedFile.file.size)}
@@ -703,22 +723,29 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
                 
                 {uploadedFile.status === 'success' && (
                   <div className="mt-3">
-                    {uploadedFile.isDuckDBFile && uploadedFile.extractedTables ? (
-                      <div className="text-sm text-green-600">
-                        <p>DuckDBファイルから{uploadedFile.extractedTables.length}個のテーブルを読み込みました:</p>
-                        <ul className="list-disc list-inside mt-1 space-y-1">
-                          {uploadedFile.extractedTables.map((tableName, index) => (
-                            <li key={index} className="font-mono">{tableName}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-green-600">
+                    <div className="text-sm text-green-600">
                         <p className="mb-2">
                           テーブル「{uploadedFile.tableName}」として正常にアップロードされました
                         </p>
+                        {uploadedFile.jsonTables && uploadedFile.jsonTables.length > 0 && (
+                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p className="text-blue-700 font-medium text-sm mb-2">
+                              🔍 JSONデータを検出
+                            </p>
+                            <p className="text-blue-600 text-sm mb-2">
+                              JSONカラムから{uploadedFile.jsonTables.length}個の追加テーブルを作成しました:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {uploadedFile.jsonTables.map((jsonTableName, index) => (
+                                <li key={index} className="font-mono text-xs text-blue-800">
+                                  {jsonTableName}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         {isIOS && (
-                          <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                          <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-3">
                             <p className="text-blue-700 font-medium text-xs mb-1">🍎 iOS Safari:</p>
                             <p className="text-blue-600 text-xs">
                               「分析・可視化」タブでテーブルが表示されない場合は、ページを再読み込みしてください。
@@ -732,50 +759,24 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
                           </div>
                         )}
                       </div>
-                    )}
                   </div>
                 )}
                 
                 {uploadedFile.status === 'error' && (
                   <div className="mt-3">
-                    {uploadedFile.isDuckDBFile ? (
-                      <div className="bg-amber-50 border border-amber-200 rounded p-3">
-                        <div className="flex items-start space-x-2">
-                          <div className="text-amber-600 font-medium text-sm">🔒 DuckDBファイル検出</div>
-                        </div>
-                        <div className="text-sm text-amber-700 mt-2 whitespace-pre-line">
-                          {uploadedFile.error}
-                        </div>
-                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                          <p className="text-sm text-blue-700 font-medium">💡 クイックソリューション:</p>
-                          <div className="text-xs text-blue-600 mt-1 space-y-1">
-                            <div>1. DuckDBで: <code className="bg-white px-1 rounded">SHOW TABLES;</code></div>
-                            <div>2. エクスポート: <code className="bg-white px-1 rounded">COPY table TO 'file.parquet' (FORMAT PARQUET);</code></div>
-                            <div>3. 本アプリに .parquet ファイルをアップロード</div>
-                          </div>
-                          <button
-                            onClick={onNavigateToSettings}
-                            className="text-xs text-blue-600 hover:text-blue-800 underline mt-2"
-                          >
-                            詳細ガイドを見る →
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <FileUploadAlternatives
-                          errorMessage={uploadedFile.error || ''}
-                          fileName={uploadedFile.file.name}
-                          fileExtension={uploadedFile.file.name.split('.').pop()?.toLowerCase() || 'unknown'}
-                        />
-                        <button
-                          onClick={() => processFile(uploadedFile)}
-                          className="text-sm text-blue-600 hover:text-blue-800 mt-2"
-                        >
-                          再試行
-                        </button>
-                      </div>
-                    )}
+                    <div>
+                      <FileUploadAlternatives
+                        errorMessage={uploadedFile.error || ''}
+                        fileName={uploadedFile.file.name}
+                        fileExtension={uploadedFile.file.name.split('.').pop()?.toLowerCase() || 'unknown'}
+                      />
+                      <button
+                        onClick={() => processFile(uploadedFile)}
+                        className="text-sm text-blue-600 hover:text-blue-800 mt-2"
+                      >
+                        再試行
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
