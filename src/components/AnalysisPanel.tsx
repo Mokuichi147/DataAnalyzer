@@ -2112,19 +2112,19 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
         <h4 className="text-lg font-medium text-gray-900 mb-4">欠損検知サマリー</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center p-3 bg-red-50 rounded">
-            <div className="text-2xl font-bold text-red-700">{summary.totalEvents}</div>
+            <div className="text-2xl font-bold text-red-700">{formatNumber(summary.totalEvents)}</div>
             <div className="text-sm text-gray-600">総イベント数</div>
           </div>
           <div className="text-center p-3 bg-orange-50 rounded">
-            <div className="text-2xl font-bold text-orange-700">{summary.missingStartEvents}</div>
+            <div className="text-2xl font-bold text-orange-700">{formatNumber(summary.missingStartEvents)}</div>
             <div className="text-sm text-gray-600">欠損開始</div>
           </div>
           <div className="text-center p-3 bg-green-50 rounded">
-            <div className="text-2xl font-bold text-green-700">{summary.missingEndEvents}</div>
+            <div className="text-2xl font-bold text-green-700">{formatNumber(summary.missingEndEvents)}</div>
             <div className="text-sm text-gray-600">欠損復旧</div>
           </div>
           <div className="text-center p-3 bg-purple-50 rounded">
-            <div className="text-2xl font-bold text-purple-700">{summary.longestMissingStreak}</div>
+            <div className="text-2xl font-bold text-purple-700">{formatNumber(summary.longestMissingStreak)}</div>
             <div className="text-sm text-gray-600">最長欠損期間</div>
           </div>
         </div>
