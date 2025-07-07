@@ -128,9 +128,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation'>('moving_average')
   const [missingDataOptions, setMissingDataOptions] = useState<MissingDataOptions>({
-    includeZero: false,
-    includeEmpty: true,
-    windowSize: 5
+    includeZero: true,
+    includeEmpty: true
   })
   const { setError } = useDataStore()
   
@@ -850,21 +849,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               />
               <span className="text-sm text-gray-700">0値を欠損として扱う</span>
             </label>
-            <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-700">検知ウィンドウサイズ:</label>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                value={missingDataOptions.windowSize}
-                onChange={(e) => setMissingDataOptions(prev => ({ ...prev, windowSize: parseInt(e.target.value) || 5 }))}
-                className="w-16 px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
-              />
-            </div>
           </div>
-          <p className="text-xs text-orange-700 mt-2">
-            ウィンドウサイズは信頼度計算に使用される周辺データの範囲です。
-          </p>
         </div>
       )}
 

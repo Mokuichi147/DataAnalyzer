@@ -3,7 +3,6 @@ import { memoryDataStore } from './memoryDataStore'
 export interface MissingDataOptions {
   includeZero?: boolean // 0を欠損として扱うか
   includeEmpty?: boolean // 空文字を欠損として扱うか
-  windowSize?: number // 検知に使用するウィンドウサイズ（デフォルト: 5）
 }
 
 export interface MissingDataEvent {
@@ -70,9 +69,8 @@ export async function detectMissingData(
     }
 
     const {
-      includeZero = false,
-      includeEmpty = true,
-      windowSize = 5
+      includeZero = true,
+      includeEmpty = true
     } = options
 
     const events: MissingDataEvent[] = []
@@ -90,7 +88,7 @@ export async function detectMissingData(
       // カラムのデータを順番に処理
       for (let i = 0; i < table.data.length; i++) {
         const currentValue = table.data[i][columnName]
-        const isMissingNow = isMissing(currentValue, { includeZero, includeEmpty, windowSize })
+        const isMissingNow = isMissing(currentValue, { includeZero, includeEmpty })
         
         if (isMissingNow) {
           // 欠損状態
@@ -102,14 +100,14 @@ export async function detectMissingData(
             let previousValue = null
             for (let j = i - 1; j >= 0; j--) {
               const prevVal = table.data[j][columnName]
-              if (isValid(prevVal, { includeZero, includeEmpty, windowSize })) {
+              if (isValid(prevVal, { includeZero, includeEmpty })) {
                 previousValue = prevVal
                 break
               }
             }
             
-            // 周辺の有効データ密度で信頼度を計算
-            const confidence = calculateConfidence(table.data, columnName, i, windowSize, { includeZero, includeEmpty })
+            // 固定の信頼度を設定
+            const confidence = 1.0
             
             const event: MissingDataEvent = {
               rowIndex: i,
@@ -128,7 +126,7 @@ export async function detectMissingData(
           // 有効状態
           if (currentMissingStreak > 0) {
             // 欠損終了（復旧）
-            const confidence = calculateConfidence(table.data, columnName, i, windowSize, { includeZero, includeEmpty })
+            const confidence = 1.0
             
             const event: MissingDataEvent = {
               rowIndex: i,
@@ -193,32 +191,6 @@ export async function detectMissingData(
   }
 }
 
-// 信頼度を計算（周辺データの有効性に基づく）
-function calculateConfidence(
-  data: Record<string, any>[], 
-  columnName: string, 
-  currentIndex: number, 
-  windowSize: number,
-  options: MissingDataOptions
-): number {
-  const startIndex = Math.max(0, currentIndex - windowSize)
-  const endIndex = Math.min(data.length, currentIndex + windowSize + 1)
-  
-  let validCount = 0
-  let totalCount = 0
-  
-  for (let i = startIndex; i < endIndex; i++) {
-    if (i !== currentIndex) {
-      const value = data[i][columnName]
-      if (isValid(value, options)) {
-        validCount++
-      }
-      totalCount++
-    }
-  }
-  
-  return totalCount > 0 ? validCount / totalCount : 0.5
-}
 
 // チャート用データの準備
 export function prepareMissingDataChart(result: MissingDataResult, tableName: string): any {
