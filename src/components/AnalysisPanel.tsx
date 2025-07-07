@@ -2096,11 +2096,14 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
 
   const { events, summary, columnStats } = data
 
+  // イベントを時系列の逆順にソート（最新が先頭）
+  const sortedEvents = [...events].sort((a, b) => b.rowIndex - a.rowIndex)
+  
   // ページネーション計算
-  const totalPages = Math.ceil(events.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedEvents.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentEvents = events.slice(startIndex, endIndex)
+  const currentEvents = sortedEvents.slice(startIndex, endIndex)
 
   // チャートデータの準備
   const chartData = prepareMissingDataChart(data, 'defaultTable')
@@ -2182,7 +2185,7 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
                 </select>
               </div>
               <div className="text-sm text-gray-600">
-                {events.length}件中 {startIndex + 1}-{Math.min(endIndex, events.length)}件を表示
+                {sortedEvents.length}件中 {startIndex + 1}-{Math.min(endIndex, sortedEvents.length)}件を表示
               </div>
             </div>
           </div>
