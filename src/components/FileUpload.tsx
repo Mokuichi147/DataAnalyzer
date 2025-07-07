@@ -377,11 +377,11 @@ export function FileUpload({ }: FileUploadProps) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900">ファイルアップロード</h2>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white">ファイルアップロード</h2>
         {files.some(f => f.status === 'pending') && (
           <button
             onClick={processAllFiles}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition-colors"
           >
             すべて処理
           </button>
@@ -390,20 +390,20 @@ export function FileUpload({ }: FileUploadProps) {
 
       {/* メモリ使用量警告 */}
       {memoryInfo.jsHeapSizeLimit > 0 && (
-        <div className={`p-4 rounded-lg border ${
-          memoryInfo.isCritical ? 'bg-red-50 border-red-200' :
-          memoryInfo.isNearLimit ? 'bg-yellow-50 border-yellow-200' :
-          'bg-gray-50 border-gray-200'
+        <div className={`p-4 rounded-lg border transition-colors ${
+          memoryInfo.isCritical ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-600' :
+          memoryInfo.isNearLimit ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-600' :
+          'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600'
         }`}>
           <div className="flex items-center space-x-2">
             {memoryInfo.isCritical && <AlertTriangle className="h-5 w-5 text-red-600" />}
             {memoryInfo.isNearLimit && !memoryInfo.isCritical && <AlertTriangle className="h-5 w-5 text-yellow-600" />}
             <div className="flex-1">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   メモリ使用量: {memoryInfo.usagePercentage.toFixed(1)}%
                 </span>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   {formatMemorySize(memoryInfo.usedJSHeapSize)} / {formatMemorySize(memoryInfo.jsHeapSizeLimit)}
                 </span>
               </div>
@@ -418,7 +418,7 @@ export function FileUpload({ }: FileUploadProps) {
               </div>
               {memoryWarning.shouldWarn && (
                 <p className={`text-sm mt-2 ${
-                  memoryInfo.isCritical ? 'text-red-700' : 'text-yellow-700'
+                  memoryInfo.isCritical ? 'text-red-700 dark:text-red-300' : 'text-yellow-700 dark:text-yellow-300'
                 }`}>
                   {memoryWarning.message}
                 </p>
@@ -435,19 +435,19 @@ export function FileUpload({ }: FileUploadProps) {
         onDrop={handleDrop}
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           isDragOver
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-gray-300 hover:border-gray-400'
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
         } ${isMobile ? 'touch-manipulation' : ''}`}
       >
         <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-        <p className="text-lg font-medium text-gray-900 mb-2">
+        <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
           {isMobile 
             ? 'ファイルを選択してアップロード' 
             : 'ファイルをドラッグ&ドロップ'
           }
         </p>
         {!isMobile && (
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
             または
           </p>
         )}
@@ -475,7 +475,7 @@ export function FileUpload({ }: FileUploadProps) {
               }, 50)
             }
           }}
-          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 active:bg-blue-800 touch-manipulation"
+          className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-6 py-2 rounded-md touch-manipulation transition-colors"
         >
           ファイルを選択
         </button>
@@ -499,7 +499,7 @@ export function FileUpload({ }: FileUploadProps) {
           }}
           tabIndex={-1}
         />
-        <p className="text-sm text-gray-500 mt-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
           対応形式: CSV, TSV, JSON, SQLite3
         </p>
         
@@ -509,18 +509,18 @@ export function FileUpload({ }: FileUploadProps) {
       {/* File List */}
       {files.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-md font-medium text-gray-900">アップロードファイル</h3>
+          <h3 className="text-md font-medium text-gray-900 dark:text-white">アップロードファイル</h3>
           <div className="space-y-3">
             {files.map((uploadedFile) => (
-              <div key={uploadedFile.id} className="bg-white border rounded-lg p-4">
+              <div key={uploadedFile.id} className="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg p-4 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <FileText className="h-8 w-8 text-gray-400" />
                     <div>
                       <div className="flex items-center space-x-2">
-                        <p className="font-medium text-gray-900">{uploadedFile.file.name}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{uploadedFile.file.name}</p>
                       </div>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {formatBytes(uploadedFile.file.size)}
                       </p>
                     </div>
@@ -534,7 +534,7 @@ export function FileUpload({ }: FileUploadProps) {
                     )}
                     <button
                       onClick={() => removeFile(uploadedFile.id)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -543,14 +543,14 @@ export function FileUpload({ }: FileUploadProps) {
                 
                 {uploadedFile.status === 'pending' && (
                   <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       テーブル名
                     </label>
                     <input
                       type="text"
                       value={uploadedFile.tableName}
                       onChange={(e) => updateTableName(uploadedFile.id, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-white transition-colors"
                     />
                   </div>
                 )}
@@ -560,7 +560,7 @@ export function FileUpload({ }: FileUploadProps) {
                     <div className="bg-blue-200 rounded-full h-2">
                       <div className="bg-blue-600 h-2 rounded-full animate-pulse"></div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                       処理中...
                       {/^((?!chrome|android).)*safari/i.test(navigator.userAgent) && (
                         <span className="block text-xs text-gray-500 mt-1">
@@ -573,21 +573,21 @@ export function FileUpload({ }: FileUploadProps) {
                 
                 {uploadedFile.status === 'success' && (
                   <div className="mt-3">
-                    <div className="text-sm text-green-600">
+                    <div className="text-sm text-green-600 dark:text-green-400">
                         <p className="mb-2">
                           テーブル「{uploadedFile.tableName}」として正常にアップロードされました
                         </p>
                         {uploadedFile.jsonTables && uploadedFile.jsonTables.length > 0 && (
-                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                            <p className="text-blue-700 font-medium text-sm mb-2">
+                          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded transition-colors">
+                            <p className="text-blue-700 dark:text-blue-300 font-medium text-sm mb-2">
                               🔍 JSONデータを検出
                             </p>
-                            <p className="text-blue-600 text-sm mb-2">
+                            <p className="text-blue-600 dark:text-blue-400 text-sm mb-2">
                               JSONカラムから{uploadedFile.jsonTables.length}個の追加テーブルを作成しました:
                             </p>
                             <ul className="list-disc list-inside space-y-1">
                               {uploadedFile.jsonTables.map((jsonTableName, index) => (
-                                <li key={index} className="font-mono text-xs text-blue-800">
+                                <li key={index} className="font-mono text-xs text-blue-800 dark:text-blue-200">
                                   {jsonTableName}
                                 </li>
                               ))}
@@ -595,14 +595,14 @@ export function FileUpload({ }: FileUploadProps) {
                           </div>
                         )}
                         {isIOS && (
-                          <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-3">
-                            <p className="text-blue-700 font-medium text-xs mb-1">🍎 iOS Safari:</p>
-                            <p className="text-blue-600 text-xs">
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded p-2 mt-3 transition-colors">
+                            <p className="text-blue-700 dark:text-blue-300 font-medium text-xs mb-1">🍎 iOS Safari:</p>
+                            <p className="text-blue-600 dark:text-blue-400 text-xs">
                               「分析・可視化」タブでテーブルが表示されない場合は、ページを再読み込みしてください。
                             </p>
                             <button
                               onClick={() => window.location.reload()}
-                              className="mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                              className="mt-1 text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 px-2 py-1 rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
                             >
                               ページを再読み込み
                             </button>
@@ -622,7 +622,7 @@ export function FileUpload({ }: FileUploadProps) {
                       />
                       <button
                         onClick={() => processFile(uploadedFile)}
-                        className="text-sm text-blue-600 hover:text-blue-800 mt-2"
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mt-2"
                       >
                         再試行
                       </button>

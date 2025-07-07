@@ -2,6 +2,18 @@
  * Chart.js パフォーマンス最適化設定
  */
 
+// テーマに応じた色を取得するヘルパー関数
+function getThemeAwareColors() {
+  const isDark = document.documentElement.classList.contains('dark')
+  
+  return {
+    text: isDark ? '#f3f4f6' : '#1f2937',
+    gridLines: isDark ? '#374151' : '#e5e7eb',
+    background: isDark ? '#1f2937' : '#ffffff',
+    border: isDark ? '#4b5563' : '#d1d5db',
+  }
+}
+
 export interface OptimizedChartOptions {
   responsive: boolean
   maintainAspectRatio: boolean
@@ -21,6 +33,7 @@ export function getOptimizedChartOptions(
 ): OptimizedChartOptions {
   const isLargeDataset = dataSize > 1000
   const isVeryLargeDataset = dataSize > 5000
+  const colors = getThemeAwareColors()
 
   const baseOptions: OptimizedChartOptions = {
     responsive: true,
@@ -47,6 +60,7 @@ export function getOptimizedChartOptions(
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',
+          color: colors.text,
         },
       },
       tooltip: {
@@ -82,11 +96,19 @@ export function getOptimizedChartOptions(
               maxTicksLimit: isLargeDataset ? 10 : 20,
               autoSkip: true,
               autoSkipPadding: 10,
+              color: colors.text,
+            },
+            grid: {
+              color: colors.gridLines,
             },
           },
           y: {
             ticks: {
               maxTicksLimit: 10,
+              color: colors.text,
+            },
+            grid: {
+              color: colors.gridLines,
             },
           },
         },
@@ -100,11 +122,19 @@ export function getOptimizedChartOptions(
             type: 'linear' as const,
             ticks: {
               maxTicksLimit: isLargeDataset ? 8 : 15,
+              color: colors.text,
+            },
+            grid: {
+              color: colors.gridLines,
             },
           },
           y: {
             ticks: {
               maxTicksLimit: 8,
+              color: colors.text,
+            },
+            grid: {
+              color: colors.gridLines,
             },
           },
         },
@@ -118,12 +148,20 @@ export function getOptimizedChartOptions(
             ticks: {
               maxTicksLimit: isLargeDataset ? 15 : 25,
               autoSkip: true,
+              color: colors.text,
+            },
+            grid: {
+              color: colors.gridLines,
             },
           },
           y: {
             beginAtZero: true,
             ticks: {
               maxTicksLimit: 8,
+              color: colors.text,
+            },
+            grid: {
+              color: colors.gridLines,
             },
           },
         },
@@ -139,6 +177,7 @@ export function getOptimizedChartOptions(
             labels: {
               usePointStyle: true,
               pointStyle: 'circle',
+              color: colors.text,
             },
           },
         },
@@ -154,6 +193,7 @@ export function getOptimizedChartOptions(
  */
 export function getChangePointChartOptions(dataSize: number): OptimizedChartOptions {
   const options = getOptimizedChartOptions(dataSize, 'line')
+  const colors = getThemeAwareColors()
   
   return {
     ...options,
@@ -166,6 +206,7 @@ export function getChangePointChartOptions(dataSize: number): OptimizedChartOpti
           size: 16,
           weight: 'bold' as const,
         },
+        color: colors.text,
       },
       annotation: {
         annotations: {
@@ -190,6 +231,7 @@ export function getChangePointChartOptions(dataSize: number): OptimizedChartOpti
  */
 export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptions {
   const options = getOptimizedChartOptions(dataSize, 'line')
+  const colors = getThemeAwareColors()
   
   return {
     ...options,
@@ -202,6 +244,7 @@ export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptio
           size: 16,
           weight: 'bold' as const,
         },
+        color: colors.text,
       },
       legend: {
         ...options.plugins.legend,
@@ -237,6 +280,7 @@ export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptio
         title: {
           display: true,
           text: '時間',
+          color: colors.text,
         },
         ticks: {
           maxTicksLimit: dataSize > 1000 ? 10 : 20,
@@ -248,6 +292,7 @@ export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptio
         title: {
           display: true,
           text: '値',
+          color: colors.text,
         },
       },
     },
@@ -258,6 +303,7 @@ export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptio
  * 相関分析用の最適化されたChart.jsオプション
  */
 export function getCorrelationChartOptions(dataSize: number): OptimizedChartOptions {
+  const colors = getThemeAwareColors()
   return {
     ...getOptimizedChartOptions(dataSize, 'bar'),
     plugins: {
@@ -271,6 +317,7 @@ export function getCorrelationChartOptions(dataSize: number): OptimizedChartOpti
           size: 16,
           weight: 'bold' as const,
         },
+        color: colors.text,
       },
       tooltip: {
         enabled: true,
@@ -293,6 +340,7 @@ export function getCorrelationChartOptions(dataSize: number): OptimizedChartOpti
         title: {
           display: true,
           text: '相関係数',
+          color: colors.text,
         },
         ticks: {
           stepSize: 0.2,
@@ -306,6 +354,7 @@ export function getCorrelationChartOptions(dataSize: number): OptimizedChartOpti
  * ヒストグラム用の最適化されたChart.jsオプション
  */
 export function getHistogramChartOptions(dataSize: number): OptimizedChartOptions {
+  const colors = getThemeAwareColors()
   return {
     ...getOptimizedChartOptions(dataSize, 'bar'),
     plugins: {
@@ -319,6 +368,7 @@ export function getHistogramChartOptions(dataSize: number): OptimizedChartOption
           size: 16,
           weight: 'bold' as const,
         },
+        color: colors.text,
       },
     },
     scales: {
@@ -326,6 +376,7 @@ export function getHistogramChartOptions(dataSize: number): OptimizedChartOption
         title: {
           display: true,
           text: '値の範囲',
+          color: colors.text,
         },
       },
       y: {
@@ -333,6 +384,7 @@ export function getHistogramChartOptions(dataSize: number): OptimizedChartOption
         title: {
           display: true,
           text: '頻度',
+          color: colors.text,
         },
       },
     },

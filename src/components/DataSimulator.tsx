@@ -274,26 +274,26 @@ export function DataSimulator() {
   }
 
   return (
-    <div className="bg-gray-50 p-4 rounded-lg">
+    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg transition-colors">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
-          <TrendingUp className="h-5 w-5 text-blue-600" />
-          <h3 className="font-medium text-gray-900">データシミュレーター</h3>
+          <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          <h3 className="font-medium text-gray-900 dark:text-white">データシミュレーター</h3>
         </div>
         <div className="flex items-center space-x-2">
           <button
             onClick={createSampleTable}
-            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200"
+            className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md text-sm hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors"
           >
             <Database className="h-4 w-4 inline mr-1" />
             サンプル作成
           </button>
           <button
             onClick={handleToggleSimulation}
-            className={`px-4 py-2 rounded-md flex items-center space-x-2 ${
+            className={`px-4 py-2 rounded-md flex items-center space-x-2 transition-colors ${
               isSimulating
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-green-600 text-white hover:bg-green-700'
+                ? 'bg-red-600 dark:bg-red-700 text-white hover:bg-red-700 dark:hover:bg-red-600'
+                : 'bg-green-600 dark:bg-green-700 text-white hover:bg-green-700 dark:hover:bg-green-600'
             }`}
           >
             {isSimulating ? (
@@ -313,7 +313,7 @@ export function DataSimulator() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 transition-colors">
             テーブル名
           </label>
           <input
@@ -324,12 +324,12 @@ export function DataSimulator() {
               tableName: e.target.value
             })}
             disabled={isSimulating}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600 transition-colors"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 transition-colors">
             間隔（秒）
           </label>
           <input
@@ -342,12 +342,12 @@ export function DataSimulator() {
               interval: parseInt(e.target.value) * 1000
             })}
             disabled={isSimulating}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600 transition-colors"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 transition-colors">
             バッチ件数
           </label>
           <input
@@ -360,17 +360,17 @@ export function DataSimulator() {
               recordsPerBatch: parseInt(e.target.value)
             })}
             disabled={isSimulating}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600 transition-colors"
           />
         </div>
       </div>
 
       {/* 欠損データ設定 */}
-      <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-        <h4 className="text-sm font-medium text-gray-900 mb-3">欠損データ生成設定</h4>
+      <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded-lg transition-colors">
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">欠損データ生成設定</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 transition-colors">
               欠損率 (%)
             </label>
             <input
@@ -383,11 +383,11 @@ export function DataSimulator() {
                 missingDataRate: parseInt(e.target.value) || 0
               })}
               disabled={isSimulating}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600 transition-colors"
             />
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-medium text-gray-700">欠損タイプ</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">欠損タイプ</div>
             <div className="space-y-1">
               <label className="flex items-center space-x-2">
                 <input
@@ -400,7 +400,7 @@ export function DataSimulator() {
                   disabled={isSimulating}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-700">NULL値</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">NULL値</span>
               </label>
               <label className="flex items-center space-x-2">
                 <input
@@ -413,7 +413,7 @@ export function DataSimulator() {
                   disabled={isSimulating}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-700">空文字</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">空文字</span>
               </label>
               <label className="flex items-center space-x-2">
                 <input
@@ -426,7 +426,7 @@ export function DataSimulator() {
                   disabled={isSimulating}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-700">0値</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">0値</span>
               </label>
               <label className="flex items-center space-x-2">
                 <input
@@ -439,7 +439,7 @@ export function DataSimulator() {
                   disabled={isSimulating}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-700">undefined</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">undefined</span>
               </label>
             </div>
           </div>
@@ -447,17 +447,17 @@ export function DataSimulator() {
       </div>
 
       {isSimulating && (
-        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
+        <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-600 rounded transition-colors">
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
-            <span className="text-sm text-green-700">
+            <div className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-sm text-green-700 dark:text-green-300 transition-colors">
               データシミュレーション実行中 - {simulationSettings.interval / 1000}秒ごとに{simulationSettings.recordsPerBatch}件のデータを挿入
             </span>
           </div>
         </div>
       )}
 
-      <div className="mt-4 text-xs text-gray-600">
+      <div className="mt-4 text-xs text-gray-600 dark:text-gray-400 transition-colors">
         <p>このシミュレーターは、リアルタイム更新機能のテスト用にダミーデータを定期的に挿入します。</p>
         <p>欠損データ設定により、NULL値、空文字、0値、undefinedを指定した確率で生成できます。</p>
         <p>まず「サンプル作成」でテーブルを作成し、「開始」でデータの挿入を開始してください。</p>

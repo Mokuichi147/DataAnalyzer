@@ -173,32 +173,32 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   if (!tableName) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <Eye className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400 transition-colors">
+        <Eye className="h-12 w-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
         <p>テーブルを選択してください</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 transition-colors">
       {/* ヘッダー部分：モバイル対応 */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
-            <h3 className="text-lg font-medium text-gray-900 break-words">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white break-words transition-colors">
               データプレビュー: {tableName}
             </h3>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 dark:text-gray-400 transition-colors">
               {totalRows.toLocaleString()} 件のデータ
             </span>
             {realtimeSettings.autoRefresh && (
-              <div className="flex items-center space-x-2 text-sm text-green-600">
-                <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+              <div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-400 transition-colors">
+                <div className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
                 <span>リアルタイム更新</span>
               </div>
             )}
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-400 dark:text-gray-500 transition-colors">
               最終更新: {lastRefresh.toLocaleTimeString()}
             </span>
           </div>
@@ -208,15 +208,17 @@ export function DataPreview({ tableName }: DataPreviewProps) {
             <button
               onClick={handleManualRefresh}
               disabled={isLoading}
-              className="flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 disabled:opacity-50"
+              className="flex items-center justify-center px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               更新
             </button>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center justify-center px-3 py-2 rounded-md text-sm ${
-                showFilters ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+              className={`flex items-center justify-center px-3 py-2 rounded-md text-sm transition-colors ${
+                showFilters 
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
               }`}
             >
               <Filter className="h-4 w-4 mr-1" />
@@ -224,7 +226,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
             </button>
             <button
               onClick={exportData}
-              className="flex items-center justify-center px-3 py-2 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
+              className="flex items-center justify-center px-3 py-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded-md text-sm hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
             >
               <Download className="h-4 w-4 mr-1" />
               エクスポート
@@ -239,36 +241,36 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
       {isLoading ? (
         <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">データを読み込んでいます...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
+          <p className="mt-2 text-gray-600 dark:text-gray-300 transition-colors">データを読み込んでいます...</p>
         </div>
       ) : (
         <>
-          <div className="bg-white border rounded-lg overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
                     {columns.map((col) => (
                       <th
                         key={col.column_name}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors"
                       >
                         <div>
                           <div className="font-medium">{col.column_name}</div>
-                          <div className="text-xs text-gray-400">{col.column_type}</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500">{col.column_type}</div>
                         </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {data.map((row, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
+                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                       {columns.map((col) => (
                         <td
                           key={col.column_name}
-                          className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate"
+                          className="px-4 py-3 text-sm text-gray-900 dark:text-white max-w-xs truncate transition-colors"
                         >
                           {row[col.column_name] !== null && row[col.column_name] !== undefined
                             ? String(row[col.column_name])
@@ -285,11 +287,11 @@ export function DataPreview({ tableName }: DataPreviewProps) {
           {/* ページネーション：モバイル対応 */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-700 whitespace-nowrap">表示件数:</label>
+              <label className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap transition-colors">表示件数:</label>
               <select
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-2 py-1 border border-gray-300 rounded text-sm min-w-0"
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm min-w-0 transition-colors"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -303,19 +305,19 @@ export function DataPreview({ tableName }: DataPreviewProps) {
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="flex items-center justify-center px-3 py-1 border border-gray-300 rounded disabled:opacity-50 min-w-0"
+                className="flex items-center justify-center px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded disabled:opacity-50 min-w-0 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               
-              <span className="text-sm text-gray-700 whitespace-nowrap">
+              <span className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap transition-colors">
                 {currentPage} / {totalPages}
               </span>
               
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="flex items-center justify-center px-3 py-1 border border-gray-300 rounded disabled:opacity-50 min-w-0"
+                className="flex items-center justify-center px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded disabled:opacity-50 min-w-0 transition-colors"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -349,8 +351,8 @@ function FilterPanel({ columns }: FilterPanelProps) {
   }
 
   return (
-    <div className="bg-gray-50 p-4 rounded-lg">
-      <h4 className="font-medium text-gray-900 mb-3">フィルタ設定</h4>
+    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+      <h4 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">フィルタ設定</h4>
       
       {/* フィルタ追加フォーム：モバイル対応 */}
       <div className="space-y-3 mb-4">
@@ -358,7 +360,7 @@ function FilterPanel({ columns }: FilterPanelProps) {
           <select
             value={newFilter.column}
             onChange={(e) => setNewFilter({ ...newFilter, column: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-md w-full"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md w-full transition-colors"
           >
             <option value="">カラムを選択</option>
             {columns.map((col) => (
@@ -371,7 +373,7 @@ function FilterPanel({ columns }: FilterPanelProps) {
           <select
             value={newFilter.operator}
             onChange={(e) => setNewFilter({ ...newFilter, operator: e.target.value as any })}
-            className="px-3 py-2 border border-gray-300 rounded-md w-full"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md w-full transition-colors"
           >
             <option value="equals">等しい</option>
             <option value="contains">含む</option>
@@ -384,12 +386,12 @@ function FilterPanel({ columns }: FilterPanelProps) {
             value={newFilter.value}
             onChange={(e) => setNewFilter({ ...newFilter, value: e.target.value })}
             placeholder="値を入力"
-            className="px-3 py-2 border border-gray-300 rounded-md w-full"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 rounded-md w-full transition-colors"
           />
           
           <button
             onClick={handleAddFilter}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 w-full sm:w-auto"
+            className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 w-full sm:w-auto transition-colors"
           >
             追加
           </button>
@@ -399,31 +401,31 @@ function FilterPanel({ columns }: FilterPanelProps) {
       {filters.length > 0 && (
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-700">適用中のフィルタ:</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">適用中のフィルタ:</span>
             <button
               onClick={clearFilters}
-              className="text-sm text-red-600 hover:text-red-800"
+              className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
             >
               すべて削除
             </button>
           </div>
           
           {filters.map((filter, index) => (
-            <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-3 rounded border gap-2">
+            <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-gray-700 p-3 rounded border border-gray-200 dark:border-gray-600 gap-2 transition-colors">
               <div className="flex items-center space-x-2 min-w-0">
                 <input
                   type="checkbox"
                   checked={filter.isActive}
                   onChange={() => toggleFilter(index)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded flex-shrink-0"
+                  className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded flex-shrink-0"
                 />
-                <span className="text-sm break-words">
+                <span className="text-sm break-words text-gray-900 dark:text-white transition-colors">
                   {filter.column} {filter.operator} {filter.value}
                 </span>
               </div>
               <button
                 onClick={() => removeFilter(index)}
-                className="text-red-600 hover:text-red-800 text-sm self-start sm:self-auto flex-shrink-0"
+                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm self-start sm:self-auto flex-shrink-0 transition-colors"
               >
                 削除
               </button>

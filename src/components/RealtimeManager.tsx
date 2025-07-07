@@ -72,7 +72,7 @@ export function RealtimeManager() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900">リアルタイム更新</h2>
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white">リアルタイム更新</h2>
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setShowSettings(!showSettings)}
@@ -115,12 +115,12 @@ export function RealtimeManager() {
       </div>
 
       {/* ステータス表示 */}
-      <div className="bg-white border rounded-lg p-4">
+      <div className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-4 transition-colors">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-medium text-gray-900">監視状態</h3>
+          <h3 className="font-medium text-gray-900 dark:text-white">監視状態</h3>
           <div className="flex items-center space-x-2">
             <Activity className={`h-4 w-4 ${isMonitoring ? 'text-green-600' : 'text-gray-400'}`} />
-            <span className={`text-sm ${isMonitoring ? 'text-green-600' : 'text-gray-600'}`}>
+            <span className={`text-sm ${isMonitoring ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-300'} transition-colors`}>
               {isMonitoring ? '監視中' : '停止中'}
             </span>
           </div>
@@ -128,16 +128,16 @@ export function RealtimeManager() {
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
-            <div className="text-gray-600">監視間隔</div>
-            <div className="font-medium">{settings.interval}秒</div>
+            <div className="text-gray-600 dark:text-gray-400 transition-colors">監視間隔</div>
+            <div className="font-medium text-gray-900 dark:text-white transition-colors">{settings.interval}秒</div>
           </div>
           <div>
-            <div className="text-gray-600">監視対象</div>
-            <div className="font-medium">{subscriptions.filter(s => s.isActive).length}テーブル</div>
+            <div className="text-gray-600 dark:text-gray-400 transition-colors">監視対象</div>
+            <div className="font-medium text-gray-900 dark:text-white transition-colors">{subscriptions.filter(s => s.isActive).length}テーブル</div>
           </div>
           <div>
-            <div className="text-gray-600">最終更新</div>
-            <div className="font-medium">
+            <div className="text-gray-600 dark:text-gray-400 transition-colors">最終更新</div>
+            <div className="font-medium text-gray-900 dark:text-white transition-colors">
               {settings.lastUpdate 
                 ? settings.lastUpdate.toLocaleTimeString()
                 : '未実行'
@@ -145,8 +145,8 @@ export function RealtimeManager() {
             </div>
           </div>
           <div>
-            <div className="text-gray-600">未読通知</div>
-            <div className="font-medium text-red-600">{unacknowledgedCount}件</div>
+            <div className="text-gray-600 dark:text-gray-400 transition-colors">未読通知</div>
+            <div className="font-medium text-red-600 dark:text-red-400 transition-colors">{unacknowledgedCount}件</div>
           </div>
         </div>
       </div>
@@ -161,22 +161,22 @@ export function RealtimeManager() {
       )}
 
       {/* 監視対象テーブル */}
-      <div className="bg-white border rounded-lg p-4">
+      <div className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-4 transition-colors">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-medium text-gray-900">監視対象テーブル</h3>
+          <h3 className="font-medium text-gray-900 dark:text-white">監視対象テーブル</h3>
           <SubscriptionSelector onAdd={handleAddSubscription} />
         </div>
         
         {subscriptions.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Database className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400 transition-colors">
+            <Database className="h-12 w-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
             <p>監視対象のテーブルがありません</p>
             <p className="text-sm">テーブルを追加して監視を開始してください</p>
           </div>
         ) : (
           <div className="space-y-3">
             {subscriptions.map((subscription) => (
-              <div key={subscription.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <div key={subscription.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
                 <div className="flex items-center space-x-3">
                   <button
                     onClick={() => toggleSubscription(subscription.id)}
@@ -189,8 +189,8 @@ export function RealtimeManager() {
                     {subscription.isActive && <CheckCircle className="h-3 w-3 text-white" />}
                   </button>
                   <div>
-                    <div className="font-medium">{subscription.tableName}</div>
-                    <div className="text-sm text-gray-600">
+                    <div className="font-medium text-gray-900 dark:text-white transition-colors">{subscription.tableName}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
                       最終チェック: {subscription.lastChecked.toLocaleTimeString()}
                       {subscription.rowCount > 0 && ` | ${subscription.rowCount}行`}
                     </div>
@@ -198,7 +198,7 @@ export function RealtimeManager() {
                 </div>
                 <button
                   onClick={() => removeSubscription(subscription.id)}
-                  className="text-red-600 hover:text-red-800"
+                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -236,17 +236,17 @@ function SettingsPanel({ settings, onUpdateSettings, onClose }: SettingsPanelPro
   }
 
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-4 transition-colors">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-medium text-gray-900">リアルタイム設定</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <h3 className="font-medium text-gray-900 dark:text-white">リアルタイム設定</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors">
           ✕
         </button>
       </div>
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 transition-colors">
             監視間隔（秒）
           </label>
           <input
@@ -258,7 +258,7 @@ function SettingsPanel({ settings, onUpdateSettings, onClose }: SettingsPanelPro
               ...localSettings,
               interval: parseInt(e.target.value)
             })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
           />
         </div>
         
@@ -273,7 +273,7 @@ function SettingsPanel({ settings, onUpdateSettings, onClose }: SettingsPanelPro
               })}
               className="h-4 w-4 text-blue-600 border-gray-300 rounded"
             />
-            <span className="ml-2 text-sm text-gray-700">
+            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300 transition-colors">
               データ変更時に自動リフレッシュ
             </span>
           </label>
@@ -288,7 +288,7 @@ function SettingsPanel({ settings, onUpdateSettings, onClose }: SettingsPanelPro
               })}
               className="h-4 w-4 text-blue-600 border-gray-300 rounded"
             />
-            <span className="ml-2 text-sm text-gray-700">
+            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300 transition-colors">
               データ変更検出を有効にする
             </span>
           </label>
@@ -297,13 +297,13 @@ function SettingsPanel({ settings, onUpdateSettings, onClose }: SettingsPanelPro
         <div className="flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-4 py-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             キャンセル
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
           >
             保存
           </button>
@@ -330,7 +330,7 @@ function SubscriptionSelector({ onAdd }: SubscriptionSelectorProps) {
     return (
       <button
         onClick={() => setShowSelector(true)}
-        className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 flex items-center space-x-1"
+        className="bg-blue-600 dark:bg-blue-700 text-white px-3 py-1 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 flex items-center space-x-1 transition-colors"
       >
         <Plus className="h-4 w-4" />
         <span>追加</span>
@@ -347,7 +347,7 @@ function SubscriptionSelector({ onAdd }: SubscriptionSelectorProps) {
             setShowSelector(false)
           }
         }}
-        className="px-3 py-1 border border-gray-300 rounded-md"
+        className="px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md transition-colors"
         defaultValue=""
       >
         <option value="">テーブルを選択</option>
@@ -359,7 +359,7 @@ function SubscriptionSelector({ onAdd }: SubscriptionSelectorProps) {
       </select>
       <button
         onClick={() => setShowSelector(false)}
-        className="ml-2 text-gray-400 hover:text-gray-600"
+        className="ml-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
       >
         ✕
       </button>
@@ -375,13 +375,13 @@ interface NotificationHistoryProps {
 
 function NotificationHistory({ notifications, onAcknowledge, onClear }: NotificationHistoryProps) {
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-4 transition-colors">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-medium text-gray-900">変更通知履歴</h3>
+        <h3 className="font-medium text-gray-900 dark:text-white">変更通知履歴</h3>
         {notifications.length > 0 && (
           <button
             onClick={onClear}
-            className="text-sm text-red-600 hover:text-red-800"
+            className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
           >
             すべて削除
           </button>
@@ -389,8 +389,8 @@ function NotificationHistory({ notifications, onAcknowledge, onClear }: Notifica
       </div>
       
       {notifications.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <Clock className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400 transition-colors">
+          <Clock className="h-12 w-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
           <p>変更通知はありません</p>
         </div>
       ) : (
@@ -398,33 +398,33 @@ function NotificationHistory({ notifications, onAcknowledge, onClear }: Notifica
           {notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`p-3 rounded border ${
+              className={`p-3 rounded border transition-colors ${
                 notification.acknowledged 
-                  ? 'bg-gray-50 border-gray-200' 
-                  : 'bg-blue-50 border-blue-200'
+                  ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600' 
+                  : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-600'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
-                    <span className="font-medium">{notification.tableName}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      notification.changeType === 'inserted' ? 'bg-green-100 text-green-800' :
-                      notification.changeType === 'updated' ? 'bg-blue-100 text-blue-800' :
-                      'bg-red-100 text-red-800'
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{notification.tableName}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs transition-colors ${
+                      notification.changeType === 'inserted' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                      notification.changeType === 'updated' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                      'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                     }`}>
                       {notification.changeType === 'inserted' ? '挿入' :
                        notification.changeType === 'updated' ? '更新' : '削除'}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-600 mt-1">
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mt-1 transition-colors">
                     {notification.count}件の変更 • {notification.timestamp.toLocaleString()}
                   </div>
                 </div>
                 {!notification.acknowledged && (
                   <button
                     onClick={() => onAcknowledge(notification.id)}
-                    className="text-blue-600 hover:text-blue-800 text-sm"
+                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm transition-colors"
                   >
                     確認
                   </button>

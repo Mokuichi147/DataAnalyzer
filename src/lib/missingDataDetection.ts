@@ -196,12 +196,21 @@ export function prepareMissingDataChart(result: MissingDataResult, tableName: st
   if (!table) return null
   
   const datasets: any[] = []
-  const colors = [
-    'rgb(239, 68, 68)', // red
-    'rgb(59, 130, 246)', // blue  
-    'rgb(34, 197, 94)', // green
-    'rgb(249, 115, 22)', // orange
-    'rgb(168, 85, 247)', // purple
+  
+  // テーマ対応の色を取得
+  const isDark = document.documentElement.classList.contains('dark')
+  const colors = isDark ? [
+    'rgb(248, 113, 113)', // red-400
+    'rgb(96, 165, 250)',  // blue-400
+    'rgb(74, 222, 128)',  // green-400
+    'rgb(251, 146, 60)',  // orange-400
+    'rgb(167, 139, 250)', // violet-400
+  ] : [
+    'rgb(239, 68, 68)',   // red-500
+    'rgb(59, 130, 246)',  // blue-500  
+    'rgb(34, 197, 94)',   // green-500
+    'rgb(249, 115, 22)',  // orange-500
+    'rgb(168, 85, 247)',  // violet-500
   ]
   
   // 各カラムごとに欠損イベントをプロット
