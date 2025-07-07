@@ -326,13 +326,15 @@ export async function detectChangePoints(
 
     const xColumn = options.xColumn || 'index'
     
-    const rawData = table.data.map((row, index) => {
-      const xValue = xColumn === 'index' ? index : (parseFloat(row[xColumn] || '0') || 0)
-      const yValue = parseFloat(row[columnName] || '0') || 0
+    const rawData = table.data.map((row, originalIndex) => {
+      const xValue = xColumn === 'index' ? originalIndex : (isNumeric(row[xColumn]) ? parseFloat(row[xColumn]) : originalIndex)
+      const yValue = isNumeric(row[columnName]) ? parseFloat(row[columnName]) : 0
       
       return {
         index: xValue,
-        value: yValue
+        value: yValue,
+        originalIndex: originalIndex,
+        originalXValue: xColumn === 'index' ? originalIndex : row[xColumn]
       }
     }).filter(item => !isNaN(item.value) && !isNaN(item.index))
     
@@ -433,11 +435,14 @@ export async function detectChangePoints(
     
     // チャート用データの準備
     const chartData = {
-      labels: workingData.map(d => d.index),
+      labels: workingData.map(d => d.originalXValue || d.index),
       datasets: [
         {
           label: 'データ値',
-          data: workingData.map(d => d.value),
+          data: workingData.map((d, i) => ({
+            x: d.originalXValue || d.index,
+            y: d.value
+          })),
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           tension: 0.1,
@@ -447,7 +452,7 @@ export async function detectChangePoints(
         {
           label: '変化点',
           data: changePoints.map(cp => ({
-            x: cp.originalIndex,
+            x: workingData[cp.originalIndex]?.originalXValue || cp.index,
             y: cp.value
           })),
           borderColor: 'rgb(239, 68, 68)',
