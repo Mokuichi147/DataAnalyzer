@@ -37,6 +37,13 @@ import {
 } from '@/lib/memoryStatistics'
 
 import {
+  detectMissingData,
+  prepareMissingDataChart,
+  type MissingDataResult,
+  type MissingDataOptions
+} from '@/lib/missingDataDetection'
+
+import {
   getTextStatistics,
   getWordFrequency,
   getCharacterFrequency,
@@ -106,7 +113,7 @@ function formatNumber(value: number | undefined | null): string {
   }
 }
 
-type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text'
+type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing'
 
 interface AnalysisPanelProps {
   tableName: string
@@ -120,6 +127,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const [analysisResults, setAnalysisResults] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation'>('moving_average')
+  const [missingDataOptions, setMissingDataOptions] = useState<MissingDataOptions>({
+    includeZero: false,
+    includeEmpty: true,
+    windowSize: 5
+  })
   const { setError } = useDataStore()
   
   console.log('AnalysisPanel props:', { tableName, columns })
@@ -389,6 +401,12 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           }
           break
           
+        case 'missing':
+          if (selectedColumns.length >= 1) {
+            results = await detectMissingData(tableName, selectedColumns, missingDataOptions)
+          }
+          break
+          
         case 'text':
           if (selectedColumns.length === 1) {
             const columnName = selectedColumns[0]
@@ -515,6 +533,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       description: '【手法】DATE_TRUNC集約関数\n【内容】時間軸での集約（時間・日・週・月単位）により、時系列データのトレンドや周期性を分析',
       minColumns: 1,
       maxColumns: 1
+    },
+    { 
+      key: 'missing' as const, 
+      label: 'データ欠損検知', 
+      icon: Activity, 
+      description: '【手法】連続欠損パターン検出・統計的信頼度評価\n【内容】NULL値・空文字・0値の欠損開始/復旧タイミングを検出。欠損長・信頼度・カラム別統計を提供。データ品質監視に最適',
+      minColumns: 1,
+      maxColumns: 10
     },
     { 
       key: 'text' as const, 
@@ -798,6 +824,50 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         </div>
       )}
 
+      {/* 欠損検知オプション */}
+      {activeAnalysis === 'missing' && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-orange-900 mb-3 flex items-center">
+            <Activity className="h-4 w-4 mr-2" />
+            欠損検知オプション
+          </h4>
+          <div className="space-y-3">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={missingDataOptions.includeEmpty}
+                onChange={(e) => setMissingDataOptions(prev => ({ ...prev, includeEmpty: e.target.checked }))}
+                className="rounded border-orange-300 text-orange-600 focus:ring-orange-500"
+              />
+              <span className="text-sm text-gray-700">空文字を欠損として扱う</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={missingDataOptions.includeZero}
+                onChange={(e) => setMissingDataOptions(prev => ({ ...prev, includeZero: e.target.checked }))}
+                className="rounded border-orange-300 text-orange-600 focus:ring-orange-500"
+              />
+              <span className="text-sm text-gray-700">0値を欠損として扱う</span>
+            </label>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-700">検知ウィンドウサイズ:</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={missingDataOptions.windowSize}
+                onChange={(e) => setMissingDataOptions(prev => ({ ...prev, windowSize: parseInt(e.target.value) || 5 }))}
+                className="w-16 px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-orange-700 mt-2">
+            ウィンドウサイズは信頼度計算に使用される周辺データの範囲です。
+          </p>
+        </div>
+      )}
+
       {/* 横軸カラム選択（時系列分析と変化点検出のみ） */}
       {(activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && availableColumns.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -915,6 +985,8 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
       return <TimeSeriesResults data={results} />
     case 'column':
       return <ColumnAnalysisResults data={results} />
+    case 'missing':
+      return <MissingDataResults data={results} />
     case 'text':
       return <TextAnalysisResults data={results} />
     default:
@@ -2017,6 +2089,178 @@ function TextAnalysisResults({ data }: { data: any }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MissingDataResults({ data }: { data: MissingDataResult }) {
+  console.log('MissingDataResults received:', data)
+  
+  if (!data || !data.events) {
+    return (
+      <div className="text-center py-4 text-red-600">
+        <p>欠損検知の結果が無効です。</p>
+      </div>
+    )
+  }
+
+  const { events, summary, columnStats } = data
+
+  // チャートデータの準備
+  const chartData = prepareMissingDataChart(data, 'defaultTable')
+
+  return (
+    <div className="space-y-6">
+      {/* サマリー統計 */}
+      <div>
+        <h4 className="text-lg font-medium text-gray-900 mb-4">欠損検知サマリー</h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center p-3 bg-red-50 rounded">
+            <div className="text-2xl font-bold text-red-700">{summary.totalEvents}</div>
+            <div className="text-sm text-gray-600">総イベント数</div>
+          </div>
+          <div className="text-center p-3 bg-orange-50 rounded">
+            <div className="text-2xl font-bold text-orange-700">{summary.missingStartEvents}</div>
+            <div className="text-sm text-gray-600">欠損開始</div>
+          </div>
+          <div className="text-center p-3 bg-green-50 rounded">
+            <div className="text-2xl font-bold text-green-700">{summary.missingEndEvents}</div>
+            <div className="text-sm text-gray-600">欠損復旧</div>
+          </div>
+          <div className="text-center p-3 bg-purple-50 rounded">
+            <div className="text-2xl font-bold text-purple-700">{summary.longestMissingStreak}</div>
+            <div className="text-sm text-gray-600">最長欠損期間</div>
+          </div>
+        </div>
+      </div>
+
+      {/* カラム別統計 */}
+      <div>
+        <h4 className="text-lg font-medium text-gray-900 mb-4">カラム別統計</h4>
+        <div className="space-y-3">
+          {Object.entries(columnStats).map(([columnName, stats]: [string, any]) => (
+            <div key={columnName} className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="font-medium text-gray-900">{columnName}</h5>
+                <span className="text-sm text-gray-600">{formatNumber(stats.missingPercentage)}% 欠損</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-600">イベント数: </span>
+                  <span className="font-medium">{stats.totalMissingEvents}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">平均欠損期間: </span>
+                  <span className="font-medium">{formatNumber(stats.averageMissingLength)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">最大欠損期間: </span>
+                  <span className="font-medium">{stats.maxMissingLength}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 欠損イベント一覧 */}
+      {events.length > 0 && (
+        <div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">欠損イベント詳細 (最新10件)</h4>
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">行番号</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">カラム</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">イベント</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">値</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">欠損期間</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">信頼度</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {events.slice(-10).reverse().map((event, index) => (
+                  <tr key={index} className={event.eventType === 'missing_start' ? 'bg-red-50' : 'bg-green-50'}>
+                    <td className="px-4 py-2 text-sm text-gray-900">{event.rowIndex}</td>
+                    <td className="px-4 py-2 text-sm text-gray-900">{event.columnName}</td>
+                    <td className="px-4 py-2 text-sm">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        event.eventType === 'missing_start' 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {event.eventType === 'missing_start' ? '欠損開始' : '欠損復旧'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-900 font-mono">
+                      {event.value === null ? 'NULL' : event.value === '' ? '(空)' : String(event.value)}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-900">
+                      {event.missingLength ? `${event.missingLength}行` : '-'}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <div className="w-12 bg-gray-200 rounded-full h-2 mr-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{ width: `${event.confidence * 100}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs">{(event.confidence * 100).toFixed(1)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* チャート表示 */}
+      {chartData && chartData.datasets.length > 0 && (
+        <div>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">欠損パターン可視化</h4>
+          <div className="bg-white p-4 border rounded-lg">
+            <Line 
+              data={chartData} 
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'top' as const,
+                  },
+                  title: {
+                    display: true,
+                    text: '欠損イベントの時系列分布'
+                  }
+                },
+                scales: {
+                  x: {
+                    title: {
+                      display: true,
+                      text: '行番号'
+                    }
+                  },
+                  y: {
+                    title: {
+                      display: true,
+                      text: 'カラム'
+                    },
+                    type: 'linear' as const,
+                    ticks: {
+                      stepSize: 1
+                    }
+                  }
+                }
+              }}
+              height={300}
+            />
+          </div>
         </div>
       )}
     </div>
