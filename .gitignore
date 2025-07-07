@@ -4,3 +4,6 @@ node_modules/
 # Build outputs
 dist/
 build/
+
+# Claude Code files
+.claude/
