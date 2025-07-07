@@ -2098,6 +2098,9 @@ function TextAnalysisResults({ data }: { data: any }) {
 function MissingDataResults({ data }: { data: MissingDataResult }) {
   console.log('MissingDataResults received:', data)
   
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
   if (!data || !data.events) {
     return (
       <div className="text-center py-4 text-red-600">
@@ -2107,6 +2110,12 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
   }
 
   const { events, summary, columnStats } = data
+
+  // ページネーション計算
+  const totalPages = Math.ceil(events.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentEvents = events.slice(startIndex, endIndex)
 
   // チャートデータの準備
   const chartData = prepareMissingDataChart(data, 'defaultTable')
@@ -2168,7 +2177,31 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
       {/* 欠損イベント一覧 */}
       {events.length > 0 && (
         <div>
-          <h4 className="text-lg font-medium text-gray-900 mb-4">欠損イベント詳細 (最新10件)</h4>
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-medium text-gray-900">欠損イベント詳細</h4>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <label className="text-sm text-gray-700">表示件数:</label>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value={10}>10件</option>
+                  <option value={25}>25件</option>
+                  <option value={50}>50件</option>
+                  <option value={100}>100件</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-600">
+                {events.length}件中 {startIndex + 1}-{Math.min(endIndex, events.length)}件を表示
+              </div>
+            </div>
+          </div>
+          
           <div className="overflow-x-auto">
             <table className="min-w-full bg-white border border-gray-200 rounded-lg">
               <thead className="bg-gray-50">
@@ -2178,12 +2211,11 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">イベント</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">値</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">欠損期間</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">信頼度</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {events.slice(-10).reverse().map((event, index) => (
-                  <tr key={index} className={event.eventType === 'missing_start' ? 'bg-red-50' : 'bg-green-50'}>
+                {currentEvents.map((event, index) => (
+                  <tr key={startIndex + index} className={event.eventType === 'missing_start' ? 'bg-red-50' : 'bg-green-50'}>
                     <td className="px-4 py-2 text-sm text-gray-900">{event.rowIndex}</td>
                     <td className="px-4 py-2 text-sm text-gray-900">{event.columnName}</td>
                     <td className="px-4 py-2 text-sm">
@@ -2201,22 +2233,71 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
                     <td className="px-4 py-2 text-sm text-gray-900">
                       {event.missingLength ? `${event.missingLength}行` : '-'}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      <div className="flex items-center">
-                        <div className="w-12 bg-gray-200 rounded-full h-2 mr-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ width: `${event.confidence * 100}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-xs">{(event.confidence * 100).toFixed(1)}%</span>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          
+          {/* ページネーション */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  最初
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  前へ
+                </button>
+              </div>
+              
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
+                  if (pageNum > totalPages) return null
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 text-sm border rounded ${
+                        currentPage === pageNum
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  次へ
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  最後
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
