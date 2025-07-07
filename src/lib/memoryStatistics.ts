@@ -337,6 +337,7 @@ export async function detectChangePoints(
         originalXValue: xColumn === 'index' ? originalIndex : row[xColumn]
       }
     }).filter(item => !isNaN(item.value) && !isNaN(item.index))
+    .sort((a, b) => a.index - b.index) // X軸の値でソート
     
     if (rawData.length < 10) {
       return {
@@ -590,16 +591,18 @@ export async function getTimeSeriesData(
     const startTime = performance.now()
 
     // データの準備
-    const rawData = table.data.map((row, index) => {
-      const xValue = xColumn === 'index' ? index : (row[xColumn] || index)
+    const rawData = table.data.map((row, originalIndex) => {
+      const xValue = xColumn === 'index' ? originalIndex : (isNumeric(row[xColumn]) ? parseFloat(row[xColumn]) : originalIndex)
       const yValue = isNumeric(row[valueColumn]) ? parseFloat(row[valueColumn]) : 0
       
       return {
         time: xValue.toString(),
         value: yValue,
-        index: xValue
+        index: xValue,
+        originalIndex: originalIndex
       }
     }).filter(item => !isNaN(item.value))
+    .sort((a, b) => a.index - b.index) // X軸の値でソート
 
     if (rawData.length === 0) {
       return {
