@@ -92,7 +92,7 @@ export async function initDuckDB(): Promise<DuckDBInstance | null> {
       const db = new duckdb.AsyncDuckDB(logger, worker)
       
       // DuckDBインスタンスを初期化
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker || undefined)
       
       const conn = await db.connect()
       duckdbInstance = { db, conn }
@@ -205,7 +205,7 @@ export async function createTableFromFile(
       case 'sqlite':
       case 'sqlite3':
         try {
-          return await loadSQLiteFile(file, tableName)
+          return await loadSQLiteFile(file)
         } catch (error) {
           // SQLiteファイルとして読み込めない場合、DuckDBとして試行
           if (error instanceof Error && error.message.includes('DuckDBファイル')) {
@@ -216,7 +216,7 @@ export async function createTableFromFile(
         }
       case 'db':
         // .dbファイルはSQLiteまたはDuckDBの可能性があるため、ヘッダーで判定
-        return await loadDatabaseFile(file, tableName)
+        return await loadDatabaseFile(file)
       case 'duckdb':
         return await loadDuckDBFile(file)
       default:
@@ -515,7 +515,7 @@ async function createTableFromJSON(file: File, tableName: string): Promise<strin
 }
 
 // ファイルヘッダーを検査してSQLiteまたはDuckDBかを判定
-async function loadDatabaseFile(file: File, tableName: string = 'data'): Promise<string[]> {
+async function loadDatabaseFile(file: File): Promise<string[]> {
   try {
     console.log('🔍 データベースファイルの形式を判定中:', file.name)
     
@@ -538,7 +538,7 @@ async function loadDatabaseFile(file: File, tableName: string = 'data'): Promise
     // SQLiteファイルの判定（最優先）
     if (header.startsWith('SQLite format 3')) {
       console.log('✅ SQLiteファイルとして確実に検出')
-      return await loadSQLiteFile(file, tableName)
+      return await loadSQLiteFile(file)
     }
     
     // DuckDBファイルの明確な判定
@@ -563,7 +563,7 @@ async function loadDatabaseFile(file: File, tableName: string = 'data'): Promise
     // SQLiteファイルを最初に試行（.dbファイルの場合、SQLiteの可能性が高い）
     console.log('🔄 SQLiteファイルとして優先的に試行中...')
     try {
-      const result = await loadSQLiteFile(file, tableName)
+      const result = await loadSQLiteFile(file)
       console.log('✅ SQLiteファイルとしての読み込み成功')
       return result
     } catch (sqliteError) {
@@ -592,7 +592,7 @@ async function loadDatabaseFile(file: File, tableName: string = 'data'): Promise
   }
 }
 
-export async function loadSQLiteFile(file: File, baseTableName: string = 'data', allowDuckDBFallback: boolean = true): Promise<string[]> {
+export async function loadSQLiteFile(file: File, allowDuckDBFallback: boolean = true): Promise<string[]> {
   try {
     console.log('🗄️ SQLiteファイルの読み込みを開始:', file.name)
     
@@ -671,7 +671,7 @@ export async function loadSQLiteFile(file: File, baseTableName: string = 'data',
         }
         
         // sqlite_で始まるテーブルを除外
-        const filteredTables = allTables[0].values.filter(row => 
+        const filteredTables = allTables[0].values.filter((row: (string | number)[]) => 
           !String(row[0]).startsWith('sqlite_')
         )
         
@@ -683,7 +683,7 @@ export async function loadSQLiteFile(file: File, baseTableName: string = 'data',
         tables[0] = { ...allTables[0], values: filteredTables }
       }
       
-      const tableNames = tables[0].values.map(row => row[0] as string)
+      const tableNames = tables[0].values.map((row: (string | number)[]) => row[0] as string)
       console.log('🎯 検出されたテーブル:', tableNames)
       
       // 各テーブルをメモリ内データストアに読み込み
@@ -754,7 +754,7 @@ async function loadSqlJs() {
       } catch (initError) {
         console.error('❌ sql.js 初期化エラー（既存）:', initError)
         // 既存の初期化に失敗した場合は新規読み込みを試行
-        (window as any).initSqlJs = undefined
+        ;(window as any).initSqlJs = undefined
       }
     }
     
@@ -920,7 +920,7 @@ async function loadSQLiteTable(db: any, tableName: string): Promise<void> {
       nullable: row[3] === 0 // not null
     }))
     
-    console.log(`📊 テーブル ${tableName} のカラム:`, columns.map(c => `${c.name}(${c.type})`))
+    console.log(`📊 テーブル ${tableName} のカラム:`, columns.map((c: { name: string; type: string }) => `${c.name}(${c.type})`))
     
     // データ行数を確認
     const countQuery = `SELECT COUNT(*) as count FROM "${tableName}"`
@@ -1000,7 +1000,7 @@ export async function loadDuckDBFile(file: File): Promise<string[]> {
     if (useFallback || !instance) {
       // フォールバック: SQLiteファイルとしてsql.jsで読み込み（循環参照を避ける）
       console.log('🔄 メモリ内データストアを使用してSQLiteファイルを読み込み')
-      const tableNames = await loadSQLiteFile(file, 'data', false)
+      const tableNames = await loadSQLiteFile(file, false)
       console.log('✅ フォールバック処理でSQLiteファイルを読み込み完了:', tableNames)
       return tableNames
     }
@@ -1078,7 +1078,7 @@ export async function loadDuckDBFile(file: File): Promise<string[]> {
       // フォールバック: SQLiteファイルとしてsql.jsで読み込み（循環参照を避ける）
       console.log('🔄 SQLiteファイルとしてフォールバック処理を実行')
       try {
-        const tableNames = await loadSQLiteFile(file, 'data', false)
+        const tableNames = await loadSQLiteFile(file, false)
         console.log('✅ フォールバック処理でSQLiteファイルを読み込み完了:', tableNames)
         return tableNames
       } catch (sqliteError) {

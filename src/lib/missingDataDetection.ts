@@ -80,7 +80,6 @@ export async function detectMissingData(
     for (const columnName of columnNames) {
       const columnEvents: MissingDataEvent[] = []
       let currentMissingStreak = 0
-      let missingStartIndex = -1
       let maxMissingLength = 0
       let totalMissingEvents = 0
       let totalMissingLength = 0
@@ -94,7 +93,6 @@ export async function detectMissingData(
           // 欠損状態
           if (currentMissingStreak === 0) {
             // 欠損開始
-            missingStartIndex = i
             
             // 前の値を取得（信頼度計算用）
             let previousValue = null
@@ -197,7 +195,7 @@ export function prepareMissingDataChart(result: MissingDataResult, tableName: st
   const table = memoryDataStore.getTableSchema(tableName)
   if (!table) return null
   
-  const datasets = []
+  const datasets: any[] = []
   const colors = [
     'rgb(239, 68, 68)', // red
     'rgb(59, 130, 246)', // blue  

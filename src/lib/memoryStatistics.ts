@@ -440,7 +440,7 @@ export async function detectChangePoints(
       datasets: [
         {
           label: 'データ値',
-          data: workingData.map((d, i) => ({
+          data: workingData.map((d) => ({
             x: d.originalXValue || d.index,
             y: d.value
           })),

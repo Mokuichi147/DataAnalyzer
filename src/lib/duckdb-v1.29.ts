@@ -6,8 +6,7 @@ export interface DuckDBInstance {
   conn: duckdb.AsyncDuckDBConnection;
 }
 
-let duckdbInstance: DuckDBInstance | null = null;
-let useFallback = false;
+// Removed unused variables
 
 /**
  * DuckDB v1.29.0 对应的正确API实现
@@ -49,7 +48,7 @@ export class DuckDBV129 {
       this.db = new duckdb.AsyncDuckDB(logger, worker);
 
       // 5. 实例化DuckDB
-      await this.db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      await this.db.instantiate(bundle.mainModule, bundle.pthreadWorker || undefined);
 
       // 6. 建立连接
       this.conn = await this.db.connect();
@@ -333,7 +332,7 @@ export class DuckDBUsageExample {
       await duckdb.registerFileHandle(
         file.name,
         file,
-        duckdb.DuckDBDataProtocol.BROWSER_FILEREADER,
+        (duckdb as any).DuckDBDataProtocol?.BROWSER_FILEREADER || 'browser_filereader',
         true
       );
       

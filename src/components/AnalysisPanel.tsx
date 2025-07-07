@@ -1677,11 +1677,6 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
     return Math.max(0, validPct).toFixed(1)
   }
   
-  // データが0個の場合の特別表示
-  const getValidDataLabel = (column: ColumnAnalysisResult): string => {
-    if (column.totalRows === 0) return '有効データ (データなし)'
-    return '有効データ'
-  }
   
   if (!data || !Array.isArray(data)) {
     return (
@@ -1733,7 +1728,9 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
             </div>
             <div className="flex items-center gap-2 bg-green-50 rounded px-3 py-1">
               <span className="text-sm font-medium text-green-700">{calculateValidDataPercentage(column)}%</span>
-              <span className="text-xs text-gray-600">有効</span>
+              <span className="text-xs text-gray-600">
+                {column.totalRows === 0 ? '有効データ (データなし)' : '有効データ'}
+              </span>
             </div>
           </div>
 

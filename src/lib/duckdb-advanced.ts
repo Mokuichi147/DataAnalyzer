@@ -12,7 +12,7 @@ export async function loadDuckDBFileAdvanced(file: File): Promise<string[]> {
     const db = new duckdb.AsyncDuckDB(logger, worker)
     
     // Instantiate with file data
-    await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
+    await db.instantiate(bundle.mainModule, bundle.pthreadWorker || undefined)
     
     // Register file and try to access as database
     await db.registerFileBuffer(file.name, new Uint8Array(arrayBuffer))
@@ -41,7 +41,7 @@ export async function loadDuckDBFileAdvanced(file: File): Promise<string[]> {
     
     try {
       // Try Method 2: Use DuckDB's built-in database reading
-      const attachResult = await conn.query(`ATTACH DATABASE '${file.name}' AS imported_db`)
+      await conn.query(`ATTACH DATABASE '${file.name}' AS imported_db`)
       
       const tables = await conn.query(`
         SELECT table_name 

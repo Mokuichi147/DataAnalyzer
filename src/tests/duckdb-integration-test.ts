@@ -5,10 +5,7 @@
 
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { 
-  DuckDBV129, 
-  SQLiteFileHandler, 
-  createDuckDBHandler, 
-  createSQLiteHandler 
+  createDuckDBHandler
 } from '../lib/duckdb-v1.29';
 
 // ================================

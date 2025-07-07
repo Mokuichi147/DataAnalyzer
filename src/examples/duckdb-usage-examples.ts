@@ -1,7 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { 
-  DuckDBV129, 
-  SQLiteFileHandler, 
   createDuckDBHandler, 
   createSQLiteHandler 
 } from '../lib/duckdb-v1.29';
@@ -269,7 +267,7 @@ export async function example5_PerformanceOptimization(file: File): Promise<void
           const result = await sqliteHandler.queryData(query);
           return { table, count: result[0].count };
         } catch (error) {
-          return { table, error: error.message };
+          return { table, error: (error as Error).message };
         }
       })
     );

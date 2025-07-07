@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Upload, FileText, X, CheckCircle, Database, AlertTriangle } from 'lucide-react'
+import { Upload, FileText, X, CheckCircle, AlertTriangle } from 'lucide-react'
 import { isValidFileType, formatBytes } from '@/lib/utils'
-import { createTableFromFile, getTableCount, loadDuckDBFile, getTableInfo, createTablesFromJsonColumns } from '@/lib/duckdb'
+import { createTableFromFile, getTableCount, getTableInfo, createTablesFromJsonColumns } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { FileUploadAlternatives } from './FileUploadAlternatives'
@@ -22,7 +22,7 @@ interface FileUploadProps {
   onNavigateToSettings?: () => void
 }
 
-export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
+export function FileUpload({ }: FileUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const [memoryInfo, setMemoryInfo] = useState(getMemoryInfo())
@@ -90,7 +90,6 @@ export function FileUpload({ onNavigateToSettings }: FileUploadProps) {
     console.log('✅ Valid files:', validFiles.length)
 
     const uploadedFiles: UploadedFile[] = validFiles.map(file => {
-      const fileExtension = file.name.split('.').pop()?.toLowerCase()
       const isDuckDBFile = false
       // DuckDBファイル対応は現状非対応
       
