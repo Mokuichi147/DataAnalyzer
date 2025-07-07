@@ -1644,115 +1644,117 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-3">
       {data.map((column, index) => (
-        <div key={index} className="bg-gray-50 md:bg-white border rounded-lg p-4 md:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <div>
-              <h4 className="text-lg font-medium text-gray-900 break-words">{column.columnName}</h4>
-              <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+        <div key={index} className="bg-white border rounded-lg p-3 md:p-4">
+          {/* ヘッダー部分 - コンパクト化 */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <h4 className="text-base font-medium text-gray-900 break-words">{column.columnName}</h4>
+              <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
                 {column.dataType}
               </span>
             </div>
-            <div className="text-left sm:text-right text-sm text-gray-600">
-              総行数: {formatNumber(column.totalRows)}
+            <div className="text-sm text-gray-600">
+              {formatNumber(column.totalRows)}行
             </div>
           </div>
 
-          {/* 基本情報 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
-            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
-              <div className="text-2xl font-bold text-blue-600">{formatNumber(column.uniqueValues)}</div>
-              <div className="text-sm text-gray-600">ユニーク値</div>
+          {/* 基本情報 - 横並び・コンパクト化 */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            <div className="flex items-center gap-2 bg-blue-50 rounded px-3 py-1">
+              <span className="text-sm font-medium text-blue-700">{formatNumber(column.uniqueValues)}</span>
+              <span className="text-xs text-gray-600">ユニーク</span>
             </div>
-            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
-              <div className="text-xl md:text-2xl font-bold text-red-600">{formatNumber(column.nullCount)}</div>
-              <div className="text-xs md:text-sm text-gray-600">NULL値</div>
-              <div className="text-xs text-gray-500">({formatPercentage(column.nullPercentage)}%)</div>
+            <div className="flex items-center gap-2 bg-red-50 rounded px-3 py-1">
+              <span className="text-sm font-medium text-red-700">{formatNumber(column.nullCount)}</span>
+              <span className="text-xs text-gray-600">NULL({formatPercentage(column.nullPercentage)}%)</span>
             </div>
-            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
-              <div className="text-xl md:text-2xl font-bold text-orange-600">{formatNumber(column.emptyStringCount)}</div>
-              <div className="text-xs md:text-sm text-gray-600">空文字</div>
-              <div className="text-xs text-gray-500">({formatPercentage(column.emptyStringPercentage)}%)</div>
+            <div className="flex items-center gap-2 bg-orange-50 rounded px-3 py-1">
+              <span className="text-sm font-medium text-orange-700">{formatNumber(column.emptyStringCount)}</span>
+              <span className="text-xs text-gray-600">空文字({formatPercentage(column.emptyStringPercentage)}%)</span>
             </div>
-            <div className="text-center p-2 md:p-3 bg-white md:bg-gray-50 rounded">
-              <div className="text-xl md:text-2xl font-bold text-green-600">
-                {calculateValidDataPercentage(column)}%
-              </div>
-              <div className="text-xs md:text-sm text-gray-600">{getValidDataLabel(column)}</div>
+            <div className="flex items-center gap-2 bg-green-50 rounded px-3 py-1">
+              <span className="text-sm font-medium text-green-700">{calculateValidDataPercentage(column)}%</span>
+              <span className="text-xs text-gray-600">有効</span>
             </div>
           </div>
 
-          {/* 数値統計（数値型の場合） */}
+          {/* 数値統計（数値型の場合） - 横並び・コンパクト化 */}
           {column.numericStats && (
-            <div className="mb-6">
-              <h5 className="font-medium text-gray-900 mb-3">数値統計</h5>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.min)}</div>
-                  <div className="text-xs text-gray-600">最小値</div>
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
+                  <span className="text-xs font-medium text-blue-700">{formatNumber(column.numericStats.min)}</span>
+                  <span className="text-xs text-gray-600">最小</span>
                 </div>
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.max)}</div>
-                  <div className="text-xs text-gray-600">最大値</div>
+                <div className="flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
+                  <span className="text-xs font-medium text-blue-700">{formatNumber(column.numericStats.max)}</span>
+                  <span className="text-xs text-gray-600">最大</span>
                 </div>
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.mean)}</div>
-                  <div className="text-xs text-gray-600">平均</div>
+                <div className="flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
+                  <span className="text-xs font-medium text-blue-700">{formatNumber(column.numericStats.mean)}</span>
+                  <span className="text-xs text-gray-600">平均</span>
                 </div>
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.median)}</div>
-                  <div className="text-xs text-gray-600">中央値</div>
+                <div className="flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
+                  <span className="text-xs font-medium text-blue-700">{formatNumber(column.numericStats.median)}</span>
+                  <span className="text-xs text-gray-600">中央値</span>
                 </div>
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <div className="font-bold text-blue-700">{formatNumber(column.numericStats.std)}</div>
-                  <div className="text-xs text-gray-600">標準偏差</div>
+                <div className="flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
+                  <span className="text-xs font-medium text-blue-700">{formatNumber(column.numericStats.std)}</span>
+                  <span className="text-xs text-gray-600">標準偏差</span>
                 </div>
               </div>
             </div>
           )}
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* 上位値 */}
-            {column.topValues && column.topValues.length > 0 && (
-              <div>
-                <h5 className="font-medium text-gray-900 mb-3">上位値 (頻度順)</h5>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {column.topValues.map((item, idx) => (
-                    <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-2 bg-gray-50 rounded text-sm gap-1 min-w-0">
-                      <span className="break-all font-mono text-xs sm:text-sm flex-1 min-w-0">
-                        {item.value || '(空)'}
-                      </span>
-                      <div className="text-right flex-shrink-0">
-                        <span className="font-bold">{formatNumber(item.count)}</span>
-                        <span className="text-gray-500 ml-2">({formatPercentage(item.percentage)}%)</span>
+          {/* 上位値とサンプル値 - 折りたたみ可能 */}
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 py-1">
+              詳細データ
+              <span className="ml-1 text-xs text-gray-500 group-open:hidden">（クリックで展開）</span>
+            </summary>
+            <div className="mt-2 grid md:grid-cols-2 gap-4">
+              {/* 上位値 */}
+              {column.topValues && column.topValues.length > 0 && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-900 mb-2">上位値</h5>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {column.topValues.slice(0, 5).map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-1 bg-gray-50 rounded text-xs">
+                        <span className="break-all font-mono truncate flex-1 min-w-0">
+                          {item.value || '(空)'}
+                        </span>
+                        <span className="text-gray-500 ml-2 flex-shrink-0">
+                          {formatNumber(item.count)}({formatPercentage(item.percentage)}%)
+                        </span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* サンプル値 */}
+              <div>
+                <h5 className="text-sm font-medium text-gray-900 mb-2">サンプル値</h5>
+                <div className="flex flex-wrap gap-1">
+                  {column.sampleValues && column.sampleValues.length > 0 ? (
+                    column.sampleValues.slice(0, 8).map((value, idx) => (
+                      <span
+                        key={idx}
+                        className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded font-mono truncate max-w-20"
+                        title={value}
+                      >
+                        {value || '(空)'}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-gray-500 text-xs">サンプル値なし</span>
+                  )}
                 </div>
               </div>
-            )}
-
-            {/* サンプル値 */}
-            <div>
-              <h5 className="font-medium text-gray-900 mb-3">サンプル値</h5>
-              <div className="flex flex-wrap gap-2">
-                {column.sampleValues && column.sampleValues.length > 0 ? (
-                  column.sampleValues.map((value, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded font-mono truncate max-w-24"
-                      title={value}
-                    >
-                      {value || '(空)'}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-gray-500 text-sm">サンプル値がありません</span>
-                )}
-              </div>
             </div>
-          </div>
+          </details>
         </div>
       ))}
     </div>
