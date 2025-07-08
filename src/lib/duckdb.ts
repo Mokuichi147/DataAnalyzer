@@ -186,12 +186,6 @@ export async function createTableFromFile(
     console.warn(`⚠️ ファイルサイズ (${fileSizeMB.toFixed(1)}MB) が利用可能メモリ (${availableMemoryMB.toFixed(1)}MB) に対して大きすぎる可能性があります`)
   }
   
-  // Safari特有の問題への対処
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-  if (isSafari && fileSizeMB > 5) {
-    console.warn('🍎 Safari環境で大容量ファイルを検出、特別処理を適用')
-  }
-  
   try {
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
     

@@ -594,20 +594,6 @@ export function FileUpload({ }: FileUploadProps) {
                             </ul>
                           </div>
                         )}
-                        {isIOS && (
-                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded p-2 mt-3 transition-colors">
-                            <p className="text-blue-700 dark:text-blue-300 font-medium text-xs mb-1">🍎 iOS Safari:</p>
-                            <p className="text-blue-600 dark:text-blue-400 text-xs">
-                              「分析・可視化」タブでテーブルが表示されない場合は、ページを再読み込みしてください。
-                            </p>
-                            <button
-                              onClick={() => window.location.reload()}
-                              className="mt-1 text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 px-2 py-1 rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
-                            >
-                              ページを再読み込み
-                            </button>
-                          </div>
-                        )}
                       </div>
                   </div>
                 )}
