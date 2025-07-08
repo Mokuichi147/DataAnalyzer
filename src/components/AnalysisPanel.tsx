@@ -1027,40 +1027,7 @@ function BasicStatsResults({ stats }: { stats: any }) {
       )
     }
     
-    return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b-2 border-gray-200">
-              <th className="text-left p-3 font-medium text-gray-900 dark:text-white">列名</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">件数</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">平均</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">標準偏差</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">最小値</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">最大値</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">第1四分位数</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">中央値</th>
-              <th className="text-right p-3 font-medium text-gray-900 dark:text-white">第3四分位数</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.map((stat, index) => (
-              <tr key={index} className={`border-b border-gray-200 dark:border-gray-600 ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'} transition-colors`}>
-                <td className="p-3 font-medium text-gray-900 dark:text-white">{stat.columnName}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.count)}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.mean)}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.std)}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.min)}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.max)}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.quartiles?.q1)}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.quartiles?.q2)}</td>
-                <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(stat.quartiles?.q3)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
+    return <BasicStatsTable stats={stats} />
   }
   
   // 単一列の統計量の場合（後方互換性のため）
@@ -1174,19 +1141,9 @@ function CorrelationResults({ correlations }: { correlations: CorrelationResult[
   return (
     <div>
       <Bar data={chartData} options={options} />
-      <div className="mt-4 space-y-2">
-        {correlations.map((corr, index) => (
-          <div key={index} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-            <span className="font-medium text-gray-900 dark:text-white transition-colors">{corr.column1} × {corr.column2}</span>
-            <span className={`font-bold transition-colors ${
-              Math.abs(corr.correlation) > 0.7 ? 'text-red-600 dark:text-red-400' :
-              Math.abs(corr.correlation) > 0.3 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
-            }`}>
-              {formatNumber(corr.correlation)}
-            </span>
-          </div>
-        ))}
-      </div>
+      
+      {/* 相関分析詳細テーブル */}
+      <CorrelationTable correlations={correlations} />
     </div>
   )
 }
@@ -1505,26 +1462,9 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
   return (
     <div>
       <Bar data={chartData} options={options} />
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-600">
-              <th className="text-left p-2 text-gray-900 dark:text-white transition-colors">区間</th>
-              <th className="text-right p-2 text-gray-900 dark:text-white transition-colors">度数</th>
-              <th className="text-right p-2 text-gray-900 dark:text-white transition-colors">頻度 (%)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, index) => (
-              <tr key={index} className="border-b border-gray-200 dark:border-gray-600">
-                <td className="p-2 font-mono text-gray-900 dark:text-white transition-colors">{row.bin}</td>
-                <td className="p-2 text-right text-gray-900 dark:text-white transition-colors">{formatNumber(row.count)}</td>
-                <td className="p-2 text-right text-gray-900 dark:text-white transition-colors">{row.frequency}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      
+      {/* ヒストグラム詳細テーブル */}
+      <HistogramTable data={data} />
     </div>
   )
 }
@@ -1617,34 +1557,8 @@ function TimeSeriesResults({ data }: { data: any }) {
           </div>
         )}
 
-        {/* データサンプル表示 */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b-2 border-gray-200 dark:border-gray-600">
-                <th className="text-left p-3 font-medium text-gray-900 dark:text-white">時間</th>
-                <th className="text-right p-3 font-medium text-gray-900 dark:text-white">実際の値</th>
-                <th className="text-right p-3 font-medium text-gray-900 dark:text-white">移動平均</th>
-                <th className="text-right p-3 font-medium text-gray-900 dark:text-white">トレンド値</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timeSeriesData.slice(0, 10).map((row: any, index: number) => (
-                <tr key={index} className={`border-b border-gray-200 dark:border-gray-600 ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'} transition-colors`}>
-                  <td className="p-3 font-medium text-gray-900 dark:text-white">{row.time}</td>
-                  <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(row.value)}</td>
-                  <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(row.movingAverage)}</td>
-                  <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(row.trend)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {timeSeriesData.length > 10 && (
-            <div className="text-center py-2 text-sm text-gray-500 dark:text-gray-400 transition-colors">
-              表示中: 上位10件 / 全{timeSeriesData.length}件
-            </div>
-          )}
-        </div>
+        {/* 時系列データテーブル */}
+        <TimeSeriesTable data={timeSeriesData} />
       </div>
     )
   }
@@ -1721,9 +1635,12 @@ function TimeSeriesResults({ data }: { data: any }) {
   return (
     <div>
       <Line data={chartData} options={options} />
-      <div className="mt-4 text-sm text-gray-600">
+      <div className="mt-4 text-sm text-gray-600 dark:text-gray-300 transition-colors">
         データポイント数: {formatNumber(data.length)}
       </div>
+      
+      {/* 時系列データテーブル */}
+      <TimeSeriesTable data={data} />
     </div>
   )
 }
@@ -2155,9 +2072,6 @@ function TextAnalysisResults({ data }: { data: any }) {
 function MissingDataResults({ data }: { data: MissingDataResult }) {
   console.log('MissingDataResults received:', data)
   
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
-  
   if (!data || !data.events) {
     return (
       <div className="text-center py-4 text-red-600">
@@ -2170,12 +2084,6 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
 
   // イベントを時系列の逆順にソート（最新が先頭）
   const sortedEvents = [...events].sort((a, b) => b.rowIndex - a.rowIndex)
-  
-  // ページネーション計算
-  const totalPages = Math.ceil(sortedEvents.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentEvents = sortedEvents.slice(startIndex, endIndex)
 
   // チャートデータの準備
   const chartData = prepareMissingDataChart(data, 'defaultTable')
@@ -2236,129 +2144,7 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
 
       {/* 欠損イベント一覧 */}
       {events.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">欠損イベント詳細</h4>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value))
-                    setCurrentPage(1)
-                  }}
-                  className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
-                >
-                  <option value={10}>10件</option>
-                  <option value={25}>25件</option>
-                  <option value={50}>50件</option>
-                  <option value={100}>100件</option>
-                </select>
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
-                {sortedEvents.length}件中 {startIndex + 1}-{Math.min(endIndex, sortedEvents.length)}件を表示
-              </div>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">行番号</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">カラム</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">イベント</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">値</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">欠損期間</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-                {currentEvents.map((event, index) => (
-                  <tr key={startIndex + index} className={event.eventType === 'missing_start' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20'}>
-                    <td className="px-4 py-2 text-sm text-gray-900 dark:text-white transition-colors">{event.rowIndex}</td>
-                    <td className="px-4 py-2 text-sm text-gray-900 dark:text-white transition-colors">{event.columnName}</td>
-                    <td className="px-4 py-2 text-sm">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        event.eventType === 'missing_start' 
-                          ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' 
-                          : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                      }`}>
-                        {event.eventType === 'missing_start' ? '欠損開始' : '欠損復旧'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900 dark:text-white font-mono transition-colors">
-                      {event.value === null ? 'NULL' : event.value === '' ? '(空)' : String(event.value)}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900 dark:text-white transition-colors">
-                      {event.missingLength ? `${event.missingLength}行` : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* ページネーション */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setCurrentPage(1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
-                >
-                  最初
-                </button>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
-                >
-                  前へ
-                </button>
-              </div>
-              
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
-                  if (pageNum > totalPages) return null
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 text-sm border rounded ${
-                        currentPage === pageNum
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
-                >
-                  次へ
-                </button>
-                <button
-                  onClick={() => setCurrentPage(totalPages)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
-                >
-                  最後
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <MissingDataTable events={sortedEvents} />
       )}
 
       {/* チャート表示 */}
@@ -2404,6 +2190,687 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+interface MissingDataTableProps {
+  events: any[]
+}
+
+function MissingDataTable({ events }: MissingDataTableProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  if (!events || events.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>欠損イベントの詳細データがありません。</p>
+      </div>
+    )
+  }
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(events.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentEvents = events.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">欠損イベント詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  行番号
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  カラム
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  イベント
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  値
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  欠損期間
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {currentEvents.map((event, index) => (
+                <tr key={index} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                  event.eventType === 'missing_start' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20'
+                }`}>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors">
+                    {event.rowIndex}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    {event.columnName}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                      event.eventType === 'missing_start' 
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' 
+                        : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    }`}>
+                      {event.eventType === 'missing_start' ? '欠損開始' : '欠損復旧'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors">
+                    {event.value === null ? 'NULL' : event.value === '' ? '(空)' : String(event.value)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    {event.missingLength ? `${event.missingLength}行` : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({events.length}件)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-orange-700 dark:text-orange-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, events.length)} / 全{events.length}件の欠損イベント
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface TimeSeriesTableProps {
+  data: any[]
+}
+
+function TimeSeriesTable({ data }: TimeSeriesTableProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  if (!data || data.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>時系列データがありません。</p>
+      </div>
+    )
+  }
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(data.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentData = data.slice(startIndex, endIndex)
+  
+  // データの構造を確認して適切な列を決定
+  const hasMovingAverage = data.some(row => row.movingAverage !== undefined)
+  const hasTrend = data.some(row => row.trend !== undefined)
+  
+  return (
+    <div className="space-y-4 mt-6">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">時系列データ詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  時間
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  値
+                </th>
+                {hasMovingAverage && (
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                    移動平均
+                  </th>
+                )}
+                {hasTrend && (
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                    トレンド値
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {currentData.map((row, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    {row.time || row.label || `Point ${startIndex + index + 1}`}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">
+                    {formatNumber(row.value)}
+                  </td>
+                  {hasMovingAverage && (
+                    <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">
+                      {row.movingAverage !== undefined ? formatNumber(row.movingAverage) : '-'}
+                    </td>
+                  )}
+                  {hasTrend && (
+                    <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">
+                      {row.trend !== undefined ? formatNumber(row.trend) : '-'}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({data.length}件)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, data.length)} / 全{data.length}件の時系列データ
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface BasicStatsTableProps {
+  stats: any[]
+}
+
+function BasicStatsTable({ stats }: BasicStatsTableProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  if (!stats || stats.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>基本統計データがありません。</p>
+      </div>
+    )
+  }
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(stats.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentStats = stats.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4 mt-6">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">基本統計詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列名</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">件数</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">平均</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">標準偏差</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">最小値</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">最大値</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">Q1</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">中央値</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">Q3</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {currentStats.map((stat, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white transition-colors">{stat.columnName}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.count)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.mean)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.std)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.min)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.max)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.quartiles?.q1)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.quartiles?.q2)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(stat.quartiles?.q3)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({stats.length}列)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-green-700 dark:text-green-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, stats.length)} / 全{stats.length}列の基本統計
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface CorrelationTableProps {
+  correlations: any[]
+}
+
+function CorrelationTable({ correlations }: CorrelationTableProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  if (!correlations || correlations.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>相関分析データがありません。</p>
+      </div>
+    )
+  }
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(correlations.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentCorrelations = correlations.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4 mt-6">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">相関分析詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        {currentCorrelations.map((corr, index) => (
+          <div key={index} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg transition-colors">
+            <span className="font-medium text-gray-900 dark:text-white transition-colors">{corr.column1} × {corr.column2}</span>
+            <div className="flex items-center space-x-2">
+              <span className={`inline-block w-3 h-3 rounded-full ${
+                Math.abs(corr.correlation) > 0.7 ? 'bg-red-500 dark:bg-red-400' :
+                Math.abs(corr.correlation) > 0.3 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
+              }`}></span>
+              <span className={`font-bold font-mono transition-colors ${
+                Math.abs(corr.correlation) > 0.7 ? 'text-red-600 dark:text-red-400' :
+                Math.abs(corr.correlation) > 0.3 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
+              }`}>
+                {formatNumber(corr.correlation)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({correlations.length}組み合わせ)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-purple-700 dark:text-purple-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, correlations.length)} / 全{correlations.length}組み合わせの相関係数
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface HistogramTableProps {
+  data: Array<{ bin: string; count: number; frequency: number }>
+}
+
+function HistogramTable({ data }: HistogramTableProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  if (!data || data.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>ヒストグラムデータがありません。</p>
+      </div>
+    )
+  }
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(data.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentData = data.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4 mt-6">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">ヒストグラム詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">区間</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">度数</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">頻度 (%)</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {currentData.map((row, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors">{row.bin}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{formatNumber(row.count)}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">{row.frequency}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({data.length}区間)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-yellow-700 dark:text-yellow-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, data.length)} / 全{data.length}区間のヒストグラム
+        </div>
+      </div>
     </div>
   )
 }
