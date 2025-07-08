@@ -7,6 +7,7 @@ import { useRealtimeStore } from '@/store/realtimeStore'
 import { FileUploadAlternatives } from './FileUploadAlternatives'
 import { getMemoryInfo, formatMemorySize, checkMemoryWarning } from '@/lib/memoryMonitor'
 import { getEncodingDescription } from '@/lib/fileEncoding'
+import { memoryDataStore } from '@/lib/memoryDataStore'
 
 interface UploadedFile {
   id: string
@@ -189,7 +190,6 @@ export function FileUpload({ }: FileUploadProps) {
         if (fileExtension === 'sqlite' || fileExtension === 'sqlite3' || fileExtension === 'db') {
           // データベースファイルの場合、実際に作成されたテーブル名を取得
           // メモリストアから取得
-          const { memoryDataStore } = await import('@/lib/memoryDataStore')
           actualTableNames = memoryDataStore.listTables()
         } else {
           // 通常のファイルの場合は結果のテーブル名を使用
@@ -208,7 +208,6 @@ export function FileUpload({ }: FileUploadProps) {
               // iOS Safari フォールバック: メモリストアから直接取得を試行
               if (isIOS && isSafari) {
                 try {
-                  const { memoryDataStore } = await import('@/lib/memoryDataStore')
                   const schema = memoryDataStore.getTableSchema(tableName)
                   if (schema && schema.columns) {
                     tableInfo = schema.columns.map(col => ({
@@ -245,7 +244,6 @@ export function FileUpload({ }: FileUploadProps) {
               // iOS Safari フォールバック: メモリストアから直接取得を試行
               if (isIOS && isSafari) {
                 try {
-                  const { memoryDataStore } = await import('@/lib/memoryDataStore')
                   const schema = memoryDataStore.getTableSchema(tableName)
                   if (schema && schema.data) {
                     rowCount = schema.data.length
