@@ -3,6 +3,35 @@ import { memoryDataStore, type Column } from './memoryDataStore'
 import { getMemoryInfo, logMemoryUsage, checkMemoryWarning, forceGarbageCollection } from './memoryMonitor'
 import { detectFileEncoding, type EncodingDetectionResult } from './fileEncoding'
 
+/**
+ * カラム名をサニタイズする関数（日本語対応）
+ * SQLで使用可能な安全なカラム名に変換
+ */
+function sanitizeColumnName(columnName: string): string {
+  if (!columnName || columnName.trim() === '') {
+    return `column_${Math.random().toString(36).substr(2, 9)}`
+  }
+  
+  // 先頭と末尾の空白を削除
+  let sanitized = columnName.trim()
+  
+  // 危険な文字のみを置換（日本語文字は保持）
+  // SQLインジェクション対策として、特定の記号のみを置換
+  sanitized = sanitized
+    .replace(/['"`;\\]/g, '_')  // SQLインジェクション対策
+    .replace(/[\r\n\t]/g, '_')  // 改行・タブ文字
+    .replace(/\s+/g, '_')       // 連続する空白をアンダースコアに
+    .replace(/^_+|_+$/g, '')    // 先頭・末尾のアンダースコアを削除
+    .replace(/_+/g, '_')        // 連続するアンダースコアを1つに
+  
+  // 空になった場合のフォールバック
+  if (sanitized === '') {
+    return `column_${Math.random().toString(36).substr(2, 9)}`
+  }
+  
+  return sanitized
+}
+
 export interface DuckDBInstance {
   db: duckdb.AsyncDuckDB
   conn: duckdb.AsyncDuckDBConnection
@@ -375,8 +404,8 @@ async function createTableFromCSV(file: File, tableName: string, delimiter: stri
       throw new Error('CSVファイルにデータがありません')
     }
     
-    // テーブルを作成（カラム名をサニタイズ）
-    const sanitizedHeaders = headers.map(h => h.replace(/[^a-zA-Z0-9_]/g, '_'))
+    // テーブルを作成（カラム名をサニタイズ - 日本語対応）
+    const sanitizedHeaders = headers.map(h => sanitizeColumnName(h))
     
     if (useFallback || !instance) {
       // メモリ内データストアを使用
@@ -505,8 +534,8 @@ async function createTableFromJSON(file: File, tableName: string): Promise<FileP
       throw new Error('JSONファイルから有効なカラムを検出できませんでした')
     }
     
-    // カラム名をサニタイズ
-    const sanitizedColumns = columns.map(col => col.replace(/[^a-zA-Z0-9_]/g, '_'))
+    // カラム名をサニタイズ - 日本語対応
+    const sanitizedColumns = columns.map(col => sanitizeColumnName(col))
     
     if (useFallback || !instance) {
       // メモリ内データストアを使用
