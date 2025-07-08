@@ -4,7 +4,7 @@
 
 // テーマに応じた色を取得するヘルパー関数
 function getThemeAwareColors() {
-  const isDark = document.documentElement.classList.contains('dark')
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   
   return {
     text: isDark ? '#f3f4f6' : '#1f2937',

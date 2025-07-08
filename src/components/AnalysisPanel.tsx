@@ -74,7 +74,7 @@ ChartJS.register(
 
 // テーマ対応の色パレットを取得する関数
 function getThemeColors() {
-  const isDark = document.documentElement.classList.contains('dark')
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   
   if (isDark) {
     return {
@@ -1241,23 +1241,23 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
             {/* 統計指標 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-                <div className="text-xl font-bold text-gray-900 dark:text-white">{points.length}</div>
-                <div className="text-sm text-gray-600">変化点数</div>
+                <div className="text-xl font-bold text-gray-900 dark:text-white transition-colors">{points.length}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">変化点数</div>
               </div>
               <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-                <div className="text-xl font-bold text-gray-900 dark:text-white">{(statistics.averageConfidence * 100).toFixed(1)}%</div>
-                <div className="text-sm text-gray-600">平均信頼度</div>
+                <div className="text-xl font-bold text-gray-900 dark:text-white transition-colors">{(statistics.averageConfidence * 100).toFixed(1)}%</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均信頼度</div>
               </div>
               {statistics.threshold && (
                 <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-                  <div className="text-xl font-bold text-gray-900 dark:text-white">{formatNumber(statistics.threshold)}</div>
-                  <div className="text-sm text-gray-600">検出閾値</div>
+                  <div className="text-xl font-bold text-gray-900 dark:text-white transition-colors">{formatNumber(statistics.threshold)}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">検出閾値</div>
                 </div>
               )}
               {statistics.globalStd && (
                 <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-                  <div className="text-xl font-bold text-gray-900 dark:text-white">{formatNumber(statistics.globalStd)}</div>
-                  <div className="text-sm text-gray-600">標準偏差</div>
+                  <div className="text-xl font-bold text-gray-900 dark:text-white transition-colors">{formatNumber(statistics.globalStd)}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">標準偏差</div>
                 </div>
               )}
             </div>
@@ -1269,46 +1269,7 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
         </div>
 
         {/* 変化点詳細テーブル */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="text-left p-3 font-medium text-gray-900 dark:text-white">インデックス</th>
-                <th className="text-right p-3 font-medium text-gray-900 dark:text-white">値</th>
-                <th className="text-right p-3 font-medium text-gray-900 dark:text-white">信頼度</th>
-                {points[0]?.beforeMean !== undefined && <th className="text-right p-3 font-medium text-gray-900 dark:text-white">変化前平均</th>}
-                {points[0]?.afterMean !== undefined && <th className="text-right p-3 font-medium text-gray-900 dark:text-white">変化後平均</th>}
-                {points[0]?.difference !== undefined && <th className="text-right p-3 font-medium text-gray-900 dark:text-white">差分</th>}
-                {points[0]?.algorithm && <th className="text-center p-3 font-medium text-gray-900 dark:text-white">アルゴリズム</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {points.map((point: any, index: number) => (
-                <tr key={index} className={`border-b border-gray-200 dark:border-gray-600 ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'} transition-colors`}>
-                  <td className="p-3 font-medium text-gray-900 dark:text-white">{point.index}</td>
-                  <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(point.value)}</td>
-                  <td className="p-3 text-right">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      point.confidence > 0.8 ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
-                      point.confidence > 0.6 ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                      'bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200'
-                    }`}>
-                      {(point.confidence * 100).toFixed(1)}%
-                    </span>
-                  </td>
-                  {point.beforeMean !== undefined && <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(point.beforeMean)}</td>}
-                  {point.afterMean !== undefined && <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(point.afterMean)}</td>}
-                  {point.difference !== undefined && <td className="p-3 text-right font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(point.difference)}</td>}
-                  {point.algorithm && <td className="p-3 text-center">
-                    <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 rounded text-xs font-medium transition-colors">
-                      {point.algorithm}
-                    </span>
-                  </td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ChangePointTable points={points} />
       </div>
     )
   }
@@ -1359,15 +1320,17 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
   return (
     <div>
       <Line data={chartData} options={options} />
+      
+      {/* 変化点詳細表示 */}
       <div className="mt-4 space-y-2">
         {changePoints.map((cp, index) => (
           <div key={index} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-            <span className="font-medium">Index {cp.index || 'N/A'}</span>
+            <span className="font-medium text-gray-900 dark:text-white transition-colors">Index {cp.index || 'N/A'}</span>
             <div className="text-right">
-              <div className="font-bold">
+              <div className="font-bold text-gray-900 dark:text-white transition-colors">
                 {formatNumber(cp.value)}
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
                 信頼度: {cp.confidence !== undefined ? (cp.confidence * 100).toFixed(1) : 'N/A'}%
               </div>
             </div>
@@ -2441,6 +2404,155 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+interface ChangePointTableProps {
+  points: any[]
+}
+
+function ChangePointTable({ points }: ChangePointTableProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  if (!points || points.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>変化点の詳細データがありません。</p>
+      </div>
+    )
+  }
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(points.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentPoints = points.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">変化点詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  インデックス
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  値
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  信頼度
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  アルゴリズム
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {currentPoints.map((point, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors">
+                    {point.index !== undefined ? point.index : 'N/A'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors">
+                    {formatNumber(point.value)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    <div className="flex items-center space-x-2">
+                      <span className={`inline-block w-3 h-3 rounded-full ${
+                        (point.confidence || 0) > 0.8 ? 'bg-green-500 dark:bg-green-400' :
+                        (point.confidence || 0) > 0.6 ? 'bg-yellow-500 dark:bg-yellow-400' :
+                        (point.confidence || 0) > 0.4 ? 'bg-orange-500 dark:bg-orange-400' : 'bg-red-500 dark:bg-red-400'
+                      }`}></span>
+                      <span className="font-mono text-gray-900 dark:text-white transition-colors">
+                        {point.confidence !== undefined ? (point.confidence * 100).toFixed(1) : 'N/A'}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+                    {point.algorithm || 'Moving Average'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({points.length}件)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, points.length)} / 全{points.length}件の変化点
+        </div>
+      </div>
     </div>
   )
 }

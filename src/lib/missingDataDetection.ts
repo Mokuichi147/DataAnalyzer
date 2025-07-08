@@ -198,7 +198,7 @@ export function prepareMissingDataChart(result: MissingDataResult, tableName: st
   const datasets: any[] = []
   
   // テーマ対応の色を取得
-  const isDark = document.documentElement.classList.contains('dark')
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   const colors = isDark ? [
     'rgb(248, 113, 113)', // red-400
     'rgb(96, 165, 250)',  // blue-400
