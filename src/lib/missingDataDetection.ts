@@ -224,10 +224,13 @@ export function prepareMissingDataChart(result: MissingDataResult, tableName: st
         .map(e => ({ x: e.rowIndex, y: index + 1 })),
       borderColor: colors[index % colors.length],
       backgroundColor: colors[index % colors.length],
-      type: 'scatter' as const,
+      type: 'line' as const,
       pointRadius: 6,
       pointHoverRadius: 8,
-      showLine: false
+      showLine: false,
+      pointStyle: 'circle',
+      pointBackgroundColor: colors[index % colors.length],
+      pointBorderColor: colors[index % colors.length]
     })
     
     datasets.push({
@@ -237,11 +240,13 @@ export function prepareMissingDataChart(result: MissingDataResult, tableName: st
         .map(e => ({ x: e.rowIndex, y: index + 1 })),
       borderColor: colors[index % colors.length],
       backgroundColor: colors[index % colors.length],
-      type: 'scatter' as const,
+      type: 'line' as const,
       pointRadius: 4,
       pointHoverRadius: 6,
       pointStyle: 'triangle',
-      showLine: false
+      showLine: false,
+      pointBackgroundColor: colors[index % colors.length],
+      pointBorderColor: colors[index % colors.length]
     })
   })
   

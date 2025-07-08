@@ -458,10 +458,13 @@ export async function detectChangePoints(
           })),
           borderColor: 'rgb(239, 68, 68)',
           backgroundColor: 'rgba(239, 68, 68, 0.8)',
-          type: 'scatter' as const,
+          type: 'line' as const,
           pointRadius: 6,
           pointHoverRadius: 8,
-          showLine: false
+          showLine: false,
+          pointStyle: 'circle',
+          pointBackgroundColor: 'rgba(239, 68, 68, 0.8)',
+          pointBorderColor: 'rgb(239, 68, 68)'
         }
       ]
     }

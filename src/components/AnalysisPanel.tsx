@@ -12,6 +12,7 @@ import {
   Tooltip,
   Legend,
   ArcElement,
+  ScatterController,
 } from 'chart.js'
 import { useDataStore } from '@/store/dataStore'
 import {
@@ -71,6 +72,14 @@ ChartJS.register(
   Legend,
   ArcElement
 )
+
+// Safari環境での scatter chart サポートのため、動的に ScatterController を登録
+try {
+  ChartJS.register(ScatterController)
+} catch (error) {
+  console.warn('ScatterController registration failed:', error)
+  // Safari環境では代替チャートタイプを使用
+}
 
 // テーマ対応の色パレットを取得する関数
 function getThemeColors() {
