@@ -65,6 +65,15 @@ function isEnvironmentSecure(): boolean {
       return false
     }
     
+    // Safari環境の検出
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) || 
+                    /iPad|iPhone|iPod/.test(navigator.userAgent)
+    
+    if (isSafari) {
+      console.log('💡 Safari環境検出: webkit-masked-url エラー回避のためメモリ内データストアを使用')
+      return false
+    }
+    
     // ローカルファイルアクセスの場合（file://）
     if (window.location.protocol === 'file:') {
       console.log('💡 ローカルファイル環境: メモリ内データストアを使用')
@@ -82,7 +91,7 @@ function isEnvironmentSecure(): boolean {
       return false
     }
     
-    // 簡単なWorker作成テスト
+    // 簡単なWorker作成テスト（Safari以外のブラウザのみ）
     try {
       const testWorker = new Worker('data:application/javascript,self.close();')
       testWorker.terminate()
@@ -135,11 +144,13 @@ export async function initDuckDB(): Promise<DuckDBInstance | null> {
       console.log('DuckDB初期化成功')
       return duckdbInstance
     } catch (workerError) {
-      // SecurityErrorの場合は即座にフォールバック
+      // SecurityErrorやwebkit-masked-urlエラーの場合は即座にフォールバック
       if (workerError instanceof Error && 
           (workerError.name === 'SecurityError' || 
            workerError.message.includes('insecure') ||
-           workerError.message.includes('SecurityError'))) {
+           workerError.message.includes('SecurityError') ||
+           workerError.message.includes('webkit-masked-url') ||
+           workerError.stack?.includes('webkit-masked-url'))) {
         console.warn('セキュリティエラーによりDuckDB初期化失敗、メモリ内データストアにフォールバック:', workerError.message)
         throw workerError
       }
@@ -168,7 +179,10 @@ export async function initDuckDB(): Promise<DuckDBInstance | null> {
     }
   } catch (error) {
     console.log('DuckDBを使用できません。メモリ内データストアで動作します。')
-    if (error instanceof Error && error.message.includes('SecurityError')) {
+    if (error instanceof Error && 
+        (error.message.includes('SecurityError') ||
+         error.message.includes('webkit-masked-url') ||
+         error.stack?.includes('webkit-masked-url'))) {
       console.log('📝 これは通常の動作です。セキュリティ制限によりDuckDBが無効化されました。')
     }
     useFallback = true
