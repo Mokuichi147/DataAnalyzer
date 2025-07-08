@@ -437,7 +437,18 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           
         case 'missing':
           if (selectedColumns.length >= 1) {
+            const startTime = performance.now()
             results = await detectMissingData(tableName, selectedColumns, missingDataOptions)
+            const endTime = performance.now()
+            
+            // performanceMetricsを追加
+            if (results) {
+              results.performanceMetrics = {
+                processingTime: Math.round(endTime - startTime),
+                originalSize: results.events?.length || 0,
+                processedSize: results.events?.length || 0
+              }
+            }
           }
           break
           
@@ -945,11 +956,13 @@ function PerformanceInfo({ performanceInfo, samplingInfo }: {
           <>
             <div>
               <div className="text-blue-600 dark:text-blue-400 font-medium transition-colors">処理時間</div>
-              <div className="text-blue-900 dark:text-blue-200 transition-colors">{performanceInfo.processingTime}ms</div>
+              <div className="text-blue-900 dark:text-blue-200 transition-colors">{performanceInfo.processingTime || 0}ms</div>
             </div>
             <div>
               <div className="text-blue-600 dark:text-blue-400 font-medium transition-colors">データサイズ</div>
-              <div className="text-blue-900 dark:text-blue-200 transition-colors">{performanceInfo.originalSize.toLocaleString()} → {performanceInfo.processedSize.toLocaleString()}</div>
+              <div className="text-blue-900 dark:text-blue-200 transition-colors">
+                {(performanceInfo.originalSize || 0).toLocaleString()} → {(performanceInfo.processedSize || 0).toLocaleString()}
+              </div>
             </div>
           </>
         )}
@@ -1163,8 +1176,8 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
       return (
         <div>
           <PerformanceInfo 
-            performanceInfo={performanceMetrics} 
-            samplingInfo={samplingInfo} 
+            performanceInfo={performanceMetrics || null} 
+            samplingInfo={samplingInfo || null} 
           />
           <div className="text-center py-4 text-gray-600">
             <p>変化点が検出されませんでした。</p>
@@ -1178,8 +1191,8 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
     return (
       <div>
         <PerformanceInfo 
-          performanceInfo={performanceMetrics} 
-          samplingInfo={samplingInfo} 
+          performanceInfo={performanceMetrics || null} 
+          samplingInfo={samplingInfo || null} 
         />
         
         {/* 統計情報の表示 */}
@@ -1499,8 +1512,8 @@ function TimeSeriesResults({ data }: { data: any }) {
     return (
       <div>
         <PerformanceInfo 
-          performanceInfo={performanceMetrics} 
-          samplingInfo={samplingInfo} 
+          performanceInfo={performanceMetrics || null} 
+          samplingInfo={samplingInfo || null} 
         />
         
         {/* 統計情報の表示 */}
@@ -2069,7 +2082,7 @@ function TextAnalysisResults({ data }: { data: any }) {
   )
 }
 
-function MissingDataResults({ data }: { data: MissingDataResult }) {
+function MissingDataResults({ data }: { data: MissingDataResult & { performanceMetrics?: any } }) {
   console.log('MissingDataResults received:', data)
   
   if (!data || !data.events) {
@@ -2080,7 +2093,7 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
     )
   }
 
-  const { events, summary, columnStats } = data
+  const { events, summary, columnStats, performanceMetrics } = data
 
   // イベントを時系列の逆順にソート（最新が先頭）
   const sortedEvents = [...events].sort((a, b) => b.rowIndex - a.rowIndex)
@@ -2090,6 +2103,12 @@ function MissingDataResults({ data }: { data: MissingDataResult }) {
 
   return (
     <div className="space-y-6">
+      {/* パフォーマンス情報 */}
+      <PerformanceInfo 
+        performanceInfo={performanceMetrics || null} 
+        samplingInfo={null} 
+      />
+      
       {/* サマリー統計 */}
       <div>
         <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">欠損検知サマリー</h4>
