@@ -12,7 +12,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 
 function App() {
   const [activeTab, setActiveTab] = useState('data')
-  const { currentTable, tables, setCurrentTable, removeTable } = useDataStore()
+  const { currentTable, tables, setCurrentTable, removeTable, removeTableByNameAndConnection } = useDataStore()
 
   // Webkitスクロールバーを隠すためのスタイル
   const scrollbarHiddenStyle = `
@@ -258,76 +258,95 @@ function App() {
                   <div className="space-y-4">
                     {tables.length > 0 ? (
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {tables.map((table) => {
-                          const memoryTables = memoryDataStore.listTables()
-                          const isTableInMemory = table.connectionId !== 'file' || memoryTables.includes(table.name)
-                          
-                          return (
-                            <div
-                              key={table.id}
-                              className={`border rounded-lg p-4 transition-colors ${
-                                isTableInMemory 
-                                  ? 'border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer bg-white dark:bg-gray-700'
-                                  : 'border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900/20'
-                              }`}
-                              onClick={() => isTableInMemory && setCurrentTable(table)}
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <h3 className={`font-medium ${isTableInMemory ? 'text-gray-900 dark:text-white' : 'text-red-700 dark:text-red-400'}`}>
-                                  {table.name}
-                                  {!isTableInMemory && <span className="ml-2 text-xs">(データ消失)</span>}
-                                </h3>
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {table.columns.length} 列
-                                  </span>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (window.confirm(`テーブル "${table.name}" を削除しますか？\n\nこの操作は取り消すことができません。${isTableInMemory ? '\n\nメモリ内のデータも削除されます。' : ''}`)) {
-                                        // メモリ内のデータも削除
-                                        if (isTableInMemory && table.connectionId === 'file') {
-                                          try {
-                                            memoryDataStore.dropTable(table.name)
-                                          } catch (error) {
-                                            console.warn(`Failed to drop table ${table.name} from memory:`, error)
+                        {/* 重複テーブルを排除: 同じ名前とconnectionIdの組み合わせは1つだけ表示 */}
+                        {tables
+                          .filter((table, index, self) => 
+                            index === self.findIndex(t => t.name === table.name && t.connectionId === table.connectionId)
+                          )
+                          .map((table) => {
+                            const memoryTables = memoryDataStore.listTables()
+                            const isTableInMemory = table.connectionId !== 'file' || memoryTables.includes(table.name)
+                            
+                            // 同じ名前とconnectionIdの組み合わせのテーブル数をカウント
+                            const duplicateCount = tables.filter(t => t.name === table.name && t.connectionId === table.connectionId).length
+                            
+                            return (
+                              <div
+                                key={`${table.name}-${table.connectionId}`}
+                                className={`border rounded-lg p-4 transition-colors ${
+                                  isTableInMemory 
+                                    ? 'border-gray-200 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer bg-white dark:bg-gray-700'
+                                    : 'border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900/20'
+                                }`}
+                                onClick={() => isTableInMemory && setCurrentTable(table)}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <h3 className={`font-medium ${isTableInMemory ? 'text-gray-900 dark:text-white' : 'text-red-700 dark:text-red-400'}`}>
+                                    {table.name}
+                                    {duplicateCount > 1 && (
+                                      <span className="ml-2 text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 px-1 py-0.5 rounded">
+                                        重複({duplicateCount})
+                                      </span>
+                                    )}
+                                    {!isTableInMemory && <span className="ml-2 text-xs">(データ消失)</span>}
+                                  </h3>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {table.columns.length} 列
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const confirmMessage = duplicateCount > 1 
+                                          ? `テーブル "${table.name}" の重複エントリ（${duplicateCount}個）をすべて削除しますか？\n\nこの操作は取り消すことができません。${isTableInMemory ? '\n\nメモリ内のデータも削除されます。' : ''}`
+                                          : `テーブル "${table.name}" を削除しますか？\n\nこの操作は取り消すことができません。${isTableInMemory ? '\n\nメモリ内のデータも削除されます。' : ''}`
+                                        
+                                        if (window.confirm(confirmMessage)) {
+                                          // メモリ内のデータを削除
+                                          if (isTableInMemory && table.connectionId === 'file') {
+                                            try {
+                                              memoryDataStore.dropTable(table.name)
+                                            } catch (error) {
+                                              console.warn(`Failed to drop table ${table.name} from memory:`, error)
+                                            }
+                                          }
+                                          
+                                          // 同じ名前とconnectionIdのテーブルをすべて削除
+                                          removeTableByNameAndConnection(table.name, table.connectionId)
+                                          
+                                          // 現在選択中のテーブルの場合、選択を解除
+                                          if (currentTable && currentTable.name === table.name && currentTable.connectionId === table.connectionId) {
+                                            setCurrentTable(null)
                                           }
                                         }
-                                        // ストアからテーブル情報を削除
-                                        removeTable(table.id)
-                                        // 現在選択中のテーブルの場合、選択を解除
-                                        if (currentTable && typeof currentTable === 'object' && 'id' in currentTable && (currentTable as any).id === table.id) {
-                                          setCurrentTable(null)
-                                        }
-                                      }
-                                    }}
-                                    className={`text-xs hover:underline ${
-                                      isTableInMemory 
-                                        ? 'text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400' 
-                                        : 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300'
-                                    }`}
-                                    title="テーブルを削除"
-                                  >
-                                    削除
-                                  </button>
+                                      }}
+                                      className={`text-xs hover:underline ${
+                                        isTableInMemory 
+                                          ? 'text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400' 
+                                          : 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300'
+                                      }`}
+                                      title={duplicateCount > 1 ? "重複するテーブルをすべて削除" : "テーブルを削除"}
+                                    >
+                                      削除{duplicateCount > 1 && `(${duplicateCount})`}
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                                接続: {table.connectionId === 'file' ? 'ファイル' : table.connectionId}
-                                {table.rowCount && ` • ${table.rowCount} 行`}
-                              </p>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {table.columns.slice(0, 3).map(col => col.name).join(', ')}
-                                {table.columns.length > 3 && '...'}
-                              </div>
-                              {!isTableInMemory && (
-                                <div className="mt-2 text-xs text-red-600 dark:text-red-400">
-                                  メモリからデータが消失しています。再度ファイルをアップロードしてください。
+                                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                                  接続: {table.connectionId === 'file' ? 'ファイル' : table.connectionId}
+                                  {table.rowCount && ` • ${table.rowCount} 行`}
+                                </p>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {table.columns.slice(0, 3).map(col => col.name).join(', ')}
+                                  {table.columns.length > 3 && '...'}
                                 </div>
-                              )}
-                            </div>
-                          )
-                        })}
+                                {!isTableInMemory && (
+                                  <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                                    メモリからデータが消失しています。再度ファイルをアップロードしてください。
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-gray-500 dark:text-gray-400">
