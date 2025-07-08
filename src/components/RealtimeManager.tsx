@@ -322,7 +322,12 @@ function SubscriptionSelector({ onAdd }: SubscriptionSelectorProps) {
   const { tables } = useDataStore()
   const { subscriptions } = useRealtimeStore()
   
-  const availableTables = tables.filter(table => 
+  // 重複するテーブル名を排除して、購読対象になっていないテーブルのみを表示
+  const uniqueTables = tables.filter((table, index, self) => 
+    index === self.findIndex(t => t.name === table.name && t.connectionId === table.connectionId)
+  )
+  
+  const availableTables = uniqueTables.filter(table => 
     !subscriptions.some(sub => sub.tableName === table.name)
   )
 

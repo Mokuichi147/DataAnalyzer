@@ -68,6 +68,7 @@ export interface DataStoreState {
   
   addTable: (table: Omit<DataTable, 'id'>) => void
   removeTable: (id: string) => void
+  removeTableByNameAndConnection: (name: string, connectionId: string) => void
   setCurrentTable: (table: DataTable | null) => void
   
   addFilter: (filter: Omit<DataFilter, 'isActive'>) => void
@@ -130,9 +131,22 @@ export const useDataStore = create<DataStoreState>()(
           ...table,
           id: generateUUID(),
         }
-        set(state => ({
-          tables: [...state.tables, newTable]
-        }))
+        set(state => {
+          // 同じ名前とconnectionIdの組み合わせのテーブルが既に存在するかチェック
+          const existingTableIndex = state.tables.findIndex(
+            t => t.name === table.name && t.connectionId === table.connectionId
+          )
+          
+          if (existingTableIndex !== -1) {
+            // 既存のテーブルを更新（上書き）
+            const updatedTables = [...state.tables]
+            updatedTables[existingTableIndex] = newTable
+            return { tables: updatedTables }
+          } else {
+            // 新しいテーブルとして追加
+            return { tables: [...state.tables, newTable] }
+          }
+        })
       },
       
       removeTable: (id) => {
@@ -140,6 +154,22 @@ export const useDataStore = create<DataStoreState>()(
           tables: state.tables.filter(table => table.id !== id),
           currentTable: state.currentTable?.id === id ? null : state.currentTable
         }))
+      },
+      
+      removeTableByNameAndConnection: (name, connectionId) => {
+        set(state => {
+          const tableToRemove = state.tables.find(
+            t => t.name === name && t.connectionId === connectionId
+          )
+          return {
+            tables: state.tables.filter(
+              table => !(table.name === name && table.connectionId === connectionId)
+            ),
+            currentTable: state.currentTable?.name === name && state.currentTable?.connectionId === connectionId 
+              ? null 
+              : state.currentTable
+          }
+        })
       },
       
       setCurrentTable: (table) => {
