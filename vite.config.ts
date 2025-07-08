@@ -14,10 +14,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      buffer: 'buffer',
     },
   },
   optimizeDeps: {
     exclude: ['@duckdb/duckdb-wasm'],
+    include: ['buffer'],
+  },
+  define: {
+    global: 'globalThis',
   },
   server: {
     fs: {
