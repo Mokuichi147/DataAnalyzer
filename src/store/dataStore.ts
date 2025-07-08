@@ -157,19 +157,14 @@ export const useDataStore = create<DataStoreState>()(
       },
       
       removeTableByNameAndConnection: (name, connectionId) => {
-        set(state => {
-          const tableToRemove = state.tables.find(
-            t => t.name === name && t.connectionId === connectionId
-          )
-          return {
-            tables: state.tables.filter(
-              table => !(table.name === name && table.connectionId === connectionId)
-            ),
-            currentTable: state.currentTable?.name === name && state.currentTable?.connectionId === connectionId 
-              ? null 
-              : state.currentTable
-          }
-        })
+        set(state => ({
+          tables: state.tables.filter(
+            table => !(table.name === name && table.connectionId === connectionId)
+          ),
+          currentTable: state.currentTable?.name === name && state.currentTable?.connectionId === connectionId 
+            ? null 
+            : state.currentTable
+        }))
       },
       
       setCurrentTable: (table) => {

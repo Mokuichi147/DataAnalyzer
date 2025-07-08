@@ -6,7 +6,7 @@ import { DataPreview } from './components/DataPreview'
 import { AnalysisPanel } from './components/AnalysisPanel'
 import { RealtimeManager } from './components/RealtimeManager'
 import { ThemeSettings } from './components/ThemeSettings'
-import { useDataStore } from './store/dataStore'
+import { useDataStore, type DataTable } from './store/dataStore'
 import { memoryDataStore } from './lib/memoryDataStore'
 import { ThemeProvider } from './contexts/ThemeContext'
 
@@ -315,7 +315,9 @@ function App() {
                                           removeTableByNameAndConnection(table.name, table.connectionId)
                                           
                                           // 現在選択中のテーブルの場合、選択を解除
-                                          if (currentTable && currentTable.name === table.name && currentTable.connectionId === table.connectionId) {
+                                          if (currentTable && 
+                                              (currentTable as DataTable).name === table.name && 
+                                              (currentTable as DataTable).connectionId === table.connectionId) {
                                             setCurrentTable(null)
                                           }
                                         }
