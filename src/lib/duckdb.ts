@@ -1,10 +1,17 @@
 import * as duckdb from '@duckdb/duckdb-wasm'
 import { memoryDataStore, type Column } from './memoryDataStore'
 import { getMemoryInfo, logMemoryUsage, checkMemoryWarning, forceGarbageCollection } from './memoryMonitor'
+import { detectFileEncoding, type EncodingDetectionResult } from './fileEncoding'
 
 export interface DuckDBInstance {
   db: duckdb.AsyncDuckDB
   conn: duckdb.AsyncDuckDBConnection
+}
+
+export interface FileProcessingResult {
+  tableNames: string[]
+  encoding?: string
+  encodingConfidence?: number
 }
 
 let duckdbInstance: DuckDBInstance | null = null
@@ -155,7 +162,7 @@ export async function executeQuery(sql: string, params?: any[]): Promise<any[]> 
 export async function createTableFromFile(
   file: File,
   tableName: string = 'data'
-): Promise<string[]> {
+): Promise<FileProcessingResult> {
   console.log(`🚀 ファイル処理開始: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB)`)
   
   await initDuckDB() // フォールバック判定のため
@@ -223,7 +230,32 @@ export async function createTableFromFile(
   }
 }
 
-// Safari用チャンク読み込み関数
+// エンコーディング検出付きファイル読み込み関数
+async function readFileWithEncoding(file: File): Promise<EncodingDetectionResult> {
+  console.log(`📚 エンコーディング検出付きファイル読み込み開始: ${file.name}`)
+  
+  try {
+    const result = await detectFileEncoding(file, {
+      fallbackEncoding: 'utf-8',
+      minConfidence: 0.3,
+      supportedEncodings: ['utf-8', 'shift_jis', 'euc-jp', 'iso-2022-jp', 'windows-1252']
+    })
+    
+    console.log(`✅ ファイル読み込み完了:`, {
+      encoding: result.encoding,
+      confidence: result.confidence,
+      textLength: result.text.length,
+      fileName: file.name
+    })
+    
+    return result
+  } catch (error) {
+    console.error('エンコーディング検出エラー:', error)
+    throw error
+  }
+}
+
+// Safari用チャンク読み込み関数（フォールバック用）
 async function readFileInChunks(file: File, chunkSize: number = 1024 * 1024): Promise<string> {
   console.log(`📚 チャンク読み込み開始: ${Math.ceil(file.size / chunkSize)} チャンク`)
   
@@ -250,25 +282,42 @@ async function readFileInChunks(file: File, chunkSize: number = 1024 * 1024): Pr
   return result
 }
 
-async function createTableFromCSV(file: File, tableName: string, delimiter: string = ','): Promise<string[]> {
+async function createTableFromCSV(file: File, tableName: string, delimiter: string = ','): Promise<FileProcessingResult> {
   const instance = await initDuckDB()
   
   try {
     console.log(`📄 CSV読み込み開始: ${file.name}`)
     
-    // Safari用の最適化: ファイルを小さなチャンクに分けて読み込み
+    // エンコーディング検出付きでファイル読み込み
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
     const fileSizeMB = file.size / (1024 * 1024)
     
     let text: string
+    let encoding: string
+    let encodingConfidence: number | undefined
+    
     if (isSafari && fileSizeMB > 5) {
       console.log('🍎 Safari大容量ファイル: チャンク読み込みを実行')
       text = await readFileInChunks(file)
+      encoding = 'utf-8' // フォールバック
+      encodingConfidence = undefined
     } else {
-      text = await file.text()
+      // エンコーディング検出付きで読み込み
+      const result = await readFileWithEncoding(file)
+      text = result.text
+      encoding = result.encoding
+      encodingConfidence = result.confidence
+      
+      // エンコーディング情報をログに記録
+      console.log(`📊 ファイル読み込み完了:`, {
+        encoding: encoding,
+        confidence: result.confidence,
+        textLength: text.length,
+        fileName: file.name
+      })
     }
     
-    console.log(`📊 ファイル読み込み完了: ${text.length} 文字`)
+    console.log(`📊 ファイル読み込み完了: ${text.length} 文字 (エンコーディング: ${encoding})`)
     const lines = text.split('\n').filter(line => line.trim())
     
     if (lines.length === 0) {
@@ -398,7 +447,11 @@ async function createTableFromCSV(file: File, tableName: string, delimiter: stri
     }
     
     console.log(`CSVファイル読み込み完了: ${dataRows.length}行、${headers.length}列`)
-    return [tableName]
+    return {
+      tableNames: [tableName],
+      encoding: encoding,
+      encodingConfidence: encodingConfidence
+    }
     
   } catch (error) {
     console.error('CSV読み込みエラー:', error)
@@ -406,11 +459,25 @@ async function createTableFromCSV(file: File, tableName: string, delimiter: stri
   }
 }
 
-async function createTableFromJSON(file: File, tableName: string): Promise<string[]> {
+async function createTableFromJSON(file: File, tableName: string): Promise<FileProcessingResult> {
   const instance = await initDuckDB()
   
   try {
-    const text = await file.text()
+    console.log(`📄 JSON読み込み開始: ${file.name}`)
+    
+    // エンコーディング検出付きでファイル読み込み
+    const result = await readFileWithEncoding(file)
+    const text = result.text
+    const encoding = result.encoding
+    const encodingConfidence = result.confidence
+    
+    console.log(`📊 JSON読み込み完了:`, {
+      encoding: encoding,
+      confidence: result.confidence,
+      textLength: text.length,
+      fileName: file.name
+    })
+    
     let jsonData: any[]
     
     try {
@@ -500,7 +567,11 @@ async function createTableFromJSON(file: File, tableName: string): Promise<strin
     }
     
     console.log(`JSONファイル読み込み完了: ${jsonData.length}行、${columns.length}列`)
-    return [tableName]
+    return {
+      tableNames: [tableName],
+      encoding: encoding,
+      encodingConfidence: encodingConfidence
+    }
     
   } catch (error) {
     console.error('JSON読み込みエラー:', error)
@@ -509,7 +580,7 @@ async function createTableFromJSON(file: File, tableName: string): Promise<strin
 }
 
 // ファイルヘッダーを検査してSQLiteまたはDuckDBかを判定
-async function loadDatabaseFile(file: File): Promise<string[]> {
+async function loadDatabaseFile(file: File): Promise<FileProcessingResult> {
   try {
     console.log('🔍 データベースファイルの形式を判定中:', file.name)
     
@@ -586,7 +657,7 @@ async function loadDatabaseFile(file: File): Promise<string[]> {
   }
 }
 
-export async function loadSQLiteFile(file: File, allowDuckDBFallback: boolean = true): Promise<string[]> {
+export async function loadSQLiteFile(file: File, allowDuckDBFallback: boolean = true): Promise<FileProcessingResult> {
   try {
     console.log('🗄️ SQLiteファイルの読み込みを開始:', file.name)
     
@@ -705,7 +776,11 @@ export async function loadSQLiteFile(file: File, allowDuckDBFallback: boolean = 
       }
       
       // 読み込まれたテーブル名を返す
-      return tableNames
+      return {
+        tableNames: tableNames,
+        encoding: undefined, // バイナリファイルのためエンコーディングは不適用
+        encodingConfidence: undefined
+      }
       
     } finally {
       if (db) {
@@ -984,7 +1059,7 @@ async function loadSQLiteTable(db: any, tableName: string): Promise<void> {
   }
 }
 
-export async function loadDuckDBFile(file: File): Promise<string[]> {
+export async function loadDuckDBFile(file: File): Promise<FileProcessingResult> {
   try {
     console.log('DuckDBファイルの読み込みを開始:', file.name)
     
@@ -1064,7 +1139,11 @@ export async function loadDuckDBFile(file: File): Promise<string[]> {
       }
       
       console.log(`✅ DuckDBファイル読み込み完了: ${tableNames.length}個のテーブル`)
-      return tableNames
+      return {
+        tableNames: tableNames,
+        encoding: undefined, // バイナリファイルのためエンコーディングは不適用
+        encodingConfidence: undefined
+      }
       
     } catch (duckdbError) {
       console.warn('❌ DuckDB Wasmでの読み込みに失敗:', duckdbError)

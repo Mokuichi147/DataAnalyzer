@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Upload, FileText, X, CheckCircle, AlertTriangle } from 'lucide-react'
 import { isValidFileType, formatBytes } from '@/lib/utils'
-import { createTableFromFile, getTableCount, getTableInfo, createTablesFromJsonColumns } from '@/lib/duckdb'
+import { createTableFromFile, getTableCount, getTableInfo, createTablesFromJsonColumns, type FileProcessingResult } from '@/lib/duckdb'
 import { useDataStore } from '@/store/dataStore'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { FileUploadAlternatives } from './FileUploadAlternatives'
 import { getMemoryInfo, formatMemorySize, checkMemoryWarning } from '@/lib/memoryMonitor'
+import { getEncodingDescription } from '@/lib/fileEncoding'
+import { memoryDataStore } from '@/lib/memoryDataStore'
 
 interface UploadedFile {
   id: string
@@ -16,6 +18,8 @@ interface UploadedFile {
   isDuckDBFile?: boolean
   extractedTables?: string[]
   jsonTables?: string[] // JSONカラムから作成されたテーブル
+  encoding?: string // 検出されたエンコーディング
+  encodingConfidence?: number // エンコーディング検出の信頼度
 }
 
 interface FileUploadProps {
@@ -146,6 +150,7 @@ export function FileUpload({ }: FileUploadProps) {
 
         // 通常のファイル処理
         
+        let result: FileProcessingResult
         try {
           // iOS Safari用の特別処理
           if (isIOS && isSafari) {
@@ -163,14 +168,20 @@ export function FileUpload({ }: FileUploadProps) {
             }
           }
           
-          await createTableFromFile(uploadedFile.file, uploadedFile.tableName)
+          result = await createTableFromFile(uploadedFile.file, uploadedFile.tableName)
+          
+          // エンコーディング情報を保存
+          setFiles(prev => prev.map(f => 
+            f.id === uploadedFile.id ? { 
+              ...f, 
+              status: 'success',
+              encoding: result.encoding,
+              encodingConfidence: result.encodingConfidence
+            } : f
+          ))
         } catch (createError) {
           throw new Error(`ファイル処理エラー: ${createError instanceof Error ? createError.message : '不明なエラー'}`)
         }
-
-        setFiles(prev => prev.map(f => 
-          f.id === uploadedFile.id ? { ...f, status: 'success' } : f
-        ))
 
         // ファイル拡張子に基づいてテーブル名を決定
         const fileExtension = uploadedFile.file.name.split('.').pop()?.toLowerCase()
@@ -179,11 +190,10 @@ export function FileUpload({ }: FileUploadProps) {
         if (fileExtension === 'sqlite' || fileExtension === 'sqlite3' || fileExtension === 'db') {
           // データベースファイルの場合、実際に作成されたテーブル名を取得
           // メモリストアから取得
-          const { memoryDataStore } = await import('@/lib/memoryDataStore')
           actualTableNames = memoryDataStore.listTables()
         } else {
-          // 通常のファイルの場合は指定されたテーブル名を使用
-          actualTableNames = [uploadedFile.tableName]
+          // 通常のファイルの場合は結果のテーブル名を使用
+          actualTableNames = result.tableNames
         }
 
         // 各テーブルをストアに追加
@@ -198,7 +208,6 @@ export function FileUpload({ }: FileUploadProps) {
               // iOS Safari フォールバック: メモリストアから直接取得を試行
               if (isIOS && isSafari) {
                 try {
-                  const { memoryDataStore } = await import('@/lib/memoryDataStore')
                   const schema = memoryDataStore.getTableSchema(tableName)
                   if (schema && schema.columns) {
                     tableInfo = schema.columns.map(col => ({
@@ -235,7 +244,6 @@ export function FileUpload({ }: FileUploadProps) {
               // iOS Safari フォールバック: メモリストアから直接取得を試行
               if (isIOS && isSafari) {
                 try {
-                  const { memoryDataStore } = await import('@/lib/memoryDataStore')
                   const schema = memoryDataStore.getTableSchema(tableName)
                   if (schema && schema.data) {
                     rowCount = schema.data.length
@@ -577,6 +585,26 @@ export function FileUpload({ }: FileUploadProps) {
                         <p className="mb-2">
                           テーブル「{uploadedFile.tableName}」として正常にアップロードされました
                         </p>
+                        
+                        {/* エンコーディング情報の表示 */}
+                        {uploadedFile.encoding && (
+                          <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-xs transition-colors">
+                            <span className="text-gray-700 dark:text-gray-300">
+                              📄 エンコーディング: <span className="font-mono text-blue-600 dark:text-blue-400">{uploadedFile.encoding}</span>
+                              {uploadedFile.encoding !== 'utf-8' && (
+                                <span className="ml-1 text-gray-600 dark:text-gray-400">
+                                  ({getEncodingDescription(uploadedFile.encoding)})
+                                </span>
+                              )}
+                              {uploadedFile.encodingConfidence && (
+                                <span className="ml-2 text-gray-500 dark:text-gray-400">
+                                  信頼度: {Math.round(uploadedFile.encodingConfidence * 100)}%
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        
                         {uploadedFile.jsonTables && uploadedFile.jsonTables.length > 0 && (
                           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded transition-colors">
                             <p className="text-blue-700 dark:text-blue-300 font-medium text-sm mb-2">

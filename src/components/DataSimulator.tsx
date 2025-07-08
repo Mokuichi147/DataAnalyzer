@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Play, Pause, Database, TrendingUp } from 'lucide-react'
 import { useDataStore } from '@/store/dataStore'
+import { memoryDataStore } from '@/lib/memoryDataStore'
 
 export function DataSimulator() {
   const [isSimulating, setIsSimulating] = useState(false)
@@ -52,7 +53,6 @@ export function DataSimulator() {
       console.log('Creating sample table:', simulationSettings.tableName)
       
       // メモリストアを使用してテーブルを作成
-      const { memoryDataStore } = await import('@/lib/memoryDataStore')
       
       // テーブルが既に存在する場合は削除
       try {
@@ -171,8 +171,7 @@ export function DataSimulator() {
     const id = setInterval(async () => {
       try {
         // メモリストアを使用してデータを挿入
-        const { memoryDataStore } = await import('@/lib/memoryDataStore')
-        
+          
         // テーブルが存在するかチェック
         const tables = memoryDataStore.listTables()
         if (!tables.includes(simulationSettings.tableName)) {

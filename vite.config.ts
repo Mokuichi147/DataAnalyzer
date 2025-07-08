@@ -14,10 +14,28 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      buffer: 'buffer',
     },
   },
   optimizeDeps: {
     exclude: ['@duckdb/duckdb-wasm'],
+    include: ['buffer'],
+  },
+  define: {
+    global: 'globalThis',
+  },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['react', 'react-dom'],
+          'chart': ['chart.js', 'react-chartjs-2'],
+          'duckdb': ['@duckdb/duckdb-wasm'],
+          'ui': ['lucide-react', 'clsx', 'tailwind-merge'],
+        },
+      },
+    },
   },
   server: {
     fs: {
