@@ -36,6 +36,8 @@ import {
   type ColumnAnalysisResult
 } from '@/lib/memoryStatistics'
 
+import { useDataStore } from '@/store/dataStore'
+
 import {
   detectMissingData,
   prepareMissingDataChart,
@@ -176,6 +178,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   })
   const [error, setError] = useState<string | null>(null)
   
+  const { filters } = useDataStore()
+  
   console.log('AnalysisPanel props:', { tableName, columns })
   console.log('AnalysisPanel state:', { activeAnalysis, selectedColumns, analysisResults, isLoading })
 
@@ -227,21 +231,21 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     if (selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
       runAnalysis()
     }
-  }, [selectedColumns, tableName])
+  }, [selectedColumns, tableName, filters])
 
   // 変化点検出アルゴリズムが変更されたとき、自動実行
   useEffect(() => {
     if (activeAnalysis === 'changepoint' && selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
       runAnalysis()
     }
-  }, [changePointAlgorithm])
+  }, [changePointAlgorithm, filters])
 
   // 横軸カラムが変更されたとき、自動実行（時系列分析と変化点検出のみ）
   useEffect(() => {
     if ((activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
       runAnalysis()
     }
-  }, [xAxisColumn])
+  }, [xAxisColumn, filters])
 
   // データ変更を監視して分析結果を自動更新
   useEffect(() => {
@@ -388,8 +392,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             results = []
             for (const column of selectedColumns) {
               const stats = useMemoryStore
-                ? await getBasicStatisticsMemory(tableName, column)
-                : await getBasicStatisticsOriginal(tableName, column)
+                ? await getBasicStatisticsMemory(tableName, column, filters)
+                : await getBasicStatisticsOriginal(tableName, column, filters)
               results.push(stats)
             }
           }
@@ -398,48 +402,48 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         case 'correlation':
           if (selectedColumns.length >= 2) {
             results = useMemoryStore
-              ? await getCorrelationMatrixMemory(tableName, selectedColumns)
-              : await getCorrelationMatrixOriginal(tableName, selectedColumns)
+              ? await getCorrelationMatrixMemory(tableName, selectedColumns, filters)
+              : await getCorrelationMatrixOriginal(tableName, selectedColumns, filters)
           }
           break
           
         case 'changepoint':
           if (selectedColumns.length >= 1) {
             results = useMemoryStore
-              ? await detectChangePointsMemory(tableName, selectedColumns[0], { algorithm: changePointAlgorithm, xColumn: xAxisColumn })
-              : await detectChangePointsOriginal(tableName, selectedColumns[0])
+              ? await detectChangePointsMemory(tableName, selectedColumns[0], { algorithm: changePointAlgorithm, xColumn: xAxisColumn }, filters)
+              : await detectChangePointsOriginal(tableName, selectedColumns[0], xAxisColumn, filters)
           }
           break
           
         case 'factor':
           if (selectedColumns.length >= 2) {
             results = useMemoryStore
-              ? await performFactorAnalysisMemory(tableName, selectedColumns)
-              : await performFactorAnalysisOriginal(tableName, selectedColumns)
+              ? await performFactorAnalysisMemory(tableName, selectedColumns, filters)
+              : await performFactorAnalysisOriginal(tableName, selectedColumns, 2, filters)
           }
           break
           
         case 'histogram':
           if (selectedColumns.length === 1) {
             results = useMemoryStore
-              ? await getHistogramDataMemory(tableName, selectedColumns[0])
-              : await getHistogramDataOriginal(tableName, selectedColumns[0])
+              ? await getHistogramDataMemory(tableName, selectedColumns[0], 10, filters)
+              : await getHistogramDataOriginal(tableName, selectedColumns[0], 10, filters)
           }
           break
           
         case 'timeseries':
           if (selectedColumns.length === 1) {
             results = useMemoryStore
-              ? await getTimeSeriesDataMemory(tableName, selectedColumns[0], xAxisColumn)
+              ? await getTimeSeriesDataMemory(tableName, selectedColumns[0], xAxisColumn, filters)
               : dateColumns.length > 0 
-                ? await getTimeSeriesDataOriginal(tableName, selectedColumns[0], dateColumns[0].name)
+                ? await getTimeSeriesDataOriginal(tableName, selectedColumns[0], dateColumns[0].name, 'day', filters)
                 : null
           }
           break
           
         case 'column':
           if (selectedColumns.length >= 1) {
-            results = await getColumnAnalysis(tableName, selectedColumns)
+            results = await getColumnAnalysis(tableName, selectedColumns, filters)
           }
           break
           

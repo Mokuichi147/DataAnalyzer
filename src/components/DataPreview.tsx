@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Eye, Download, RefreshCw } from 'lucide-react'
 import { useRealtimeStore } from '@/store/realtimeStore'
+import { useDataStore } from '@/store/dataStore'
 import { getTableInfo, getTableCount, executeQuery } from '@/lib/duckdb'
+import { buildFilterClause } from '@/lib/filterUtils'
+import { FilterPanel } from './FilterPanel'
 
 interface DataPreviewProps {
   tableName: string
@@ -11,31 +14,47 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const [data, setData] = useState<any[]>([])
   const [columns, setColumns] = useState<any[]>([])
   const [totalRows, setTotalRows] = useState(0)
+  const [filteredRows, setFilteredRows] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
   const [isLoading, setIsLoading] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const { settings: realtimeSettings } = useRealtimeStore()
+  const { filters } = useDataStore()
 
   const loadData = async () => {
     if (!tableName) return
     
     setIsLoading(true)
     try {
-      console.log('Loading data for table:', tableName)
+      console.log('🔄 Loading data for table:', tableName)
+      console.log('🔄 Current filters:', filters)
       
       // テーブル情報を取得
       const tableInfo = await getTableInfo(tableName)
-      console.log('Table info:', tableInfo)
+      console.log('🔄 Table info:', tableInfo)
       setColumns(tableInfo)
       
-      // 総行数を取得
-      const count = await getTableCount(tableName)
-      console.log('Row count:', count)
-      setTotalRows(count)
+      // フィルター条件を構築
+      const filterClause = buildFilterClause(filters)
+      console.log('🔄 Filter clause:', filterClause)
       
-      // データを取得
-      const query = `SELECT * FROM ${tableName} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+      // 総行数を取得（フィルターなし）
+      const totalCount = await getTableCount(tableName)
+      console.log('Total row count:', totalCount)
+      setTotalRows(totalCount)
+      
+      // フィルター適用後の行数を取得
+      const filteredCountQuery = `SELECT COUNT(*) as count FROM ${tableName} ${filterClause}`
+      console.log('Filtered count query:', filteredCountQuery)
+      const filteredCountResult = await executeQuery(filteredCountQuery)
+      const filteredCount = filteredCountResult[0]?.count || 0
+      console.log('Filtered row count:', filteredCount)
+      setFilteredRows(filteredCount)
+      
+      // データを取得（フィルター適用）
+      const query = `SELECT * FROM ${tableName} ${filterClause} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
       console.log('Executing query:', query)
       
       const result = await executeQuery(query)
@@ -44,7 +63,6 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       
     } catch (error) {
       console.error('Error loading data:', error)
-      // Remove setError call since we no longer import useDataStore
       console.error('データの読み込みに失敗しました')
     } finally {
       setIsLoading(false)
@@ -52,8 +70,9 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   }
 
   useEffect(() => {
+    console.log('🔄 useEffect triggered - loadData:', { tableName, currentPage, pageSize, filtersLength: filters.length })
     loadData()
-  }, [tableName, currentPage, pageSize])
+  }, [tableName, currentPage, pageSize, filters])
 
   // リアルタイム更新のリスナー
   useEffect(() => {
@@ -77,7 +96,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
     }
   }, [tableName])
 
-  const totalPages = Math.ceil(totalRows / pageSize)
+  const totalPages = Math.ceil(filteredRows / pageSize)
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -87,6 +106,12 @@ export function DataPreview({ tableName }: DataPreviewProps) {
     setPageSize(size)
     setCurrentPage(1)
   }
+  
+  // フィルターが変更されたときにページを1に戻す
+  useEffect(() => {
+    console.log('🔄 Filters changed, resetting page to 1:', filters)
+    setCurrentPage(1)
+  }, [filters])
 
   const handleManualRefresh = () => {
     loadData()
@@ -95,7 +120,8 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   const exportData = async () => {
     try {
-      const query = `SELECT * FROM ${tableName}`
+      const filterClause = buildFilterClause(filters)
+      const query = `SELECT * FROM ${tableName} ${filterClause}`
       const result = await executeQuery(query)
       
       // CSVとしてダウンロード
@@ -130,6 +156,17 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   return (
     <div className="space-y-4 transition-colors">
+      {/* フィルターパネル */}
+      <FilterPanel 
+        columns={columns.map(col => ({
+          name: col.column_name,
+          type: col.column_type,
+          nullable: true
+        }))}
+        isOpen={isFilterOpen}
+        onToggle={() => setIsFilterOpen(!isFilterOpen)}
+      />
+
       {/* ヘッダー部分：モバイル対応 */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
@@ -138,7 +175,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
               データプレビュー: {tableName}
             </h3>
             <span className="text-sm text-gray-500 dark:text-gray-400 transition-colors">
-              {totalRows.toLocaleString()} 件のデータ
+              {filteredRows.toLocaleString()} / {totalRows.toLocaleString()} 件のデータ
             </span>
             {realtimeSettings.autoRefresh && (
               <div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-400 transition-colors">

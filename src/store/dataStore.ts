@@ -45,12 +45,23 @@ export interface DataTable {
   isLoaded: boolean
 }
 
+export interface DataFilter {
+  id: string
+  columnName: string
+  operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than' | 'greater_equal' | 'less_equal' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'is_null' | 'is_not_null' | 'in' | 'not_in'
+  value: string | number | boolean | null
+  values?: (string | number)[] // for 'in' and 'not_in' operators
+  isActive: boolean
+  columnType: string
+}
+
 export interface DataStoreState {
   connections: DataConnection[]
   tables: DataTable[]
   currentTable: DataTable | null
   isLoading: boolean
   error: string | null
+  filters: DataFilter[]
   
   // Actions
   addConnection: (connection: Omit<DataConnection, 'id' | 'isConnected'>) => void
@@ -65,6 +76,13 @@ export interface DataStoreState {
   
   setLoading: (isLoading: boolean) => void
   setError: (error: string | null) => void
+  
+  // Filter actions
+  addFilter: (filter: Omit<DataFilter, 'id'>) => void
+  removeFilter: (id: string) => void
+  updateFilter: (id: string, updates: Partial<DataFilter>) => void
+  toggleFilter: (id: string) => void
+  clearFilters: () => void
 }
 
 export const useDataStore = create<DataStoreState>()(
@@ -75,6 +93,7 @@ export const useDataStore = create<DataStoreState>()(
       currentTable: null,
       isLoading: false,
       error: null,
+      filters: [],
       
       addConnection: (connection) => {
         const newConnection: DataConnection = {
@@ -165,6 +184,42 @@ export const useDataStore = create<DataStoreState>()(
       setError: (error) => {
         set({ error })
       },
+      
+      addFilter: (filter) => {
+        const newFilter: DataFilter = {
+          ...filter,
+          id: generateUUID(),
+        }
+        set(state => ({
+          filters: [...state.filters, newFilter]
+        }))
+      },
+      
+      removeFilter: (id) => {
+        set(state => ({
+          filters: state.filters.filter(filter => filter.id !== id)
+        }))
+      },
+      
+      updateFilter: (id, updates) => {
+        set(state => ({
+          filters: state.filters.map(filter =>
+            filter.id === id ? { ...filter, ...updates } : filter
+          )
+        }))
+      },
+      
+      toggleFilter: (id) => {
+        set(state => ({
+          filters: state.filters.map(filter =>
+            filter.id === id ? { ...filter, isActive: !filter.isActive } : filter
+          )
+        }))
+      },
+      
+      clearFilters: () => {
+        set({ filters: [] })
+      },
     }),
     {
       name: 'data-analyzer-store',
@@ -172,6 +227,7 @@ export const useDataStore = create<DataStoreState>()(
       partialize: (state) => ({
         connections: state.connections,
         tables: state.tables,
+        filters: state.filters,
       }),
     }
   )
