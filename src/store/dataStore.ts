@@ -46,19 +46,22 @@ export interface DataTable {
 }
 
 export interface DataFilter {
-  column: string
-  operator: 'equals' | 'contains' | 'greater' | 'less' | 'between' | 'in'
-  value: any
+  id: string
+  columnName: string
+  operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than' | 'greater_equal' | 'less_equal' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'is_null' | 'is_not_null' | 'in' | 'not_in'
+  value: string | number | boolean | null
+  values?: (string | number)[] // for 'in' and 'not_in' operators
   isActive: boolean
+  columnType: string
 }
 
 export interface DataStoreState {
   connections: DataConnection[]
   tables: DataTable[]
   currentTable: DataTable | null
-  filters: DataFilter[]
   isLoading: boolean
   error: string | null
+  filters: DataFilter[]
   
   // Actions
   addConnection: (connection: Omit<DataConnection, 'id' | 'isConnected'>) => void
@@ -71,13 +74,15 @@ export interface DataStoreState {
   removeTableByNameAndConnection: (name: string, connectionId: string) => void
   setCurrentTable: (table: DataTable | null) => void
   
-  addFilter: (filter: Omit<DataFilter, 'isActive'>) => void
-  removeFilter: (index: number) => void
-  toggleFilter: (index: number) => void
-  clearFilters: () => void
-  
   setLoading: (isLoading: boolean) => void
   setError: (error: string | null) => void
+  
+  // Filter actions
+  addFilter: (filter: Omit<DataFilter, 'id'>) => void
+  removeFilter: (id: string) => void
+  updateFilter: (id: string, updates: Partial<DataFilter>) => void
+  toggleFilter: (id: string) => void
+  clearFilters: () => void
 }
 
 export const useDataStore = create<DataStoreState>()(
@@ -86,9 +91,9 @@ export const useDataStore = create<DataStoreState>()(
       connections: [],
       tables: [],
       currentTable: null,
-      filters: [],
       isLoading: false,
       error: null,
+      filters: [],
       
       addConnection: (connection) => {
         const newConnection: DataConnection = {
@@ -171,29 +176,6 @@ export const useDataStore = create<DataStoreState>()(
         set({ currentTable: table })
       },
       
-      addFilter: (filter) => {
-        set(state => ({
-          filters: [...state.filters, { ...filter, isActive: true }]
-        }))
-      },
-      
-      removeFilter: (index) => {
-        set(state => ({
-          filters: state.filters.filter((_, i) => i !== index)
-        }))
-      },
-      
-      toggleFilter: (index) => {
-        set(state => ({
-          filters: state.filters.map((filter, i) =>
-            i === index ? { ...filter, isActive: !filter.isActive } : filter
-          )
-        }))
-      },
-      
-      clearFilters: () => {
-        set({ filters: [] })
-      },
       
       setLoading: (isLoading) => {
         set({ isLoading })
@@ -201,6 +183,42 @@ export const useDataStore = create<DataStoreState>()(
       
       setError: (error) => {
         set({ error })
+      },
+      
+      addFilter: (filter) => {
+        const newFilter: DataFilter = {
+          ...filter,
+          id: generateUUID(),
+        }
+        set(state => ({
+          filters: [...state.filters, newFilter]
+        }))
+      },
+      
+      removeFilter: (id) => {
+        set(state => ({
+          filters: state.filters.filter(filter => filter.id !== id)
+        }))
+      },
+      
+      updateFilter: (id, updates) => {
+        set(state => ({
+          filters: state.filters.map(filter =>
+            filter.id === id ? { ...filter, ...updates } : filter
+          )
+        }))
+      },
+      
+      toggleFilter: (id) => {
+        set(state => ({
+          filters: state.filters.map(filter =>
+            filter.id === id ? { ...filter, isActive: !filter.isActive } : filter
+          )
+        }))
+      },
+      
+      clearFilters: () => {
+        set({ filters: [] })
       },
     }),
     {

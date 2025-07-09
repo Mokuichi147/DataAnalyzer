@@ -1,4 +1,5 @@
 import { executeQuery } from './duckdb'
+import { buildFilterClause } from './filterUtils'
 
 export interface BasicStats {
   count: number
@@ -40,8 +41,12 @@ export interface FactorAnalysisResult {
 
 export async function getBasicStatistics(
   tableName: string,
-  columnName: string
+  columnName: string,
+  filters: any[] = []
 ): Promise<BasicStats> {
+  const filterClause = buildFilterClause(filters)
+  const whereClause = filterClause ? `${filterClause} AND ${columnName} IS NOT NULL` : `WHERE ${columnName} IS NOT NULL`
+  
   const query = `
     SELECT 
       COUNT(${columnName}) as count,
@@ -53,7 +58,7 @@ export async function getBasicStatistics(
       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ${columnName}) as q2,
       PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${columnName}) as q3
     FROM ${tableName}
-    WHERE ${columnName} IS NOT NULL
+    ${whereClause}
   `
   
   const result = await executeQuery(query)
@@ -75,16 +80,22 @@ export async function getBasicStatistics(
 
 export async function getCorrelationMatrix(
   tableName: string,
-  columns: string[]
+  columns: string[],
+  filters: any[] = []
 ): Promise<CorrelationResult[]> {
   const correlations: CorrelationResult[] = []
+  const filterClause = buildFilterClause(filters)
   
   for (let i = 0; i < columns.length; i++) {
     for (let j = i + 1; j < columns.length; j++) {
+      const whereClause = filterClause 
+        ? `${filterClause} AND ${columns[i]} IS NOT NULL AND ${columns[j]} IS NOT NULL`
+        : `WHERE ${columns[i]} IS NOT NULL AND ${columns[j]} IS NOT NULL`
+      
       const query = `
         SELECT CORR(${columns[i]}, ${columns[j]}) as correlation
         FROM ${tableName}
-        WHERE ${columns[i]} IS NOT NULL AND ${columns[j]} IS NOT NULL
+        ${whereClause}
       `
       
       const result = await executeQuery(query)
@@ -102,9 +113,15 @@ export async function getCorrelationMatrix(
 export async function detectChangePoints(
   tableName: string,
   columnName: string,
-  orderColumn: string = 'id'
+  orderColumn: string = 'id',
+  filters: any[] = []
 ): Promise<ChangePointResult[]> {
   // 移動平均を使用した変化点検出
+  const filterClause = buildFilterClause(filters)
+  const whereClause = filterClause 
+    ? `${filterClause} AND ${columnName} IS NOT NULL`
+    : `WHERE ${columnName} IS NOT NULL`
+  
   const query = `
     WITH windowed_data AS (
       SELECT 
@@ -113,7 +130,7 @@ export async function detectChangePoints(
         AVG(${columnName}) OVER (ORDER BY ${orderColumn} ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) as moving_avg_10,
         AVG(${columnName}) OVER (ORDER BY ${orderColumn} ROWS BETWEEN 4 PRECEDING AND CURRENT ROW) as moving_avg_5
       FROM ${tableName}
-      WHERE ${columnName} IS NOT NULL
+      ${whereClause}
     ),
     change_scores AS (
       SELECT 
@@ -149,18 +166,25 @@ export async function detectChangePoints(
 export async function performFactorAnalysis(
   tableName: string,
   columns: string[],
-  numFactors: number = 2
+  numFactors: number = 2,
+  filters: any[] = []
 ): Promise<FactorAnalysisResult> {
   // 簡単な主成分分析的なアプローチ
-  // const correlationMatrix = await getCorrelationMatrix(tableName, columns) // 将来的に使用予定
+  // const correlationMatrix = await getCorrelationMatrix(tableName, columns, filters) // 将来的に使用予定
+  
+  const filterClause = buildFilterClause(filters)
   
   // 分散の計算
   const variances: number[] = []
   for (const column of columns) {
+    const whereClause = filterClause 
+      ? `${filterClause} AND ${column} IS NOT NULL`
+      : `WHERE ${column} IS NOT NULL`
+    
     const query = `
       SELECT VAR_POP(${column}) as variance
       FROM ${tableName}
-      WHERE ${column} IS NOT NULL
+      ${whereClause}
     `
     const result = await executeQuery(query)
     variances.push(result[0].variance || 0)
@@ -193,8 +217,14 @@ export async function performFactorAnalysis(
 export async function getHistogramData(
   tableName: string,
   columnName: string,
-  bins: number = 20
+  bins: number = 20,
+  filters: any[] = []
 ): Promise<Array<{ bin: string; count: number; frequency: number }>> {
+  const filterClause = buildFilterClause(filters)
+  const whereClause = filterClause 
+    ? `${filterClause} AND ${columnName} IS NOT NULL`
+    : `WHERE ${columnName} IS NOT NULL`
+  
   const query = `
     WITH stats AS (
       SELECT 
@@ -202,7 +232,7 @@ export async function getHistogramData(
         MAX(${columnName}) as max_val,
         COUNT(*) as total_count
       FROM ${tableName}
-      WHERE ${columnName} IS NOT NULL
+      ${whereClause}
     ),
     bins AS (
       SELECT 
@@ -221,7 +251,7 @@ export async function getHistogramData(
       FROM ${tableName}
       CROSS JOIN stats
       CROSS JOIN (SELECT unnest(range(1, ${bins + 1})) as i) bins_range
-      WHERE ${columnName} IS NOT NULL
+      ${whereClause}
       GROUP BY bin, total_count
     )
     SELECT 
@@ -241,7 +271,8 @@ export async function getTimeSeriesData(
   tableName: string,
   valueColumn: string,
   timeColumn: string,
-  interval: 'hour' | 'day' | 'week' | 'month' = 'day'
+  interval: 'hour' | 'day' | 'week' | 'month' = 'day',
+  filters: any[] = []
 ): Promise<Array<{ time: string; value: number; count: number }>> {
   const dateFormat = {
     hour: 'YYYY-MM-DD HH24:00:00',
@@ -250,13 +281,18 @@ export async function getTimeSeriesData(
     month: 'YYYY-MM'
   }[interval]
   
+  const filterClause = buildFilterClause(filters)
+  const whereClause = filterClause 
+    ? `${filterClause} AND ${valueColumn} IS NOT NULL AND ${timeColumn} IS NOT NULL`
+    : `WHERE ${valueColumn} IS NOT NULL AND ${timeColumn} IS NOT NULL`
+  
   const query = `
     SELECT 
       TO_CHAR(DATE_TRUNC('${interval}', ${timeColumn}), '${dateFormat}') as time,
       AVG(${valueColumn}) as value,
       COUNT(*) as count
     FROM ${tableName}
-    WHERE ${valueColumn} IS NOT NULL AND ${timeColumn} IS NOT NULL
+    ${whereClause}
     GROUP BY DATE_TRUNC('${interval}', ${timeColumn})
     ORDER BY time
   `

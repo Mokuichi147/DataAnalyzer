@@ -67,9 +67,22 @@ class MemoryDataStore {
       throw new Error(`Table ${tableName} does not exist`)
     }
 
+    // データを取得
+    let data = table.data
+
+    // WHERE句を解析・適用
+    const whereMatch = sql.match(/WHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+GROUP\s+BY|\s+LIMIT|$)/i)
+    if (whereMatch) {
+      const whereClause = whereMatch[1].trim()
+      console.log('🔍 MemoryDataStore: Processing WHERE clause:', whereClause)
+      
+      data = data.filter(row => this.evaluateWhereCondition(row, whereClause))
+      console.log('🔍 MemoryDataStore: Filtered data length:', data.length)
+    }
+
     // LIMIT句を解析
     const limitMatch = sql.match(/LIMIT\s+(\d+)(?:\s+OFFSET\s+(\d+))?/i)
-    let limit = table.data.length
+    let limit = data.length
     let offset = 0
     
     if (limitMatch) {
@@ -78,7 +91,7 @@ class MemoryDataStore {
     }
 
     // データを返す
-    return table.data.slice(offset, offset + limit)
+    return data.slice(offset, offset + limit)
   }
 
   private executeDescribe(sql: string): any[] {
@@ -116,7 +129,16 @@ class MemoryDataStore {
       throw new Error(`Table ${tableName} does not exist`)
     }
 
-    return [{ count: table.data.length }]
+    // WHERE句のチェック
+    const whereMatch = sql.match(/WHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+GROUP\s+BY|\s+LIMIT|$)/i)
+    if (whereMatch) {
+      const whereClause = whereMatch[1].trim()
+      console.log('🔍 MemoryDataStore: COUNT(*) with WHERE clause:', whereClause)
+      const count = this.getFilteredTableCount(tableName, whereClause)
+      return [{ count }]
+    } else {
+      return [{ count: table.data.length }]
+    }
   }
 
   getTableInfo(tableName: string): Column[] {
@@ -157,9 +179,8 @@ class MemoryDataStore {
       totalNonNull++
       const strValue = String(value).trim()
       
-      // ブール値チェック
-      if (strValue.toLowerCase() === 'true' || strValue.toLowerCase() === 'false' ||
-          strValue === '1' || strValue === '0') {
+      // ブール値チェック（真のブール値のみ）
+      if (strValue.toLowerCase() === 'true' || strValue.toLowerCase() === 'false') {
         booleanCount++
         continue
       }
@@ -222,6 +243,20 @@ class MemoryDataStore {
     return table.data.length
   }
 
+  // フィルター対応のカウント関数を追加
+  getFilteredTableCount(tableName: string, whereClause: string): number {
+    const table = this.tables.get(tableName)
+    if (!table) {
+      throw new Error(`Table ${tableName} does not exist`)
+    }
+    
+    if (!whereClause) {
+      return table.data.length
+    }
+    
+    return table.data.filter(row => this.evaluateWhereCondition(row, whereClause)).length
+  }
+
   dropTable(tableName: string): void {
     this.tables.delete(tableName)
   }
@@ -232,6 +267,194 @@ class MemoryDataStore {
 
   getTableSchema(tableName: string): TableSchema | undefined {
     return this.tables.get(tableName)
+  }
+
+  private evaluateWhereCondition(row: any, whereClause: string): boolean {
+    // 基本的な条件を解析
+    // 現在は簡単な条件のみサポート（column = value, column != value, column IS NULL, etc.）
+    
+    // NULL条件の処理
+    if (whereClause.includes('IS NULL')) {
+      const match = whereClause.match(/(\w+)\s+IS\s+NULL/i)
+      if (match) {
+        const columnName = match[1]
+        return row[columnName] === null || row[columnName] === undefined
+      }
+    }
+    
+    if (whereClause.includes('IS NOT NULL')) {
+      const match = whereClause.match(/(\w+)\s+IS\s+NOT\s+NULL/i)
+      if (match) {
+        const columnName = match[1]
+        return row[columnName] !== null && row[columnName] !== undefined
+      }
+    }
+    
+    // 等価条件の処理
+    if (whereClause.includes('=')) {
+      const match = whereClause.match(/(\w+)\s*=\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        
+        console.log('🔍 MemoryDataStore: Evaluating condition:', { columnName, value, rowValue: row[columnName] })
+        
+        // Boolean値の処理
+        if (value === 'TRUE' || value === 'true') {
+          return row[columnName] === true
+        }
+        if (value === 'FALSE' || value === 'false') {
+          return row[columnName] === false
+        }
+        
+        // 数値の処理
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(row[columnName])
+          return !isNaN(numericRowValue) && numericRowValue === numericValue
+        }
+        
+        // 文字列の処理（クォートを除去）
+        const stringValue = value.replace(/^'|'$/g, '')
+        return row[columnName] === stringValue
+      }
+    }
+    
+    // 不等価条件の処理
+    if (whereClause.includes('!=') || whereClause.includes('<>')) {
+      const match = whereClause.match(/(\w+)\s*(?:!=|<>)\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        
+        // Boolean値の処理
+        if (value === 'TRUE' || value === 'true') {
+          return row[columnName] !== true
+        }
+        if (value === 'FALSE' || value === 'false') {
+          return row[columnName] !== false
+        }
+        
+        // 数値の処理
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(row[columnName])
+          return !isNaN(numericRowValue) && numericRowValue !== numericValue
+        }
+        
+        // 文字列の処理（クォートを除去）
+        const stringValue = value.replace(/^'|'$/g, '')
+        return row[columnName] !== stringValue
+      }
+    }
+    
+    // 大小比較条件の処理
+    if (whereClause.includes('>=')) {
+      const match = whereClause.match(/(\w+)\s*>=\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: >= comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue >= numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) >= stringValue
+      }
+    }
+    
+    if (whereClause.includes('<=')) {
+      const match = whereClause.match(/(\w+)\s*<=\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: <= comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue <= numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) <= stringValue
+      }
+    }
+    
+    if (whereClause.includes('>') && !whereClause.includes('>=')) {
+      const match = whereClause.match(/(\w+)\s*>\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: > comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue > numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) > stringValue
+      }
+    }
+    
+    if (whereClause.includes('<') && !whereClause.includes('<=')) {
+      const match = whereClause.match(/(\w+)\s*<\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: < comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue < numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) < stringValue
+      }
+    }
+    
+    // LIKE条件の処理
+    if (whereClause.includes('LIKE')) {
+      const match = whereClause.match(/(\w+)\s+LIKE\s+'(.+)'/i)
+      if (match) {
+        const columnName = match[1]
+        const pattern = match[2]
+        const value = String(row[columnName] || '')
+        
+        // 簡単なパターンマッチング（%を.*に変換）
+        const regexPattern = pattern.replace(/%/g, '.*').replace(/_/g, '.')
+        const regex = new RegExp(regexPattern, 'i')
+        return regex.test(value)
+      }
+    }
+    
+    // その他の条件（今後拡張）
+    console.warn('🔍 MemoryDataStore: Unsupported WHERE condition:', whereClause)
+    return true
   }
 }
 

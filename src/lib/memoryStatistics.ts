@@ -1,5 +1,7 @@
 import { memoryDataStore } from './memoryDataStore'
 import { sampleForChangePoint, sampleTimeSeries } from './dataSampling'
+import { buildMemoryFilterFunction } from './filterUtils'
+import { DataFilter } from '@/store/dataStore'
 
 export interface BasicStats {
   count: number
@@ -74,7 +76,8 @@ function getNumericValues(data: any[], columnName: string): number[] {
 
 export async function getBasicStatistics(
   tableName: string,
-  columnName: string
+  columnName: string,
+  filters: DataFilter[] = []
 ): Promise<BasicStats> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
@@ -82,7 +85,11 @@ export async function getBasicStatistics(
       throw new Error(`Table ${tableName} not found`)
     }
 
-    const numericValues = getNumericValues(table.data, columnName)
+    // フィルターを適用
+    const filterFunction = buildMemoryFilterFunction(filters)
+    const filteredData = table.data.filter(filterFunction)
+
+    const numericValues = getNumericValues(filteredData, columnName)
     
     if (numericValues.length === 0) {
       throw new Error(`No numeric values found in column ${columnName}`)
@@ -128,13 +135,18 @@ export async function getBasicStatistics(
 
 export async function getCorrelationMatrix(
   tableName: string,
-  columnNames: string[]
+  columnNames: string[],
+  filters: DataFilter[] = []
 ): Promise<CorrelationResult[]> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
     if (!table) {
       throw new Error(`Table ${tableName} not found`)
     }
+
+    // フィルターを適用
+    const filterFunction = buildMemoryFilterFunction(filters)
+    const filteredData = table.data.filter(filterFunction)
 
     const results: CorrelationResult[] = []
     
@@ -143,13 +155,10 @@ export async function getCorrelationMatrix(
         const col1 = columnNames[i]
         const col2 = columnNames[j]
         
-        // const values1 = getNumericValues(table.data, col1) // 直接使用しない
-        // const values2 = getNumericValues(table.data, col2) // 直接使用しない
-        
         // 両方のカラムに値がある行のみを使用
         const validPairs: [number, number][] = []
         
-        table.data.forEach(row => {
+        filteredData.forEach(row => {
           const val1 = row[col1]
           const val2 = row[col2]
           
@@ -316,7 +325,8 @@ function detectBinarySegmentation(data: Array<{index: number, value: number}>, m
 export async function detectChangePoints(
   tableName: string,
   columnName: string,
-  options: ChangePointOptions = {}
+  options: ChangePointOptions = {},
+  filters: DataFilter[] = []
 ): Promise<any> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
@@ -326,7 +336,11 @@ export async function detectChangePoints(
 
     const xColumn = options.xColumn || 'index'
     
-    const rawData = table.data.map((row, originalIndex) => {
+    // フィルターを適用
+    const filterFunction = buildMemoryFilterFunction(filters)
+    const filteredData = table.data.filter(filterFunction)
+    
+    const rawData = filteredData.map((row, originalIndex) => {
       const xValue = xColumn === 'index' ? originalIndex : (isNumeric(row[xColumn]) ? parseFloat(row[xColumn]) : originalIndex)
       const yValue = isNumeric(row[columnName]) ? parseFloat(row[columnName]) : 0
       
@@ -502,7 +516,8 @@ export async function detectChangePoints(
 
 export async function performFactorAnalysis(
   _tableName: string, // 将来的に使用予定
-  columnNames: string[]
+  columnNames: string[],
+  _filters: DataFilter[] = []
 ): Promise<any> {
   // 簡略化した因子分析（主成分分析の近似）
   try {
@@ -531,7 +546,8 @@ export async function performFactorAnalysis(
 export async function getHistogramData(
   tableName: string,
   columnName: string,
-  bins: number = 10
+  bins: number = 10,
+  filters: DataFilter[] = []
 ): Promise<any> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
@@ -539,7 +555,11 @@ export async function getHistogramData(
       throw new Error(`Table ${tableName} not found`)
     }
 
-    const numericValues = getNumericValues(table.data, columnName)
+    // フィルターを適用
+    const filterFunction = buildMemoryFilterFunction(filters)
+    const filteredData = table.data.filter(filterFunction)
+
+    const numericValues = getNumericValues(filteredData, columnName)
     
     if (numericValues.length === 0) {
       throw new Error(`No numeric values found in column ${columnName}`)
@@ -583,7 +603,8 @@ export async function getHistogramData(
 export async function getTimeSeriesData(
   tableName: string,
   valueColumn: string,
-  xColumn: string
+  xColumn: string,
+  filters: DataFilter[] = []
 ): Promise<any> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
@@ -593,8 +614,12 @@ export async function getTimeSeriesData(
 
     const startTime = performance.now()
 
+    // フィルターを適用
+    const filterFunction = buildMemoryFilterFunction(filters)
+    const filteredData = table.data.filter(filterFunction)
+
     // データの準備
-    const rawData = table.data.map((row, originalIndex) => {
+    const rawData = filteredData.map((row, originalIndex) => {
       const xValue = xColumn === 'index' ? originalIndex : (isNumeric(row[xColumn]) ? parseFloat(row[xColumn]) : originalIndex)
       const yValue = isNumeric(row[valueColumn]) ? parseFloat(row[valueColumn]) : 0
       
@@ -739,7 +764,8 @@ export async function getTimeSeriesData(
 
 export async function getColumnAnalysis(
   tableName: string,
-  columnNames: string[]
+  columnNames: string[],
+  filters: DataFilter[] = []
 ): Promise<ColumnAnalysisResult[]> {
   try {
     const table = memoryDataStore.getTableSchema(tableName)
@@ -747,10 +773,14 @@ export async function getColumnAnalysis(
       throw new Error(`Table ${tableName} not found`)
     }
 
+    // フィルターを適用
+    const filterFunction = buildMemoryFilterFunction(filters)
+    const filteredData = table.data.filter(filterFunction)
+
     const results: ColumnAnalysisResult[] = []
 
     for (const columnName of columnNames) {
-      const totalRows = table.data.length
+      const totalRows = filteredData.length
       let nullCount = 0
       let emptyStringCount = 0
       const valueFrequency = new Map<string, number>()
@@ -758,7 +788,7 @@ export async function getColumnAnalysis(
       const numericValues: number[] = []
 
       // データを分析
-      for (const row of table.data) {
+      for (const row of filteredData) {
         const value = row[columnName]
         
         // NULL/undefined チェック
@@ -786,7 +816,7 @@ export async function getColumnAnalysis(
       }
 
       // データタイプを推定
-      const dataType = inferDataType(table.data, columnName)
+      const dataType = inferDataType(filteredData, columnName)
 
       // 安全なパーセンテージ計算のヘルパー関数
       const safePercentage = (count: number, total: number): number => {
