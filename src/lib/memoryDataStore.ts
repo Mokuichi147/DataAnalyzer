@@ -179,9 +179,8 @@ class MemoryDataStore {
       totalNonNull++
       const strValue = String(value).trim()
       
-      // ブール値チェック
-      if (strValue.toLowerCase() === 'true' || strValue.toLowerCase() === 'false' ||
-          strValue === '1' || strValue === '0') {
+      // ブール値チェック（真のブール値のみ）
+      if (strValue.toLowerCase() === 'true' || strValue.toLowerCase() === 'false') {
         booleanCount++
         continue
       }
@@ -309,8 +308,10 @@ class MemoryDataStore {
         }
         
         // 数値の処理
-        if (/^\d+$/.test(value)) {
-          return row[columnName] === parseInt(value, 10)
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(row[columnName])
+          return !isNaN(numericRowValue) && numericRowValue === numericValue
         }
         
         // 文字列の処理（クォートを除去）
@@ -335,13 +336,104 @@ class MemoryDataStore {
         }
         
         // 数値の処理
-        if (/^\d+$/.test(value)) {
-          return row[columnName] !== parseInt(value, 10)
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(row[columnName])
+          return !isNaN(numericRowValue) && numericRowValue !== numericValue
         }
         
         // 文字列の処理（クォートを除去）
         const stringValue = value.replace(/^'|'$/g, '')
         return row[columnName] !== stringValue
+      }
+    }
+    
+    // 大小比較条件の処理
+    if (whereClause.includes('>=')) {
+      const match = whereClause.match(/(\w+)\s*>=\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: >= comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue >= numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) >= stringValue
+      }
+    }
+    
+    if (whereClause.includes('<=')) {
+      const match = whereClause.match(/(\w+)\s*<=\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: <= comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue <= numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) <= stringValue
+      }
+    }
+    
+    if (whereClause.includes('>') && !whereClause.includes('>=')) {
+      const match = whereClause.match(/(\w+)\s*>\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: > comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue > numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) > stringValue
+      }
+    }
+    
+    if (whereClause.includes('<') && !whereClause.includes('<=')) {
+      const match = whereClause.match(/(\w+)\s*<\s*(.+)/)
+      if (match) {
+        const columnName = match[1]
+        const value = match[2].trim()
+        const rowValue = row[columnName]
+        
+        console.log('🔍 MemoryDataStore: < comparison:', { columnName, value, rowValue })
+        
+        // 数値比較
+        if (/^-?\d+(\.\d+)?$/.test(value)) {
+          const numericValue = parseFloat(value)
+          const numericRowValue = parseFloat(rowValue)
+          return !isNaN(numericRowValue) && numericRowValue < numericValue
+        }
+        
+        // 文字列比較
+        const stringValue = value.replace(/^'|'$/g, '')
+        return String(rowValue) < stringValue
       }
     }
     

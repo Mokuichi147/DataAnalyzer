@@ -33,24 +33,24 @@ export function FilterPanel({ columns, isOpen, onToggle }: FilterPanelProps) {
     if (columnType === 'INTEGER' || columnType === 'FLOAT' || columnType === 'NUMERIC') {
       return [
         ...baseOptions,
-        { value: 'greater_than', label: '大于' },
-        { value: 'less_than', label: '小于' },
-        { value: 'greater_equal', label: '大于等于' },
-        { value: 'less_equal', label: '小于等于' },
-        { value: 'in', label: '包含于' },
-        { value: 'not_in', label: '不包含于' }
+        { value: 'greater_than', label: 'より大きい' },
+        { value: 'less_than', label: '未満' },
+        { value: 'greater_equal', label: '以上' },
+        { value: 'less_equal', label: '以下' },
+        { value: 'in', label: 'に含まれる' },
+        { value: 'not_in', label: 'に含まれない' }
       ]
     }
 
     if (columnType === 'TEXT' || columnType === 'VARCHAR') {
       return [
         ...baseOptions,
-        { value: 'contains', label: '包含' },
-        { value: 'not_contains', label: '不包含' },
-        { value: 'starts_with', label: '开头是' },
-        { value: 'ends_with', label: '结尾是' },
-        { value: 'in', label: '包含于' },
-        { value: 'not_in', label: '不包含于' }
+        { value: 'contains', label: '含む' },
+        { value: 'not_contains', label: '含まない' },
+        { value: 'starts_with', label: 'で始まる' },
+        { value: 'ends_with', label: 'で終わる' },
+        { value: 'in', label: 'に含まれる' },
+        { value: 'not_in', label: 'に含まれない' }
       ]
     }
 
