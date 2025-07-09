@@ -14,7 +14,6 @@ import {
   ArcElement,
   ScatterController,
 } from 'chart.js'
-import { useDataStore } from '@/store/dataStore'
 import {
   getBasicStatistics as getBasicStatisticsOriginal,
   getCorrelationMatrix as getCorrelationMatrixOriginal,
@@ -175,10 +174,13 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     includeZero: true,
     includeEmpty: true
   })
-  const { setError } = useDataStore()
+  const [error, setError] = useState<string | null>(null)
   
   console.log('AnalysisPanel props:', { tableName, columns })
   console.log('AnalysisPanel state:', { activeAnalysis, selectedColumns, analysisResults, isLoading })
+
+
+
   
   // デフォルト選択ロジックを実行する関数
   const applyDefaultSelection = useCallback(() => {
@@ -220,7 +222,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     applyDefaultSelection()
   }, [tableName, applyDefaultSelection])
 
-  // 選択されたカラムが変更されたとき、条件を満たしていれば自動実行
+  // 選択されたカラムやフィルタが変更されたとき、条件を満たしていれば自動実行
   useEffect(() => {
     if (selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
       runAnalysis()
@@ -374,7 +376,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     setAnalysisResults(null)
     
     try {
-      console.log('Running analysis:', { activeAnalysis, tableName, selectedColumns })
+      console.log('🚀 Starting analysis:', { activeAnalysis, tableName, selectedColumns })
       let results: any = null
       
       // メモリ内データストアを使用（DuckDBのフォールバック判定）
@@ -383,15 +385,13 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       switch (activeAnalysis) {
         case 'basic':
           if (selectedColumns.length >= 1) {
-            // 複数列の基本統計量を取得
-            const allStats = []
+            results = []
             for (const column of selectedColumns) {
-              const stats = useMemoryStore 
+              const stats = useMemoryStore
                 ? await getBasicStatisticsMemory(tableName, column)
                 : await getBasicStatisticsOriginal(tableName, column)
-              allStats.push({ columnName: column, ...stats })
+              results.push(stats)
             }
-            results = allStats
           }
           break
           
@@ -400,7 +400,6 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             results = useMemoryStore
               ? await getCorrelationMatrixMemory(tableName, selectedColumns)
               : await getCorrelationMatrixOriginal(tableName, selectedColumns)
-            console.log('Correlation results:', results)
           }
           break
           
@@ -485,10 +484,20 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           break
       }
       
-      console.log('Analysis results:', results)
+      console.log('📈 Analysis results:', results)
+      console.log('📊 Analysis type:', activeAnalysis)
+      console.log('🎯 Results type:', typeof results, results ? Object.keys(results) : 'null')
       
-      setAnalysisResults(results)
+      if (results) {
+        console.log('✅ Setting analysis results')
+        setAnalysisResults(results)
+      } else {
+        console.warn('⚠️ No results returned from analysis')
+        setError('分析結果が取得できませんでした')
+      }
+      
     } catch (error) {
+      console.error('❌ Analysis error:', error)
       setError(error instanceof Error ? error.message : '分析に失敗しました')
     } finally {
       setIsLoading(false)
@@ -645,6 +654,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         </div>
       </div>
 
+
       {/* 分析タイプ選択：コンパクトなカード形式 */}
       <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-colors">
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 transition-colors">分析手法を選択</h3>
@@ -690,6 +700,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           </div>
         </div>
       )}
+
 
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors">
         <div className="flex items-center justify-between mb-3">
@@ -793,18 +804,6 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           </div>
         )}
         
-        {selectedColumns.length > 0 && (
-          <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-            <span className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
-              選択中: {selectedColumns.join(', ')}
-            </span>
-            {currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns && currentAnalysisType.maxColumns > 1 && (
-              <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1 transition-colors">
-                最大選択数（{currentAnalysisType.maxColumns}個）に達しました
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 変化点検出アルゴリズム選択 */}
@@ -931,6 +930,12 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           <p className="text-xs text-blue-700 dark:text-blue-300 transition-colors">
             横軸に使用するカラムを選択してください。INDEXは行番号を表します。
           </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-600 rounded-lg p-4 transition-colors">
+          <div className="text-sm text-red-800 dark:text-red-200">{error}</div>
         </div>
       )}
 

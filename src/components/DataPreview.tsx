@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Eye, Filter, Download, RefreshCw } from 'lucide-react'
-import { useDataStore } from '@/store/dataStore'
+import { ChevronLeft, ChevronRight, Eye, Download, RefreshCw } from 'lucide-react'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { getTableInfo, getTableCount, executeQuery } from '@/lib/duckdb'
 
@@ -15,9 +14,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
   const [isLoading, setIsLoading] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const { filters, setLoading, setError } = useDataStore()
   const { settings: realtimeSettings } = useRealtimeStore()
 
   const loadData = async () => {
@@ -37,34 +34,8 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       console.log('Row count:', count)
       setTotalRows(count)
       
-      // データを取得（フィルタ適用）
-      let query = `SELECT * FROM ${tableName}`
-      const activeFilters = filters.filter(f => f.isActive)
-      
-      if (activeFilters.length > 0) {
-        const whereClause = activeFilters.map(filter => {
-          switch (filter.operator) {
-            case 'equals':
-              return `${filter.column} = '${filter.value}'`
-            case 'contains':
-              return `${filter.column} LIKE '%${filter.value}%'`
-            case 'greater':
-              return `${filter.column} > ${filter.value}`
-            case 'less':
-              return `${filter.column} < ${filter.value}`
-            case 'between':
-              return `${filter.column} BETWEEN ${filter.value.min} AND ${filter.value.max}`
-            case 'in':
-              return `${filter.column} IN (${filter.value.map((v: any) => `'${v}'`).join(', ')})`
-            default:
-              return ''
-          }
-        }).filter(Boolean).join(' AND ')
-        
-        query += ` WHERE ${whereClause}`
-      }
-      
-      query += ` LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+      // データを取得
+      const query = `SELECT * FROM ${tableName} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
       console.log('Executing query:', query)
       
       const result = await executeQuery(query)
@@ -73,7 +44,8 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       
     } catch (error) {
       console.error('Error loading data:', error)
-      setError(error instanceof Error ? error.message : 'データの読み込みに失敗しました')
+      // Remove setError call since we no longer import useDataStore
+      console.error('データの読み込みに失敗しました')
     } finally {
       setIsLoading(false)
     }
@@ -81,7 +53,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   useEffect(() => {
     loadData()
-  }, [tableName, currentPage, pageSize, filters])
+  }, [tableName, currentPage, pageSize])
 
   // リアルタイム更新のリスナー
   useEffect(() => {
@@ -123,29 +95,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   const exportData = async () => {
     try {
-      setLoading(true)
-      let query = `SELECT * FROM ${tableName}`
-      
-      const activeFilters = filters.filter(f => f.isActive)
-      if (activeFilters.length > 0) {
-        const whereClause = activeFilters.map(filter => {
-          switch (filter.operator) {
-            case 'equals':
-              return `${filter.column} = '${filter.value}'`
-            case 'contains':
-              return `${filter.column} LIKE '%${filter.value}%'`
-            case 'greater':
-              return `${filter.column} > ${filter.value}`
-            case 'less':
-              return `${filter.column} < ${filter.value}`
-            default:
-              return ''
-          }
-        }).filter(Boolean).join(' AND ')
-        
-        query += ` WHERE ${whereClause}`
-      }
-      
+      const query = `SELECT * FROM ${tableName}`
       const result = await executeQuery(query)
       
       // CSVとしてダウンロード
@@ -165,9 +115,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       window.URL.revokeObjectURL(url)
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'エクスポートに失敗しました')
-    } finally {
-      setLoading(false)
+      console.error('エクスポートに失敗しました:', error)
     }
   }
 
@@ -214,17 +162,6 @@ export function DataPreview({ tableName }: DataPreviewProps) {
               更新
             </button>
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center justify-center px-3 py-2 rounded-md text-sm transition-colors ${
-                showFilters 
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
-              }`}
-            >
-              <Filter className="h-4 w-4 mr-1" />
-              フィルタ
-            </button>
-            <button
               onClick={exportData}
               className="flex items-center justify-center px-3 py-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded-md text-sm hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
             >
@@ -234,10 +171,6 @@ export function DataPreview({ tableName }: DataPreviewProps) {
           </div>
         </div>
       </div>
-
-      {showFilters && (
-        <FilterPanel columns={columns} tableName={tableName} />
-      )}
 
       {isLoading ? (
         <div className="text-center py-8">
@@ -329,110 +262,3 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   )
 }
 
-interface FilterPanelProps {
-  columns: any[]
-  tableName: string
-}
-
-function FilterPanel({ columns }: FilterPanelProps) {
-  // tableName は将来的に使用予定
-  const { filters, addFilter, removeFilter, toggleFilter, clearFilters } = useDataStore()
-  const [newFilter, setNewFilter] = useState({
-    column: '',
-    operator: 'equals' as const,
-    value: ''
-  })
-
-  const handleAddFilter = () => {
-    if (newFilter.column && newFilter.value) {
-      addFilter(newFilter)
-      setNewFilter({ column: '', operator: 'equals', value: '' })
-    }
-  }
-
-  return (
-    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-      <h4 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">フィルタ設定</h4>
-      
-      {/* フィルタ追加フォーム：モバイル対応 */}
-      <div className="space-y-3 mb-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <select
-            value={newFilter.column}
-            onChange={(e) => setNewFilter({ ...newFilter, column: e.target.value })}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md w-full transition-colors"
-          >
-            <option value="">カラムを選択</option>
-            {columns.map((col) => (
-              <option key={col.column_name} value={col.column_name}>
-                {col.column_name}
-              </option>
-            ))}
-          </select>
-          
-          <select
-            value={newFilter.operator}
-            onChange={(e) => setNewFilter({ ...newFilter, operator: e.target.value as any })}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md w-full transition-colors"
-          >
-            <option value="equals">等しい</option>
-            <option value="contains">含む</option>
-            <option value="greater">より大きい</option>
-            <option value="less">より小さい</option>
-          </select>
-          
-          <input
-            type="text"
-            value={newFilter.value}
-            onChange={(e) => setNewFilter({ ...newFilter, value: e.target.value })}
-            placeholder="値を入力"
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 rounded-md w-full transition-colors"
-          />
-          
-          <button
-            onClick={handleAddFilter}
-            className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 w-full sm:w-auto transition-colors"
-          >
-            追加
-          </button>
-        </div>
-      </div>
-      
-      {filters.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">適用中のフィルタ:</span>
-            <button
-              onClick={clearFilters}
-              className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
-            >
-              すべて削除
-            </button>
-          </div>
-          
-          {filters.map((filter, index) => (
-            <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-gray-700 p-3 rounded border border-gray-200 dark:border-gray-600 gap-2 transition-colors">
-              <div className="flex items-center space-x-2 min-w-0">
-                <input
-                  type="checkbox"
-                  checked={filter.isActive}
-                  onChange={() => toggleFilter(index)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded flex-shrink-0"
-                />
-                <span className="text-sm break-words text-gray-900 dark:text-white transition-colors">
-                  {filter.column} {filter.operator} {filter.value}
-                </span>
-              </div>
-              <button
-                onClick={() => removeFilter(index)}
-                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm self-start sm:self-auto flex-shrink-0 transition-colors"
-              >
-                削除
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}

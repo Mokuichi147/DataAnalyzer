@@ -45,18 +45,10 @@ export interface DataTable {
   isLoaded: boolean
 }
 
-export interface DataFilter {
-  column: string
-  operator: 'equals' | 'contains' | 'greater' | 'less' | 'between' | 'in'
-  value: any
-  isActive: boolean
-}
-
 export interface DataStoreState {
   connections: DataConnection[]
   tables: DataTable[]
   currentTable: DataTable | null
-  filters: DataFilter[]
   isLoading: boolean
   error: string | null
   
@@ -71,11 +63,6 @@ export interface DataStoreState {
   removeTableByNameAndConnection: (name: string, connectionId: string) => void
   setCurrentTable: (table: DataTable | null) => void
   
-  addFilter: (filter: Omit<DataFilter, 'isActive'>) => void
-  removeFilter: (index: number) => void
-  toggleFilter: (index: number) => void
-  clearFilters: () => void
-  
   setLoading: (isLoading: boolean) => void
   setError: (error: string | null) => void
 }
@@ -86,7 +73,6 @@ export const useDataStore = create<DataStoreState>()(
       connections: [],
       tables: [],
       currentTable: null,
-      filters: [],
       isLoading: false,
       error: null,
       
@@ -171,29 +157,6 @@ export const useDataStore = create<DataStoreState>()(
         set({ currentTable: table })
       },
       
-      addFilter: (filter) => {
-        set(state => ({
-          filters: [...state.filters, { ...filter, isActive: true }]
-        }))
-      },
-      
-      removeFilter: (index) => {
-        set(state => ({
-          filters: state.filters.filter((_, i) => i !== index)
-        }))
-      },
-      
-      toggleFilter: (index) => {
-        set(state => ({
-          filters: state.filters.map((filter, i) =>
-            i === index ? { ...filter, isActive: !filter.isActive } : filter
-          )
-        }))
-      },
-      
-      clearFilters: () => {
-        set({ filters: [] })
-      },
       
       setLoading: (isLoading) => {
         set({ isLoading })
@@ -209,7 +172,6 @@ export const useDataStore = create<DataStoreState>()(
       partialize: (state) => ({
         connections: state.connections,
         tables: state.tables,
-        filters: state.filters,
       }),
     }
   )
