@@ -191,7 +191,7 @@ export function FilterPanel({ columns, isOpen, onToggle }: FilterPanelProps) {
           onChange={(e) => isNew ? handleValuesChange(e.target.value) : updateFilter(filter.id, {
             values: e.target.value.split(',').map(v => v.trim()).filter(v => v !== '')
           })}
-          className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors"
+          className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm w-full transition-colors"
         />
       )
     }
@@ -204,7 +204,7 @@ export function FilterPanel({ columns, isOpen, onToggle }: FilterPanelProps) {
         <select
           value={filterData.value === true ? 'true' : filterData.value === false ? 'false' : ''}
           onChange={(e) => handleChange(e.target.value)}
-          className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors"
+          className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm w-full transition-colors"
         >
           <option value="">選択...</option>
           <option value="true">TRUE</option>
@@ -219,7 +219,7 @@ export function FilterPanel({ columns, isOpen, onToggle }: FilterPanelProps) {
         placeholder="値を入力"
         value={filterData.value === null || filterData.value === undefined ? '' : String(filterData.value)}
         onChange={(e) => handleChange(e.target.value)}
-        className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors"
+        className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm w-full transition-colors"
       />
     )
   }
@@ -227,107 +227,123 @@ export function FilterPanel({ columns, isOpen, onToggle }: FilterPanelProps) {
   const activeFilters = filters.filter(f => f.isActive)
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 transition-colors">
+    <div className="inline-block border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 transition-colors">
       <div 
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+        className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         onClick={onToggle}
       >
-        <div className="flex items-center space-x-2">
-          <Filter className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">フィルター</h3>
+        <div className="flex items-center space-x-1">
+          <Filter className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+          <span className="text-sm font-medium text-gray-900 dark:text-white">フィルター</span>
           {activeFilters.length > 0 && (
-            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-xs">
+            <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-xs">
               {activeFilters.length}
             </span>
           )}
         </div>
-        {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </div>
 
       {isOpen && (
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+        <div className="absolute top-full right-0 mt-1 w-96 max-w-[calc(100vw-2rem)] p-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 space-y-3">
           {/* 新しいフィルターの追加 */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <select
-              value={newFilter.columnName}
-              onChange={(e) => handleColumnChange(e.target.value)}
-              className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors"
-            >
-              <option value="">カラム選択...</option>
-              {columns.map(col => (
-                <option key={col.name} value={col.name}>
-                  {col.name} ({col.type})
-                </option>
-              ))}
-            </select>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">新しいフィルター</div>
+            <div className="grid grid-cols-1 gap-2">
+              <select
+                value={newFilter.columnName}
+                onChange={(e) => handleColumnChange(e.target.value)}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm w-full transition-colors"
+              >
+                <option value="">カラム選択...</option>
+                {columns.map(col => (
+                  <option key={col.name} value={col.name}>
+                    {col.name} ({col.type})
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={newFilter.operator}
-              onChange={(e) => handleOperatorChange(e.target.value)}
-              disabled={!newFilter.columnName}
-              className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors disabled:opacity-50"
-            >
-              {getOperatorOptions(newFilter.columnType || 'TEXT').map(op => (
-                <option key={op.value} value={op.value}>
-                  {op.label}
-                </option>
-              ))}
-            </select>
+              <select
+                value={newFilter.operator}
+                onChange={(e) => handleOperatorChange(e.target.value)}
+                disabled={!newFilter.columnName}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm w-full transition-colors disabled:opacity-50"
+              >
+                {getOperatorOptions(newFilter.columnType || 'TEXT').map(op => (
+                  <option key={op.value} value={op.value}>
+                    {op.label}
+                  </option>
+                ))}
+              </select>
 
-            <div className="flex items-center space-x-2">
-              {renderValueInput(newFilter as DataFilter, true)}
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  {renderValueInput(newFilter as DataFilter, true)}
+                </div>
+                <button
+                  onClick={handleAddFilter}
+                  disabled={!newFilter.columnName || !newFilter.operator}
+                  className="flex items-center justify-center px-2 py-1 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-
-            <button
-              onClick={handleAddFilter}
-              disabled={!newFilter.columnName || !newFilter.operator}
-              className="flex items-center justify-center px-3 py-1 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              追加
-            </button>
           </div>
 
           {/* 既存のフィルター */}
-          <div className="space-y-2">
-            {filters.map(filter => (
-              <div key={filter.id} className="flex items-center space-x-2 p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                <input
-                  type="checkbox"
-                  checked={filter.isActive}
-                  onChange={() => toggleFilter(filter.id)}
-                  className="rounded"
-                />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {filter.columnName}
-                </span>
-                <select
-                  value={filter.operator}
-                  onChange={(e) => updateFilter(filter.id, { operator: e.target.value as DataFilter['operator'] })}
-                  className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors"
-                >
-                  {getOperatorOptions(filter.columnType).map(op => (
-                    <option key={op.value} value={op.value}>
-                      {op.label}
-                    </option>
-                  ))}
-                </select>
-                {renderValueInput(filter)}
-                <button
-                  onClick={() => removeFilter(filter.id)}
-                  className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+          {filters.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">設定済みフィルター</div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {filters.map(filter => (
+                  <div key={filter.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded border">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={filter.isActive}
+                          onChange={() => toggleFilter(filter.id)}
+                          className="rounded"
+                        />
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {filter.columnName}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => removeFilter(filter.id)}
+                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      <select
+                        value={filter.operator}
+                        onChange={(e) => updateFilter(filter.id, { operator: e.target.value as DataFilter['operator'] })}
+                        className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm w-full transition-colors"
+                      >
+                        {getOperatorOptions(filter.columnType).map(op => (
+                          <option key={op.value} value={op.value}>
+                            {op.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="w-full">
+                        {renderValueInput(filter)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
 
           {filters.length > 0 && (
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 border-t border-gray-200 dark:border-gray-600">
               <button
                 onClick={clearFilters}
-                className="px-3 py-1 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                className="px-2 py-1 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
               >
                 すべてクリア
               </button>

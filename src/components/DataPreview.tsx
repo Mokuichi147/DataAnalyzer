@@ -156,17 +156,6 @@ export function DataPreview({ tableName }: DataPreviewProps) {
 
   return (
     <div className="space-y-4 transition-colors">
-      {/* フィルターパネル */}
-      <FilterPanel 
-        columns={columns.map(col => ({
-          name: col.column_name,
-          type: col.column_type,
-          nullable: true
-        }))}
-        isOpen={isFilterOpen}
-        onToggle={() => setIsFilterOpen(!isFilterOpen)}
-      />
-
       {/* ヘッダー部分：モバイル対応 */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
@@ -190,6 +179,17 @@ export function DataPreview({ tableName }: DataPreviewProps) {
           
           {/* ボタン群：モバイルでは縦並び、デスクトップでは横並び */}
           <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 sm:gap-0">
+            <div className="relative">
+              <FilterPanel 
+                columns={columns.map(col => ({
+                  name: col.column_name,
+                  type: col.column_type,
+                  nullable: true
+                }))}
+                isOpen={isFilterOpen}
+                onToggle={() => setIsFilterOpen(!isFilterOpen)}
+              />
+            </div>
             <button
               onClick={handleManualRefresh}
               disabled={isLoading}
