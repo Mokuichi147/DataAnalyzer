@@ -1921,69 +1921,73 @@ function TextAnalysisResults({ data }: { data: any }) {
   }
 
   const { statistics, wordFrequency, characterFrequency, patterns, language, sentences, readability } = data
+  
+  // デバッグ用ログ
+  console.log('wordFrequency:', wordFrequency, 'type:', typeof wordFrequency, 'isArray:', Array.isArray(wordFrequency))
+  console.log('patterns:', patterns, 'type:', typeof patterns)
+  if (patterns) {
+    console.log('patterns.patterns:', patterns.patterns, 'type:', typeof patterns.patterns, 'isArray:', Array.isArray(patterns.patterns))
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 max-h-screen overflow-y-auto">
       {/* 基本統計 */}
       {statistics && (
         <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">基本統計</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatNumber(statistics.totalRecords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総レコード数</div>
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">基本統計</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">
+            <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatNumber(statistics.totalRecords)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総レコード数</div>
             </div>
-            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{formatNumber(statistics.totalCharacters)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総文字数</div>
+            <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-green-700 dark:text-green-300">{formatNumber(statistics.totalCharacters)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総文字数</div>
             </div>
-            <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{formatNumber(statistics.totalWords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総単語数</div>
+            <div className="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-purple-700 dark:text-purple-300">{formatNumber(statistics.totalWords)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総単語数</div>
             </div>
-            <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{formatNumber(statistics.uniqueRecords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">ユニーク数</div>
+            <div className="text-center p-2 bg-orange-50 dark:bg-orange-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-orange-700 dark:text-orange-300">{formatNumber(statistics.uniqueRecords)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">ユニーク数</div>
             </div>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.averageCharactersPerRecord)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均文字数/レコード</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.averageWordsPerRecord)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均単語数/レコード</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.uniquePercentage)}%</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">ユニーク率</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.minCharacters)} - {formatNumber(statistics.maxCharacters)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">文字数範囲</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.minWords)} - {formatNumber(statistics.maxWords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">単語数範囲</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.emptyPercentage)}%</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">空レコード率</div>
-            </div>
+            {statistics.averageCharactersPerRecord !== undefined && (
+              <div className="text-center p-2 bg-teal-50 dark:bg-teal-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-teal-700 dark:text-teal-300 transition-colors">{formatNumber(statistics.averageCharactersPerRecord)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">平均文字数</div>
+              </div>
+            )}
+            {statistics.averageWordsPerRecord !== undefined && (
+              <div className="text-center p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-indigo-700 dark:text-indigo-300 transition-colors">{formatNumber(statistics.averageWordsPerRecord)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">平均単語数</div>
+              </div>
+            )}
+            {statistics.uniquePercentage !== undefined && (
+              <div className="text-center p-2 bg-pink-50 dark:bg-pink-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-pink-700 dark:text-pink-300 transition-colors">{formatNumber(statistics.uniquePercentage)}%</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">ユニーク率</div>
+              </div>
+            )}
+            {statistics.emptyPercentage !== undefined && (
+              <div className="text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-amber-700 dark:text-amber-300 transition-colors">{formatNumber(statistics.emptyPercentage)}%</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">空レコード率</div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* 単語頻度 */}
-        {wordFrequency && wordFrequency.length > 0 && (
+        {wordFrequency && Array.isArray(wordFrequency) && wordFrequency.length > 0 ? (
           <div>
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">単語頻度 (上位15件)</h4>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {wordFrequency.map((item: WordFrequency, idx: number) => (
-                <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm gap-1 min-w-0 transition-colors">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">単語頻度 (上位10件)</h4>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {wordFrequency.slice(0, 10).map((item: WordFrequency, idx: number) => (
+                <div key={idx} className="flex justify-between items-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs transition-colors">
                   <span className="font-mono text-blue-900 dark:text-blue-200 font-medium break-all text-xs sm:text-sm flex-1 min-w-0 transition-colors">
                     {item.word}
                   </span>
@@ -1995,22 +1999,50 @@ function TextAnalysisResults({ data }: { data: any }) {
               ))}
             </div>
           </div>
+        ) : (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">単語頻度</h4>
+            <div className="text-xs text-gray-500 dark:text-gray-400 p-2">
+              単語頻度データがありません
+              {wordFrequency && <div>データ: {JSON.stringify(wordFrequency)}</div>}
+            </div>
+          </div>
         )}
 
         {/* 文字頻度 */}
         {characterFrequency && characterFrequency.length > 0 && (
           <div>
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">文字頻度 (上位15件)</h4>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {characterFrequency.map((item: CharacterFrequency, idx: number) => (
-                <div key={idx} className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded text-sm transition-colors">
-                  <span className="font-mono text-green-900 dark:text-green-200 font-bold text-lg transition-colors">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">文字頻度 (上位10件)</h4>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {characterFrequency.slice(0, 10).map((item: CharacterFrequency, idx: number) => (
+                <div key={idx} className="flex justify-between items-center p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs transition-colors">
+                  <span className="font-mono text-green-900 dark:text-green-200 font-bold text-sm transition-colors">
                     {item.character}
                   </span>
                   <div className="text-right">
                     <span className="font-bold text-green-700 dark:text-green-300 transition-colors">{formatNumber(item.count)}</span>
-                    <span className="text-green-500 dark:text-green-400 ml-2 transition-colors">({formatNumber(item.percentage)}%)</span>
+                    <span className="text-green-500 dark:text-green-400 ml-1 transition-colors">({formatNumber(item.percentage)}%)</span>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 言語・文字種分析 */}
+        {language && language.languagePatterns && language.languagePatterns.length > 0 && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">言語・文字種分析</h4>
+            <div className="mb-2">
+              <span className="text-xs text-gray-600 dark:text-gray-300 transition-colors">
+                平均文字列長: <span className="font-bold">{formatNumber(language.averageLength)}</span>文字
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+              {language.languagePatterns.slice(0, 6).map((pattern: any, idx: number) => (
+                <div key={idx} className="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
+                  <div className="text-sm font-bold text-purple-700 dark:text-purple-300">{formatNumber(pattern.percentage)}%</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">{pattern.pattern}</div>
                 </div>
               ))}
             </div>
@@ -2018,155 +2050,98 @@ function TextAnalysisResults({ data }: { data: any }) {
         )}
       </div>
 
-      {/* 言語・文字種分析 */}
-      {language && language.languagePatterns && language.languagePatterns.length > 0 && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">言語・文字種分析</h4>
-          <div className="mb-2">
-            <span className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
-              平均文字列長: <span className="font-bold">{formatNumber(language.averageLength)}</span>文字
-            </span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {language.languagePatterns.map((pattern: any, idx: number) => (
-              <div key={idx} className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
-                <div className="text-lg font-bold text-purple-700 dark:text-purple-300">{formatNumber(pattern.percentage)}%</div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">{pattern.pattern}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">({formatNumber(pattern.count)}文字)</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* パターン分析 */}
-      {patterns && patterns.patterns && patterns.patterns.length > 0 && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">パターン分析</h4>
-          <div className="space-y-3">
-            {patterns.patterns.map((pattern: any, idx: number) => (
-              <div key={idx} className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded transition-colors">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-orange-900 dark:text-orange-300 transition-colors">{pattern.description}</span>
-                  <div className="text-right">
-                    <span className="font-bold text-orange-700 dark:text-orange-300 transition-colors">{formatNumber(pattern.count)}</span>
-                    <span className="text-orange-500 dark:text-orange-400 ml-2 transition-colors">({formatNumber(pattern.percentage)}%)</span>
+      {/* 残りのセクションを横並びで表示 */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* パターン分析 */}
+        {patterns && patterns.patterns && Array.isArray(patterns.patterns) && patterns.patterns.length > 0 ? (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">パターン分析</h4>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {patterns.patterns.slice(0, 5).map((pattern: any, idx: number) => (
+                <div key={idx} className="p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded transition-colors">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-orange-900 dark:text-orange-300 transition-colors text-xs">{pattern.description}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-orange-700 dark:text-orange-300 transition-colors text-xs">{formatNumber(pattern.count)}</span>
+                      <span className="text-orange-500 dark:text-orange-400 ml-1 transition-colors text-xs">({formatNumber(pattern.percentage)}%)</span>
+                    </div>
                   </div>
                 </div>
-                {pattern.examples && pattern.examples.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-xs text-gray-600 dark:text-gray-300 mb-1 transition-colors">例:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {pattern.examples.map((example: string, exIdx: number) => (
-                        <span
-                          key={exIdx}
-                          className="inline-block bg-white dark:bg-gray-700 text-orange-800 dark:text-orange-300 text-xs px-2 py-1 rounded border dark:border-gray-600 font-mono transition-colors"
-                        >
-                          {example}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">パターン分析</h4>
+            <div className="text-xs text-gray-500 dark:text-gray-400 p-2">
+              パターン分析データがありません
+              {patterns && <div>データ: {JSON.stringify(patterns)}</div>}
+            </div>
+          </div>
+        )}
 
-      {/* 文分析 */}
-      {sentences && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">文分析</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatNumber(sentences.totalSentences)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総文数</div>
+        {/* 文分析 */}
+        {sentences && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">文分析</h4>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
+                <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatNumber(sentences.totalSentences)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総文数</div>
+              </div>
+              <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
+                <div className="text-lg font-bold text-green-700 dark:text-green-300">{formatNumber(sentences.averageSentenceLength)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">平均文長</div>
+              </div>
             </div>
-            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{formatNumber(sentences.averageSentenceLength)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均文長(語数)</div>
-            </div>
-          </div>
-          
-          {/* 文長分布 */}
-          {sentences.sentenceLengthDistribution && sentences.sentenceLengthDistribution.length > 0 && (
-            <div className="mb-6">
-              <h5 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">文長分布</h5>
-              <div className="space-y-2">
-                {sentences.sentenceLengthDistribution.map((item: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
-                    <span className="font-medium text-blue-900 dark:text-blue-200 transition-colors">{item.range}</span>
-                    <div className="text-right">
-                      <span className="font-bold text-blue-700 dark:text-blue-300 transition-colors">{formatNumber(item.count)}</span>
-                      <span className="text-blue-500 dark:text-blue-400 ml-2 transition-colors">({formatNumber(item.percentage)}%)</span>
+            
+            {/* 句読点使用分析（簡略版） */}
+            {sentences.punctuationUsage && sentences.punctuationUsage.length > 0 && (
+              <div className="max-h-32 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-1">
+                  {sentences.punctuationUsage.slice(0, 4).map((item: any, idx: number) => (
+                    <div key={idx} className="text-center p-1 bg-indigo-50 dark:bg-indigo-900/20 rounded transition-colors">
+                      <div className="text-sm font-bold text-indigo-700 dark:text-indigo-300 font-mono">{item.punctuation}</div>
+                      <div className="text-xs text-indigo-600 dark:text-indigo-400 transition-colors">{formatNumber(item.count)}</div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          
-          {/* 句読点使用分析 */}
-          {sentences.punctuationUsage && sentences.punctuationUsage.length > 0 && (
-            <div>
-              <h5 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">句読点使用状況</h5>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {sentences.punctuationUsage.map((item: any, idx: number) => (
-                  <div key={idx} className="text-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded transition-colors">
-                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 font-mono">{item.punctuation}</div>
-                    <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 transition-colors">{formatNumber(item.count)}</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">({formatNumber(item.percentage)}%)</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {/* 読みやすさ分析 */}
-      {readability && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">読みやすさ分析</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="text-center p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg transition-colors">
-              <div className="text-3xl font-bold text-teal-700 dark:text-teal-300">{formatNumber(readability.readabilityScore)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">読みやすさスコア</div>
-              <div className="text-xs text-teal-600 dark:text-teal-400 mt-1 transition-colors">(0-100)</div>
-            </div>
-            <div className="text-center p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg transition-colors">
-              <div className="text-lg font-bold text-teal-700 dark:text-teal-300">{readability.complexityLevel}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">複雑度レベル</div>
-            </div>
-            <div className="text-center p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg transition-colors">
-              <div className="text-lg font-bold text-teal-700 dark:text-teal-300">{formatNumber(readability.averageWordsPerSentence)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均語数/文</div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(readability.averageCharactersPerWord)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均文字数/語</div>
-            </div>
-          </div>
-          
-          {/* 改善提案 */}
-          {readability.recommendations && readability.recommendations.length > 0 && (
-            <div>
-              <h5 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">改善提案</h5>
-              <div className="space-y-2">
-                {readability.recommendations.map((recommendation: string, idx: number) => (
-                  <div key={idx} className="p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-300 dark:border-amber-600 rounded transition-colors">
-                    <span className="text-amber-800 dark:text-amber-300 transition-colors">{recommendation}</span>
-                  </div>
-                ))}
+        {/* 読みやすさ分析 */}
+        {readability && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">読みやすさ分析</h4>
+            <div className="grid grid-cols-1 gap-2 mb-2">
+              <div className="text-center p-2 bg-teal-50 dark:bg-teal-900/20 rounded transition-colors">
+                <div className="text-xl font-bold text-teal-700 dark:text-teal-300">{formatNumber(readability.readabilityScore)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">読みやすさスコア</div>
+                <div className="text-xs text-teal-600 dark:text-teal-400 transition-colors">(0-100)</div>
+              </div>
+              <div className="text-center p-2 bg-teal-50 dark:bg-teal-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-teal-700 dark:text-teal-300">{readability.complexityLevel}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">複雑度レベル</div>
               </div>
             </div>
-          )}
-        </div>
-      )}
+            
+            {/* 改善提案（簡略版） */}
+            {readability.recommendations && readability.recommendations.length > 0 && (
+              <div className="max-h-32 overflow-y-auto">
+                <div className="space-y-1">
+                  {readability.recommendations.slice(0, 2).map((recommendation: string, idx: number) => (
+                    <div key={idx} className="p-2 bg-amber-50 dark:bg-amber-900/20 border-l-2 border-amber-300 dark:border-amber-600 rounded transition-colors">
+                      <span className="text-amber-800 dark:text-amber-300 transition-colors text-xs">{recommendation}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
