@@ -677,25 +677,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
 
       {/* 分析タイプ選択：コンパクトなカード形式 */}
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-colors">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 transition-colors">分析手法を選択</h3>
-        <div className="max-h-64 overflow-y-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 transition-colors">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 transition-colors">分析手法を選択</h3>
+        <div className="max-h-40 overflow-y-auto">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1.5">
             {analysisTypes.map((type) => (
               <div
                 key={type.key}
                 onClick={() => setActiveAnalysis(type.key)}
-                className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 hover:scale-105 ${
+                className={`p-1.5 border rounded cursor-pointer transition-all duration-200 hover:scale-105 ${
                   activeAnalysis === type.key
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400 shadow-md'
                     : 'border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm bg-white dark:bg-gray-700'
                 }`}
               >
-                <div className="flex flex-col items-center text-center space-y-1.5">
-                  <type.icon className={`h-5 w-5 sm:h-6 sm:w-6 transition-colors ${
+                <div className="flex flex-col items-center text-center space-y-0.5">
+                  <type.icon className={`h-4 w-4 transition-colors ${
                     activeAnalysis === type.key ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
                   }`} />
-                  <h3 className={`text-xs font-medium leading-tight min-h-[2.5rem] flex items-center justify-center transition-colors ${
+                  <h3 className={`text-xs font-medium leading-tight min-h-[1.5rem] flex items-center justify-center transition-colors ${
                     activeAnalysis === type.key ? 'text-blue-900 dark:text-blue-200' : 'text-gray-900 dark:text-gray-200'
                   }`}>
                     {type.label}
@@ -709,12 +709,12 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
       {/* 選択された分析の詳細説明 */}
       {currentAnalysisType && (
-        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
-          <div className="flex items-start space-x-3">
-            <currentAnalysisType.icon className="h-6 w-6 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0 transition-colors" />
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-600 rounded-lg p-2 transition-colors">
+          <div className="flex items-start space-x-1.5">
+            <currentAnalysisType.icon className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0 transition-colors" />
             <div className="flex-1">
-              <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2 transition-colors">{currentAnalysisType.label}</h3>
-              <p className="text-sm text-blue-800 dark:text-blue-300 whitespace-pre-line transition-colors">
+              <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-0.5 transition-colors text-xs">{currentAnalysisType.label}</h3>
+              <p className="text-xs text-blue-800 dark:text-blue-300 whitespace-pre-line transition-colors leading-snug">
                 {currentAnalysisType.description}
               </p>
             </div>
