@@ -214,6 +214,12 @@ export async function detectFileEncoding(
       confidence = 0
     }
     
+    // BOM除去（UTF-8 with BOM対応）
+    if (selectedEncoding === 'utf-8' && text.charCodeAt(0) === 0xFEFF) {
+      text = text.substring(1)
+      console.log('✅ UTF-8 BOMを除去しました')
+    }
+    
     // 変換結果を検証
     if (text.length === 0) {
       throw new Error('ファイルが空か、エンコーディング変換に失敗しました')
@@ -252,7 +258,14 @@ export async function detectFileEncoding(
     
     // フォールバック: 標準のFile.text()を使用
     try {
-      const text = await file.text()
+      let text = await file.text()
+      
+      // BOM除去（UTF-8 with BOM対応）
+      if (text.charCodeAt(0) === 0xFEFF) {
+        text = text.substring(1)
+        console.log('✅ UTF-8 BOMを除去しました（フォールバック）')
+      }
+      
       return {
         encoding: 'utf-8',
         confidence: 0,
@@ -339,6 +352,12 @@ async function tryAlternativeEncodings(
       try {
         const decoder = new TextDecoder(normalizeEncodingForTextDecoder(encoding))
         text = decoder.decode(uint8Array)
+        
+        // BOM除去（UTF-8 with BOM対応）
+        if (encoding === 'utf-8' && text.charCodeAt(0) === 0xFEFF) {
+          text = text.substring(1)
+          console.log('✅ UTF-8 BOMを除去しました（代替エンコーディング）')
+        }
       } catch (decoderError) {
         // TextDecoderが対応していない場合はスキップ
         continue
@@ -376,7 +395,13 @@ function containsJapaneseCharacters(text: string): boolean {
 async function trySpecificEncoding(uint8Array: Uint8Array, encoding: string): Promise<EncodingDetectionResult | null> {
   try {
     const decoder = new TextDecoder(normalizeEncodingForTextDecoder(encoding))
-    const text = decoder.decode(uint8Array)
+    let text = decoder.decode(uint8Array)
+    
+    // BOM除去（UTF-8 with BOM対応）
+    if (encoding === 'utf-8' && text.charCodeAt(0) === 0xFEFF) {
+      text = text.substring(1)
+      console.log('✅ UTF-8 BOMを除去しました（特定エンコーディング）')
+    }
     
     return {
       encoding,
