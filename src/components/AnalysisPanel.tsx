@@ -180,6 +180,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     includeEmpty: true
   })
   const [error, setError] = useState<string | null>(null)
+  const [columnSearchFilter, setColumnSearchFilter] = useState<string>('')
   
   const { filters } = useDataStore()
   
@@ -201,11 +202,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           // 単一選択の場合：最初のカラムを選択
           defaultColumns = [currentAvailableColumns[0].name]
         } else if (currentType.minColumns >= 2) {
-          // 複数選択必須の場合：最小必要数まで選択（最大10カラム）
+          // 複数選択必須の場合：最小必要数まで選択（設定された上限まで）
           const selectCount = Math.min(currentType.maxColumns, currentAvailableColumns.length)
           defaultColumns = currentAvailableColumns.slice(0, selectCount).map(col => col.name)
         } else {
-          // その他の複数選択可能な場合：全カラムを選択（最大10カラム）
+          // その他の複数選択可能な場合：全カラムを選択（設定された上限まで）
           const selectCount = Math.min(currentType.maxColumns, currentAvailableColumns.length)
           defaultColumns = currentAvailableColumns.slice(0, selectCount).map(col => col.name)
         }
@@ -320,6 +321,20 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     }
   }
 
+  // 検索フィルターを適用したカラムリストを取得
+  const getFilteredAvailableColumns = () => {
+    const availableColumns = getAvailableColumns()
+    if (!columnSearchFilter.trim()) {
+      return availableColumns
+    }
+    
+    const searchTerm = columnSearchFilter.toLowerCase()
+    return availableColumns.filter(col => 
+      col.name.toLowerCase().includes(searchTerm) ||
+      col.type.toLowerCase().includes(searchTerm)
+    )
+  }
+
   // 横軸に使用可能なカラムを取得（数値型、日時型、INDEX）
   const getXAxisColumns = () => {
     const availableColumns = columns.filter(col => 
@@ -336,8 +351,6 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     // INDEXオプションを先頭に追加
     return [{ name: 'index', type: 'INDEX', nullable: false, label: 'INDEX（行番号）' }, ...availableColumns.map(col => ({ ...col, label: col.name }))]
   }
-
-  const availableColumns = getAvailableColumns()
   
   // 後方互換性のため numericColumns を維持
   // 数値カラムフィルタリング（未使用だが将来的に使用予定）
@@ -532,6 +545,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     const currentType = getCurrentAnalysisType()
     if (!currentType) return
     
+    const availableColumns = getFilteredAvailableColumns()
     const maxSelectable = Math.min(currentType.maxColumns, availableColumns.length)
     const availableColumnNames = availableColumns.map(col => col.name)
     
@@ -554,7 +568,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: Database, 
       description: '【手法】正規表現パターンマッチング\n【内容】データ型の自動判定（整数・小数・日付・真偽値）、NULL値の分析、ユニーク値の検出、データ品質の総合評価',
       minColumns: 1,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'basic' as const, 
@@ -562,7 +576,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: BarChart, 
       description: '【手法】算術平均・母集団標準偏差・分位数計算\n【内容】平均値、標準偏差、四分位数（Q1, Q2, Q3）、最小値・最大値による数値データの分布特性を要約',
       minColumns: 1,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'correlation' as const, 
@@ -570,7 +584,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: TrendingUp, 
       description: '【手法】ピアソンの積率相関係数\n【内容】変数間の線形関係の強さを-1〜+1で測定。+1に近いほど正の相関、-1に近いほど負の相関が強い',
       minColumns: 2,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'changepoint' as const, 
@@ -586,7 +600,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: Activity, 
       description: '【手法】分散共分散行列の固有値分解\n【内容】多次元データを少数の主成分に集約し、寄与率・累積寄与率を計算してデータの構造を解析',
       minColumns: 2,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'histogram' as const, 
@@ -610,7 +624,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: Activity, 
       description: '【手法】連続欠損パターン検出・統計的信頼度評価\n【内容】NULL値・空文字・0値の欠損開始/復旧タイミングを検出。欠損長・信頼度・カラム別統計を提供。データ品質監視に最適',
       minColumns: 1,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'text' as const, 
@@ -625,7 +639,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const currentAnalysisType = analysisTypes.find(t => t.key === activeAnalysis)
   const canRunAnalysis = selectedColumns.length >= (currentAnalysisType?.minColumns || 1) &&
                         selectedColumns.length <= (currentAnalysisType?.maxColumns || 10) &&
-                        availableColumns.length > 0
+                        getAvailableColumns().length > 0
 
   if (!tableName) {
     return (
@@ -663,25 +677,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
 
       {/* 分析タイプ選択：コンパクトなカード形式 */}
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-colors">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 transition-colors">分析手法を選択</h3>
-        <div className="max-h-64 overflow-y-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 transition-colors">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 transition-colors">分析手法を選択</h3>
+        <div className="max-h-40 overflow-y-auto">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1.5">
             {analysisTypes.map((type) => (
               <div
                 key={type.key}
                 onClick={() => setActiveAnalysis(type.key)}
-                className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 hover:scale-105 ${
+                className={`p-1.5 border rounded cursor-pointer transition-all duration-200 hover:scale-105 ${
                   activeAnalysis === type.key
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-400 shadow-md'
                     : 'border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm bg-white dark:bg-gray-700'
                 }`}
               >
-                <div className="flex flex-col items-center text-center space-y-1.5">
-                  <type.icon className={`h-5 w-5 sm:h-6 sm:w-6 transition-colors ${
+                <div className="flex flex-col items-center text-center space-y-0.5">
+                  <type.icon className={`h-4 w-4 transition-colors ${
                     activeAnalysis === type.key ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
                   }`} />
-                  <h3 className={`text-xs font-medium leading-tight min-h-[2.5rem] flex items-center justify-center transition-colors ${
+                  <h3 className={`text-xs font-medium leading-tight min-h-[1.5rem] flex items-center justify-center transition-colors ${
                     activeAnalysis === type.key ? 'text-blue-900 dark:text-blue-200' : 'text-gray-900 dark:text-gray-200'
                   }`}>
                     {type.label}
@@ -695,12 +709,12 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
       {/* 選択された分析の詳細説明 */}
       {currentAnalysisType && (
-        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
-          <div className="flex items-start space-x-3">
-            <currentAnalysisType.icon className="h-6 w-6 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0 transition-colors" />
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-600 rounded-lg p-2 transition-colors">
+          <div className="flex items-start space-x-1.5">
+            <currentAnalysisType.icon className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0 transition-colors" />
             <div className="flex-1">
-              <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2 transition-colors">{currentAnalysisType.label}</h3>
-              <p className="text-sm text-blue-800 dark:text-blue-300 whitespace-pre-line transition-colors">
+              <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-0.5 transition-colors text-xs">{currentAnalysisType.label}</h3>
+              <p className="text-xs text-blue-800 dark:text-blue-300 whitespace-pre-line transition-colors leading-snug">
                 {currentAnalysisType.description}
               </p>
             </div>
@@ -711,9 +725,22 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
-            列選択 ({currentAnalysisType?.label})
-          </h3>
+          <div className="flex items-center gap-4">
+            <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
+              列選択 ({currentAnalysisType?.label})
+            </h3>
+            {/* PCでは説明文を横に表示 */}
+            {currentAnalysisType && (
+              <span className="hidden md:inline text-sm text-gray-600 dark:text-gray-400 transition-colors">
+                {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
+                  ? `1つの列を選択してください（自動実行）`
+                  : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
+                  ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
+                  : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
+                }
+              </span>
+            )}
+          </div>
           {isLoading && (
             <div className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 transition-colors">
               <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
@@ -722,8 +749,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           )}
         </div>
         
-        {/* 列選択の指示と警告 */}
-        <div className="mb-4">
+        {/* モバイル用の説明文 */}
+        <div className="mb-4 md:hidden">
           {currentAnalysisType && (
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 transition-colors">
               {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
@@ -734,71 +761,112 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               }
             </p>
           )}
-          {availableColumns.length === 0 && (
-            <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-600 rounded-md p-3 transition-colors">
-              <div className="flex items-center">
-                <span className="text-amber-600 dark:text-amber-400 mr-2 transition-colors">⚠️</span>
-                <span className="text-amber-800 dark:text-amber-200 text-sm font-medium transition-colors">
-                  この分析に適した列がありません
-                </span>
-              </div>
-            </div>
-          )}
         </div>
         
-        {/* 複数選択可能な場合のみ全選択・選択解除ボタンを表示 */}
-        {currentAnalysisType && currentAnalysisType.maxColumns > 1 && availableColumns.length > 0 && (
-          <div className="flex items-center space-x-2 mb-3">
-            <button
-              onClick={handleSelectAll}
-              disabled={selectedColumns.length >= Math.min(currentAnalysisType.maxColumns, availableColumns.length)}
-              className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              全て選択
-              {currentAnalysisType.maxColumns < availableColumns.length && 
-                ` (最大${currentAnalysisType.maxColumns}個)`
-              }
-            </button>
-            <button
-              onClick={handleDeselectAll}
-              disabled={selectedColumns.length === 0}
-              className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              選択解除
-            </button>
-            <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors">
-              ({selectedColumns.length}/{currentAnalysisType.maxColumns})
-            </span>
+        {/* 警告表示 */}
+        {getAvailableColumns().length === 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-600 rounded-md p-3 mb-4 transition-colors">
+            <div className="flex items-center">
+              <span className="text-amber-600 dark:text-amber-400 mr-2 transition-colors">⚠️</span>
+              <span className="text-amber-800 dark:text-amber-200 text-sm font-medium transition-colors">
+                この分析に適した列がありません
+              </span>
+            </div>
           </div>
         )}
         
-        {availableColumns.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {availableColumns.map((col) => {
-            const isSingleSelect = currentAnalysisType?.minColumns === 1 && currentAnalysisType?.maxColumns === 1
-            const isSelected = selectedColumns.includes(col.name)
-            const maxReached = !isSingleSelect && currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns
-            const isDisabled = maxReached && !isSelected
+        {getAvailableColumns().length > 0 ? (
+          <div className="space-y-2">
+            {/* 検索ボックスとボタンを同じ行に配置 */}
+            <div className="flex items-center justify-between gap-3">
+              {/* 検索ボックス */}
+              {getAvailableColumns().length > 10 && (
+                <div className="relative flex-1 max-w-xs">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="カラム名で検索..."
+                    value={columnSearchFilter}
+                    onChange={(e) => setColumnSearchFilter(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+              )}
+              
+              {/* 複数選択可能な場合のみ全選択・選択解除ボタンを表示 */}
+              {currentAnalysisType && currentAnalysisType.maxColumns > 1 && getFilteredAvailableColumns().length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSelectAll}
+                    disabled={selectedColumns.length >= Math.min(currentAnalysisType.maxColumns, getFilteredAvailableColumns().length)}
+                    className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  >
+                    全選択
+                  </button>
+                  <button
+                    onClick={handleDeselectAll}
+                    disabled={selectedColumns.length === 0}
+                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  >
+                    解除
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors whitespace-nowrap">
+                    {selectedColumns.length}/{getFilteredAvailableColumns().length}
+                  </span>
+                </div>
+              )}
+            </div>
             
-            return (
-              <label 
-                key={col.name} 
-                className={`flex items-center space-x-2 transition-colors ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <input
-                  type={isSingleSelect ? "radio" : "checkbox"}
-                  name={isSingleSelect ? "single-column-selection" : undefined}
-                  checked={isSelected}
-                  disabled={isDisabled}
-                  onChange={() => handleColumnToggle(col.name)}
-                  className="h-4 w-4 text-blue-600 dark:text-blue-400 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 transition-colors"
-                />
-                <span className={`text-sm transition-colors ${isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
-                  {col.name}
-                </span>
-              </label>
-            )
-            })}
+            {/* スクロール可能なカラムリスト */}
+            <div className={`${getFilteredAvailableColumns().length > 9 ? 'max-h-36 overflow-y-auto' : ''} border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800 transition-colors`}>
+              <div className="p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                  {getFilteredAvailableColumns().map((col) => {
+                  const isSingleSelect = currentAnalysisType?.minColumns === 1 && currentAnalysisType?.maxColumns === 1
+                  const isSelected = selectedColumns.includes(col.name)
+                  const maxReached = !isSingleSelect && currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns
+                  const isDisabled = maxReached && !isSelected
+                  
+                  return (
+                    <label 
+                      key={col.name} 
+                      className={`flex items-center space-x-2 p-1.5 rounded hover:bg-white dark:hover:bg-gray-700 transition-colors ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                    >
+                      <input
+                        type={isSingleSelect ? "radio" : "checkbox"}
+                        name={isSingleSelect ? "single-column-selection" : undefined}
+                        checked={isSelected}
+                        disabled={isDisabled}
+                        onChange={() => handleColumnToggle(col.name)}
+                        className="h-4 w-4 text-blue-600 dark:text-blue-400 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 transition-colors"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-sm font-medium transition-colors ${isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {col.name}
+                        </span>
+                        <span className={`text-xs ml-2 transition-colors ${isDisabled ? 'text-gray-300 dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'}`}>
+                          ({col.type})
+                        </span>
+                      </div>
+                    </label>
+                  )
+                  })}
+                </div>
+                
+                {/* 検索結果なしのメッセージ */}
+                {columnSearchFilter.trim() && getFilteredAvailableColumns().length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      「{columnSearchFilter}」に一致するカラムが見つかりません
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400 transition-colors">
@@ -814,7 +882,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       </div>
 
       {/* 変化点検出アルゴリズム選択 */}
-      {activeAnalysis === 'changepoint' && availableColumns.length > 0 && (
+      {activeAnalysis === 'changepoint' && getAvailableColumns().length > 0 && (
         <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-600 rounded-lg p-4 transition-colors">
           <h4 className="text-sm font-medium text-yellow-900 dark:text-yellow-200 mb-3 flex items-center transition-colors">
             <Zap className="h-4 w-4 mr-2 text-yellow-600 dark:text-yellow-400 transition-colors" />
@@ -915,7 +983,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       )}
 
       {/* 横軸カラム選択（時系列分析と変化点検出のみ） */}
-      {(activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && availableColumns.length > 0 && (
+      {(activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && getAvailableColumns().length > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
           <h4 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3 flex items-center transition-colors">
             <LineChart className="h-4 w-4 mr-2" />
@@ -1338,7 +1406,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
   if (!factorAnalysis || !factorAnalysis.factors || !Array.isArray(factorAnalysis.factors)) {
     return (
       <div className="text-center py-4 text-red-600">
-        <p>因子分析の結果が無効です。</p>
+        <p>主成分分析の結果が無効です。</p>
         <p className="text-xs mt-2">Expected object with factors array, got: {typeof factorAnalysis}</p>
       </div>
     )
@@ -1347,7 +1415,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
   if (factorAnalysis.factors.length === 0) {
     return (
       <div className="text-center py-4 text-gray-600">
-        <p>因子分析の結果がありません。</p>
+        <p>主成分分析の結果がありません。</p>
       </div>
     )
   }
@@ -1368,7 +1436,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
   const options = {
     responsive: true,
     maintainAspectRatio: true,
-    aspectRatio: 2, // 横:縦=2:1の比率
+    aspectRatio: 2,
     plugins: {
       legend: {
         position: 'right' as const,
@@ -1382,7 +1450,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
       },
       title: {
         display: true,
-        text: '因子分析結果',
+        text: '主成分分析結果',
         font: {
           size: 14
         },
@@ -1404,23 +1472,136 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
       <div className="w-full max-w-2xl mx-auto mb-6">
         <Doughnut data={chartData} options={options} />
       </div>
-      <div className="mt-4 space-y-4">
-        {factorAnalysis.factors.map((factor, index) => (
-          <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-            <h4 className="font-medium mb-2 text-gray-900 dark:text-white transition-colors">
-              {factor.name} (寄与率: {(factor.variance * 100).toFixed(1)}%)
-            </h4>
-            <div className="space-y-1">
-              {factor.loadings.map((loading, i) => (
-                <div key={i} className="flex justify-between text-sm">
-                  <span className="text-gray-900 dark:text-white transition-colors">{loading.variable}</span>
-                  <span className="font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(loading.loading)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+      <FactorAnalysisTable factorAnalysis={factorAnalysis} />
+    </div>
+  )
+}
+
+function FactorAnalysisTable({ factorAnalysis }: { factorAnalysis: FactorAnalysisResult }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  // 全ての因子負荷量をフラット化
+  const allLoadings = factorAnalysis.factors.flatMap((factor, factorIndex) =>
+    factor.loadings.map(loading => ({
+      factor: factor.name,
+      factorIndex,
+      variable: loading.variable,
+      loading: loading.loading,
+      variance: factor.variance
+    }))
+  )
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(allLoadings.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentLoadings = allLoadings.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4 mt-6">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">主成分分析詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
       </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">主成分</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">変数</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">負荷量</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">寄与率</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">強度</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+              {currentLoadings.map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white transition-colors">{item.factor}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">{item.variable}</td>
+                  <td className={`px-4 py-3 text-sm font-mono transition-colors text-right ${
+                    Math.abs(item.loading) > 0.7 ? 'text-green-600 dark:text-green-400 font-bold' :
+                    Math.abs(item.loading) > 0.3 ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-600 dark:text-gray-300'
+                  }`}>
+                    {formatNumber(item.loading)}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">
+                    {(item.variance * 100).toFixed(1)}%
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-block w-3 h-3 rounded-full ${
+                      Math.abs(item.loading) > 0.7 ? 'bg-green-500 dark:bg-green-400' :
+                      Math.abs(item.loading) > 0.3 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
+                    }`}></span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-600 transition-colors">
+          <div className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 transition-colors">
+            <span>
+              {startIndex + 1}-{Math.min(endIndex, allLoadings.length)} / {allLoadings.length} 項目
+            </span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              前へ
+            </button>
+            <span className="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1460,6 +1641,7 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
   
   const options = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: 'top' as const,
@@ -1494,8 +1676,11 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
   }
 
   return (
-    <div>
-      <Bar data={chartData} options={options} />
+    <div className="space-y-4">
+      {/* ヒストグラムチャート - サイズ制限 */}
+      <div className="w-full max-h-96 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+        <Bar data={chartData} options={options} />
+      </div>
       
       {/* ヒストグラム詳細テーブル */}
       <HistogramTable data={data} />
@@ -1722,67 +1907,62 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
   }
 
   return (
-    <div className="space-y-3">
-      {data.map((column, index) => (
-        <div key={index} className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-3 md:p-4 transition-colors">
+    <div className="max-h-[32rem] overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {data.map((column, index) => (
+          <div key={index} className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-3 transition-colors">
           {/* ヘッダー部分 - コンパクト化 */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <h4 className="text-base font-medium text-gray-900 dark:text-white break-words">{column.columnName}</h4>
-              <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded transition-colors">
-                {column.dataType}
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{column.columnName}</h4>
+              <span className="text-xs text-gray-600 dark:text-gray-300">
+                {formatNumber(column.totalRows)}行
               </span>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">
-              {formatNumber(column.totalRows)}行
-            </div>
+            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded transition-colors">
+              {column.dataType}
+            </span>
           </div>
 
           {/* 基本情報 - 横並び・コンパクト化 */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.uniqueValues)}</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">ユニーク</span>
+          <div className="grid grid-cols-2 gap-1 mb-2 text-xs">
+            <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">ユニーク:</span>
+              <span className="font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.uniqueValues)}</span>
             </div>
-            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-red-700 dark:text-red-300">{formatNumber(column.nullCount)}</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">NULL({formatPercentage(column.nullPercentage)}%)</span>
+            <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">NULL:</span>
+              <span className="font-medium text-red-700 dark:text-red-300">{formatPercentage(column.nullPercentage)}%</span>
             </div>
-            <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-orange-700 dark:text-orange-300">{formatNumber(column.emptyStringCount)}</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">空文字({formatPercentage(column.emptyStringPercentage)}%)</span>
+            <div className="flex items-center justify-between bg-orange-50 dark:bg-orange-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">空文字:</span>
+              <span className="font-medium text-orange-700 dark:text-orange-300">{formatPercentage(column.emptyStringPercentage)}%</span>
             </div>
-            <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-green-700 dark:text-green-300">{calculateValidDataPercentage(column)}%</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">
-                {column.totalRows === 0 ? '有効データ (データなし)' : '有効データ'}
-              </span>
+            <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">有効:</span>
+              <span className="font-medium text-green-700 dark:text-green-300">{calculateValidDataPercentage(column)}%</span>
             </div>
           </div>
 
-          {/* 数値統計（数値型の場合） - 横並び・コンパクト化 */}
+          {/* 数値統計（数値型の場合） - コンパクト化 */}
           {column.numericStats && (
-            <div className="mb-3">
-              <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.min)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">最小</span>
+            <div className="mb-2">
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">最小:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.min)}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.max)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">最大</span>
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">最大:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.max)}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.mean)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">平均</span>
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">平均:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.mean)}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.median)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">中央値</span>
-                </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.std)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">標準偏差</span>
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">中央値:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.median)}</span>
                 </div>
               </div>
             </div>
@@ -1837,6 +2017,7 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
           </details>
         </div>
       ))}
+      </div>
     </div>
   )
 }
@@ -1853,69 +2034,73 @@ function TextAnalysisResults({ data }: { data: any }) {
   }
 
   const { statistics, wordFrequency, characterFrequency, patterns, language, sentences, readability } = data
+  
+  // デバッグ用ログ
+  console.log('wordFrequency:', wordFrequency, 'type:', typeof wordFrequency, 'isArray:', Array.isArray(wordFrequency))
+  console.log('patterns:', patterns, 'type:', typeof patterns)
+  if (patterns) {
+    console.log('patterns.patterns:', patterns.patterns, 'type:', typeof patterns.patterns, 'isArray:', Array.isArray(patterns.patterns))
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 max-h-screen overflow-y-auto">
       {/* 基本統計 */}
       {statistics && (
         <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">基本統計</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatNumber(statistics.totalRecords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総レコード数</div>
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">基本統計</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">
+            <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatNumber(statistics.totalRecords)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総レコード数</div>
             </div>
-            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{formatNumber(statistics.totalCharacters)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総文字数</div>
+            <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-green-700 dark:text-green-300">{formatNumber(statistics.totalCharacters)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総文字数</div>
             </div>
-            <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{formatNumber(statistics.totalWords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総単語数</div>
+            <div className="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-purple-700 dark:text-purple-300">{formatNumber(statistics.totalWords)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総単語数</div>
             </div>
-            <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{formatNumber(statistics.uniqueRecords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">ユニーク数</div>
+            <div className="text-center p-2 bg-orange-50 dark:bg-orange-900/20 rounded transition-colors">
+              <div className="text-lg font-bold text-orange-700 dark:text-orange-300">{formatNumber(statistics.uniqueRecords)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">ユニーク数</div>
             </div>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.averageCharactersPerRecord)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均文字数/レコード</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.averageWordsPerRecord)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均単語数/レコード</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.uniquePercentage)}%</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">ユニーク率</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.minCharacters)} - {formatNumber(statistics.maxCharacters)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">文字数範囲</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.minWords)} - {formatNumber(statistics.maxWords)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">単語数範囲</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(statistics.emptyPercentage)}%</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">空レコード率</div>
-            </div>
+            {statistics.averageCharactersPerRecord !== undefined && (
+              <div className="text-center p-2 bg-teal-50 dark:bg-teal-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-teal-700 dark:text-teal-300 transition-colors">{formatNumber(statistics.averageCharactersPerRecord)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">平均文字数</div>
+              </div>
+            )}
+            {statistics.averageWordsPerRecord !== undefined && (
+              <div className="text-center p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-indigo-700 dark:text-indigo-300 transition-colors">{formatNumber(statistics.averageWordsPerRecord)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">平均単語数</div>
+              </div>
+            )}
+            {statistics.uniquePercentage !== undefined && (
+              <div className="text-center p-2 bg-pink-50 dark:bg-pink-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-pink-700 dark:text-pink-300 transition-colors">{formatNumber(statistics.uniquePercentage)}%</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">ユニーク率</div>
+              </div>
+            )}
+            {statistics.emptyPercentage !== undefined && (
+              <div className="text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-amber-700 dark:text-amber-300 transition-colors">{formatNumber(statistics.emptyPercentage)}%</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">空レコード率</div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* 単語頻度 */}
-        {wordFrequency && wordFrequency.length > 0 && (
+        {wordFrequency && Array.isArray(wordFrequency) && wordFrequency.length > 0 ? (
           <div>
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">単語頻度 (上位15件)</h4>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {wordFrequency.map((item: WordFrequency, idx: number) => (
-                <div key={idx} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm gap-1 min-w-0 transition-colors">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">単語頻度 (上位10件)</h4>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {wordFrequency.slice(0, 10).map((item: WordFrequency, idx: number) => (
+                <div key={idx} className="flex justify-between items-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs transition-colors">
                   <span className="font-mono text-blue-900 dark:text-blue-200 font-medium break-all text-xs sm:text-sm flex-1 min-w-0 transition-colors">
                     {item.word}
                   </span>
@@ -1927,22 +2112,50 @@ function TextAnalysisResults({ data }: { data: any }) {
               ))}
             </div>
           </div>
+        ) : (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">単語頻度</h4>
+            <div className="text-xs text-gray-500 dark:text-gray-400 p-2">
+              単語頻度データがありません
+              {wordFrequency && <div>データ: {JSON.stringify(wordFrequency)}</div>}
+            </div>
+          </div>
         )}
 
         {/* 文字頻度 */}
         {characterFrequency && characterFrequency.length > 0 && (
           <div>
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">文字頻度 (上位15件)</h4>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {characterFrequency.map((item: CharacterFrequency, idx: number) => (
-                <div key={idx} className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded text-sm transition-colors">
-                  <span className="font-mono text-green-900 dark:text-green-200 font-bold text-lg transition-colors">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">文字頻度 (上位10件)</h4>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {characterFrequency.slice(0, 10).map((item: CharacterFrequency, idx: number) => (
+                <div key={idx} className="flex justify-between items-center p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs transition-colors">
+                  <span className="font-mono text-green-900 dark:text-green-200 font-bold text-sm transition-colors">
                     {item.character}
                   </span>
                   <div className="text-right">
                     <span className="font-bold text-green-700 dark:text-green-300 transition-colors">{formatNumber(item.count)}</span>
-                    <span className="text-green-500 dark:text-green-400 ml-2 transition-colors">({formatNumber(item.percentage)}%)</span>
+                    <span className="text-green-500 dark:text-green-400 ml-1 transition-colors">({formatNumber(item.percentage)}%)</span>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 言語・文字種分析 */}
+        {language && language.languagePatterns && language.languagePatterns.length > 0 && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">言語・文字種分析</h4>
+            <div className="mb-2">
+              <span className="text-xs text-gray-600 dark:text-gray-300 transition-colors">
+                平均文字列長: <span className="font-bold">{formatNumber(language.averageLength)}</span>文字
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+              {language.languagePatterns.slice(0, 6).map((pattern: any, idx: number) => (
+                <div key={idx} className="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
+                  <div className="text-sm font-bold text-purple-700 dark:text-purple-300">{formatNumber(pattern.percentage)}%</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">{pattern.pattern}</div>
                 </div>
               ))}
             </div>
@@ -1950,155 +2163,98 @@ function TextAnalysisResults({ data }: { data: any }) {
         )}
       </div>
 
-      {/* 言語・文字種分析 */}
-      {language && language.languagePatterns && language.languagePatterns.length > 0 && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">言語・文字種分析</h4>
-          <div className="mb-2">
-            <span className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
-              平均文字列長: <span className="font-bold">{formatNumber(language.averageLength)}</span>文字
-            </span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {language.languagePatterns.map((pattern: any, idx: number) => (
-              <div key={idx} className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded transition-colors">
-                <div className="text-lg font-bold text-purple-700 dark:text-purple-300">{formatNumber(pattern.percentage)}%</div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">{pattern.pattern}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">({formatNumber(pattern.count)}文字)</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* パターン分析 */}
-      {patterns && patterns.patterns && patterns.patterns.length > 0 && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">パターン分析</h4>
-          <div className="space-y-3">
-            {patterns.patterns.map((pattern: any, idx: number) => (
-              <div key={idx} className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded transition-colors">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-orange-900 dark:text-orange-300 transition-colors">{pattern.description}</span>
-                  <div className="text-right">
-                    <span className="font-bold text-orange-700 dark:text-orange-300 transition-colors">{formatNumber(pattern.count)}</span>
-                    <span className="text-orange-500 dark:text-orange-400 ml-2 transition-colors">({formatNumber(pattern.percentage)}%)</span>
+      {/* 残りのセクションを横並びで表示 */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* パターン分析 */}
+        {patterns && patterns.patterns && Array.isArray(patterns.patterns) && patterns.patterns.length > 0 ? (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">パターン分析</h4>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {patterns.patterns.slice(0, 5).map((pattern: any, idx: number) => (
+                <div key={idx} className="p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded transition-colors">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-orange-900 dark:text-orange-300 transition-colors text-xs">{pattern.description}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-orange-700 dark:text-orange-300 transition-colors text-xs">{formatNumber(pattern.count)}</span>
+                      <span className="text-orange-500 dark:text-orange-400 ml-1 transition-colors text-xs">({formatNumber(pattern.percentage)}%)</span>
+                    </div>
                   </div>
                 </div>
-                {pattern.examples && pattern.examples.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-xs text-gray-600 dark:text-gray-300 mb-1 transition-colors">例:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {pattern.examples.map((example: string, exIdx: number) => (
-                        <span
-                          key={exIdx}
-                          className="inline-block bg-white dark:bg-gray-700 text-orange-800 dark:text-orange-300 text-xs px-2 py-1 rounded border dark:border-gray-600 font-mono transition-colors"
-                        >
-                          {example}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">パターン分析</h4>
+            <div className="text-xs text-gray-500 dark:text-gray-400 p-2">
+              パターン分析データがありません
+              {patterns && <div>データ: {JSON.stringify(patterns)}</div>}
+            </div>
+          </div>
+        )}
 
-      {/* 文分析 */}
-      {sentences && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">文分析</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatNumber(sentences.totalSentences)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">総文数</div>
+        {/* 文分析 */}
+        {sentences && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">文分析</h4>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
+                <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatNumber(sentences.totalSentences)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">総文数</div>
+              </div>
+              <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
+                <div className="text-lg font-bold text-green-700 dark:text-green-300">{formatNumber(sentences.averageSentenceLength)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">平均文長</div>
+              </div>
             </div>
-            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded transition-colors">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{formatNumber(sentences.averageSentenceLength)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均文長(語数)</div>
-            </div>
-          </div>
-          
-          {/* 文長分布 */}
-          {sentences.sentenceLengthDistribution && sentences.sentenceLengthDistribution.length > 0 && (
-            <div className="mb-6">
-              <h5 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">文長分布</h5>
-              <div className="space-y-2">
-                {sentences.sentenceLengthDistribution.map((item: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded transition-colors">
-                    <span className="font-medium text-blue-900 dark:text-blue-200 transition-colors">{item.range}</span>
-                    <div className="text-right">
-                      <span className="font-bold text-blue-700 dark:text-blue-300 transition-colors">{formatNumber(item.count)}</span>
-                      <span className="text-blue-500 dark:text-blue-400 ml-2 transition-colors">({formatNumber(item.percentage)}%)</span>
+            
+            {/* 句読点使用分析（簡略版） */}
+            {sentences.punctuationUsage && sentences.punctuationUsage.length > 0 && (
+              <div className="max-h-32 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-1">
+                  {sentences.punctuationUsage.slice(0, 4).map((item: any, idx: number) => (
+                    <div key={idx} className="text-center p-1 bg-indigo-50 dark:bg-indigo-900/20 rounded transition-colors">
+                      <div className="text-sm font-bold text-indigo-700 dark:text-indigo-300 font-mono">{item.punctuation}</div>
+                      <div className="text-xs text-indigo-600 dark:text-indigo-400 transition-colors">{formatNumber(item.count)}</div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          
-          {/* 句読点使用分析 */}
-          {sentences.punctuationUsage && sentences.punctuationUsage.length > 0 && (
-            <div>
-              <h5 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">句読点使用状況</h5>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {sentences.punctuationUsage.map((item: any, idx: number) => (
-                  <div key={idx} className="text-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded transition-colors">
-                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 font-mono">{item.punctuation}</div>
-                    <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 transition-colors">{formatNumber(item.count)}</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">({formatNumber(item.percentage)}%)</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {/* 読みやすさ分析 */}
-      {readability && (
-        <div>
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">読みやすさ分析</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="text-center p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg transition-colors">
-              <div className="text-3xl font-bold text-teal-700 dark:text-teal-300">{formatNumber(readability.readabilityScore)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">読みやすさスコア</div>
-              <div className="text-xs text-teal-600 dark:text-teal-400 mt-1 transition-colors">(0-100)</div>
-            </div>
-            <div className="text-center p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg transition-colors">
-              <div className="text-lg font-bold text-teal-700 dark:text-teal-300">{readability.complexityLevel}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">複雑度レベル</div>
-            </div>
-            <div className="text-center p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg transition-colors">
-              <div className="text-lg font-bold text-teal-700 dark:text-teal-300">{formatNumber(readability.averageWordsPerSentence)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均語数/文</div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-              <div className="text-lg font-bold text-gray-700 dark:text-gray-200 transition-colors">{formatNumber(readability.averageCharactersPerWord)}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">平均文字数/語</div>
-            </div>
-          </div>
-          
-          {/* 改善提案 */}
-          {readability.recommendations && readability.recommendations.length > 0 && (
-            <div>
-              <h5 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">改善提案</h5>
-              <div className="space-y-2">
-                {readability.recommendations.map((recommendation: string, idx: number) => (
-                  <div key={idx} className="p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-300 dark:border-amber-600 rounded transition-colors">
-                    <span className="text-amber-800 dark:text-amber-300 transition-colors">{recommendation}</span>
-                  </div>
-                ))}
+        {/* 読みやすさ分析 */}
+        {readability && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors">読みやすさ分析</h4>
+            <div className="grid grid-cols-1 gap-2 mb-2">
+              <div className="text-center p-2 bg-teal-50 dark:bg-teal-900/20 rounded transition-colors">
+                <div className="text-xl font-bold text-teal-700 dark:text-teal-300">{formatNumber(readability.readabilityScore)}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">読みやすさスコア</div>
+                <div className="text-xs text-teal-600 dark:text-teal-400 transition-colors">(0-100)</div>
+              </div>
+              <div className="text-center p-2 bg-teal-50 dark:bg-teal-900/20 rounded transition-colors">
+                <div className="text-sm font-bold text-teal-700 dark:text-teal-300">{readability.complexityLevel}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 transition-colors">複雑度レベル</div>
               </div>
             </div>
-          )}
-        </div>
-      )}
+            
+            {/* 改善提案（簡略版） */}
+            {readability.recommendations && readability.recommendations.length > 0 && (
+              <div className="max-h-32 overflow-y-auto">
+                <div className="space-y-1">
+                  {readability.recommendations.slice(0, 2).map((recommendation: string, idx: number) => (
+                    <div key={idx} className="p-2 bg-amber-50 dark:bg-amber-900/20 border-l-2 border-amber-300 dark:border-amber-600 rounded transition-colors">
+                      <span className="text-amber-800 dark:text-amber-300 transition-colors text-xs">{recommendation}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -2155,30 +2311,32 @@ function MissingDataResults({ data }: { data: MissingDataResult & { performanceM
 
       {/* カラム別統計 */}
       <div>
-        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">カラム別統計</h4>
-        <div className="space-y-3">
-          {Object.entries(columnStats).map(([columnName, stats]: [string, any]) => (
-            <div key={columnName} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <h5 className="font-medium text-gray-900 dark:text-white transition-colors">{columnName}</h5>
-                <span className="text-sm text-gray-600 dark:text-gray-300 transition-colors">{formatNumber(stats.missingPercentage)}% 欠損</span>
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3 transition-colors">カラム別統計</h4>
+        <div className="max-h-64 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Object.entries(columnStats).map(([columnName, stats]: [string, any]) => (
+              <div key={columnName} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="font-medium text-gray-900 dark:text-white transition-colors text-sm truncate">{columnName}</h5>
+                  <span className="text-xs text-gray-600 dark:text-gray-300 transition-colors whitespace-nowrap ml-2">{formatNumber(stats.missingPercentage)}% 欠損</span>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300 transition-colors">イベント数:</span>
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.totalMissingEvents}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300 transition-colors">平均期間:</span>
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{formatNumber(stats.averageMissingLength)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300 transition-colors">最大期間:</span>
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.maxMissingLength}</span>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600 dark:text-gray-300 transition-colors">イベント数: </span>
-                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.totalMissingEvents}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-300 transition-colors">平均欠損期間: </span>
-                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{formatNumber(stats.averageMissingLength)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-300 transition-colors">最大欠損期間: </span>
-                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.maxMissingLength}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
@@ -2718,24 +2876,39 @@ function CorrelationTable({ correlations }: CorrelationTableProps) {
         </div>
       </div>
       
-      <div className="space-y-2">
-        {currentCorrelations.map((corr, index) => (
-          <div key={index} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg transition-colors">
-            <span className="font-medium text-gray-900 dark:text-white transition-colors">{corr.column1} × {corr.column2}</span>
-            <div className="flex items-center space-x-2">
-              <span className={`inline-block w-3 h-3 rounded-full ${
-                Math.abs(corr.correlation) > 0.7 ? 'bg-red-500 dark:bg-red-400' :
-                Math.abs(corr.correlation) > 0.3 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
-              }`}></span>
-              <span className={`font-bold font-mono transition-colors ${
-                Math.abs(corr.correlation) > 0.7 ? 'text-red-600 dark:text-red-400' :
-                Math.abs(corr.correlation) > 0.3 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
-              }`}>
-                {formatNumber(corr.correlation)}
-              </span>
-            </div>
-          </div>
-        ))}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列1</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列2</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">相関係数</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">強度</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+              {currentCorrelations.map((corr, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white transition-colors">{corr.column1}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">{corr.column2}</td>
+                  <td className={`px-4 py-3 text-sm font-mono transition-colors text-right ${
+                    Math.abs(corr.correlation) > 0.7 ? 'text-red-600 dark:text-red-400 font-bold' :
+                    Math.abs(corr.correlation) > 0.3 ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-600 dark:text-gray-300'
+                  }`}>
+                    {formatNumber(corr.correlation)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-block w-3 h-3 rounded-full ${
+                      Math.abs(corr.correlation) > 0.7 ? 'bg-red-500 dark:bg-red-400' :
+                      Math.abs(corr.correlation) > 0.3 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
+                    }`}></span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       
       {/* ページネーション */}

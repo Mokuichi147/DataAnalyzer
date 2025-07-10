@@ -4,6 +4,7 @@ import { buildMemoryFilterFunction } from './filterUtils'
 import { DataFilter } from '@/store/dataStore'
 
 export interface BasicStats {
+  columnName: string
   count: number
   mean: number
   std: number
@@ -120,6 +121,7 @@ export async function getBasicStatistics(
     }
 
     return {
+      columnName,
       count,
       mean,
       std,
