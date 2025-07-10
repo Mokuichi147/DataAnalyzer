@@ -9,6 +9,35 @@ import { getMemoryInfo, formatMemorySize, checkMemoryWarning } from '@/lib/memor
 import { getEncodingDescription } from '@/lib/fileEncoding'
 import { memoryDataStore } from '@/lib/memoryDataStore'
 
+/**
+ * テーブル名をサニタイズする関数（日本語対応）
+ * SQLで使用可能な安全なテーブル名に変換
+ */
+function sanitizeTableName(tableName: string): string {
+  if (!tableName || tableName.trim() === '') {
+    return `table_${Math.random().toString(36).substr(2, 9)}`
+  }
+  
+  // 先頭と末尾の空白を削除
+  let sanitized = tableName.trim()
+  
+  // 危険な文字のみを置換（日本語文字は保持）
+  // SQLインジェクション対策として、特定の記号のみを置換
+  sanitized = sanitized
+    .replace(/['"`;\\]/g, '_')  // SQLインジェクション対策
+    .replace(/[\r\n\t]/g, '_')  // 改行・タブ文字
+    .replace(/\s+/g, '_')       // 連続する空白をアンダースコアに
+    .replace(/^_+|_+$/g, '')    // 先頭・末尾のアンダースコアを削除
+    .replace(/_+/g, '_')        // 連続するアンダースコアを1つに
+  
+  // 空になった場合のフォールバック
+  if (sanitized === '') {
+    return `table_${Math.random().toString(36).substr(2, 9)}`
+  }
+  
+  return sanitized
+}
+
 interface UploadedFile {
   id: string
   file: File
@@ -83,7 +112,7 @@ export function FileUpload({ }: FileUploadProps) {
         id: generateUUID(),
         file,
         status: 'pending' as const,
-        tableName: file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '_'),
+        tableName: sanitizeTableName(file.name.split('.')[0]),
         isDuckDBFile,
       }
       
