@@ -29,6 +29,8 @@ export interface FileEncodingOptions {
 function getBrowserSupportedEncodings(): string[] {
   const testEncodings = [
     'utf-8',
+    'utf-16le',
+    'utf-16be',
     'shift_jis', 
     'euc-jp',
     'iso-2022-jp',
@@ -64,10 +66,26 @@ async function fallbackEncodingDetection(uint8Array: Uint8Array): Promise<{ enco
     return { encoding: 'utf-8', confidence: 1.0 }
   }
   
+  // UTF-16 LE BOMチェック
+  if (uint8Array.length >= 2 && 
+      uint8Array[0] === 0xFF && 
+      uint8Array[1] === 0xFE) {
+    return { encoding: 'utf-16le', confidence: 1.0 }
+  }
+  
+  // UTF-16 BE BOMチェック
+  if (uint8Array.length >= 2 && 
+      uint8Array[0] === 0xFE && 
+      uint8Array[1] === 0xFF) {
+    return { encoding: 'utf-16be', confidence: 1.0 }
+  }
+  
   // 各エンコーディングのスコアを計算
   let shiftJisScore = 0
   let eucJpScore = 0
   let utf8Score = 0
+  let utf16LeScore = 0
+  let utf16BeScore = 0
   let asciiCount = 0
   
   const sampleSize = Math.min(uint8Array.length, 2000) // サンプルサイズを増加
@@ -110,6 +128,22 @@ async function fallbackEncodingDetection(uint8Array: Uint8Array): Promise<{ enco
         i++ // 次のバイトをスキップ
       }
     }
+    
+    // UTF-16 LE検出（BOM以外も）
+    // LE: ASCII文字が偶数位置、null文字が奇数位置のパターン
+    if (i % 2 === 0 && i + 1 < sampleSize) {
+      if (byte1 > 0 && byte1 < 0x80 && byte2 === 0) {
+        utf16LeScore += 2
+      }
+    }
+    
+    // UTF-16 BE検出（BOM以外も）
+    // BE: null文字が偶数位置、ASCII文字が奇数位置のパターン
+    if (i % 2 === 0 && i + 1 < sampleSize) {
+      if (byte1 === 0 && byte2 > 0 && byte2 < 0x80) {
+        utf16BeScore += 2
+      }
+    }
   }
   
   // スコアの正規化
@@ -117,16 +151,24 @@ async function fallbackEncodingDetection(uint8Array: Uint8Array): Promise<{ enco
   shiftJisScore = shiftJisScore / totalBytes
   eucJpScore = eucJpScore / totalBytes
   utf8Score = utf8Score / totalBytes
+  utf16LeScore = utf16LeScore / totalBytes
+  utf16BeScore = utf16BeScore / totalBytes
   
   console.log('🔍 検出スコア:', {
     shiftJis: shiftJisScore.toFixed(3),
     eucJp: eucJpScore.toFixed(3),
     utf8: utf8Score.toFixed(3),
+    utf16Le: utf16LeScore.toFixed(3),
+    utf16Be: utf16BeScore.toFixed(3),
     ascii: (asciiCount / totalBytes).toFixed(3)
   })
   
-  // 閾値による判定
-  if (shiftJisScore > 0.1 && shiftJisScore > eucJpScore && shiftJisScore > utf8Score * 0.8) {
+  // 閾値による判定（UTF-16を優先）
+  if (utf16LeScore > 0.2 && utf16LeScore > utf16BeScore && utf16LeScore > utf8Score) {
+    return { encoding: 'utf-16le', confidence: Math.min(utf16LeScore * 2, 0.95) }
+  } else if (utf16BeScore > 0.2 && utf16BeScore > utf16LeScore && utf16BeScore > utf8Score) {
+    return { encoding: 'utf-16be', confidence: Math.min(utf16BeScore * 2, 0.95) }
+  } else if (shiftJisScore > 0.1 && shiftJisScore > eucJpScore && shiftJisScore > utf8Score * 0.8) {
     return { encoding: 'shift_jis', confidence: Math.min(shiftJisScore * 2, 0.95) }
   } else if (eucJpScore > 0.1 && eucJpScore > shiftJisScore && eucJpScore > utf8Score * 0.8) {
     return { encoding: 'euc-jp', confidence: Math.min(eucJpScore * 2, 0.95) }
@@ -155,12 +197,17 @@ export async function detectFileEncoding(
     const arrayBuffer = await file.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
     
+    // ファイルの最初の数バイトをログ出力（デバッグ用）
+    const firstBytes = Array.from(uint8Array.slice(0, 10)).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(' ')
+    console.log(`🔍 ファイル先頭バイト (${file.name}):`, firstBytes)
+    
     // エンコーディングを検出 (独自検出を優先)
     let detection: { encoding: string | null; confidence: number }
     
     // まず独自検出を試行
     detection = await fallbackEncodingDetection(uint8Array)
     console.log('🔍 独自検出結果:', detection)
+    console.log('🔍 サポートエンコーディング:', supportedEncodings)
     
     // 独自検出で判定できない場合のみjschardetを使用
     if (!detection.encoding || detection.confidence < 0.3) {
@@ -204,14 +251,25 @@ export async function detectFileEncoding(
     
     try {
       // ブラウザのTextDecoderを使用（対応している場合）
-      const decoder = new TextDecoder(normalizeEncodingForTextDecoder(selectedEncoding))
+      const decoderName = normalizeEncodingForTextDecoder(selectedEncoding)
+      console.log(`🔧 TextDecoder使用: ${decoderName} (元: ${selectedEncoding})`)
+      const decoder = new TextDecoder(decoderName)
       text = decoder.decode(uint8Array)
+      console.log(`✅ デコード成功: ${text.length}文字生成`)
     } catch (decoderError) {
       console.warn(`⚠️ TextDecoderでエンコーディング "${selectedEncoding}" がサポートされていません。UTF-8を使用します。`)
+      console.warn('デコードエラー:', decoderError)
       // フォールバック: UTF-8として処理
       text = new TextDecoder('utf-8').decode(uint8Array)
       selectedEncoding = 'utf-8'
       confidence = 0
+    }
+    
+    // BOM除去（UTF-8/UTF-16 with BOM対応）
+    if ((selectedEncoding === 'utf-8' || selectedEncoding === 'utf-16le' || selectedEncoding === 'utf-16be') && 
+        text.charCodeAt(0) === 0xFEFF) {
+      text = text.substring(1)
+      console.log(`✅ ${selectedEncoding.toUpperCase()} BOMを除去しました`)
     }
     
     // 変換結果を検証
@@ -252,7 +310,14 @@ export async function detectFileEncoding(
     
     // フォールバック: 標準のFile.text()を使用
     try {
-      const text = await file.text()
+      let text = await file.text()
+      
+      // BOM除去（UTF-8/UTF-16 with BOM対応）
+      if (text.charCodeAt(0) === 0xFEFF) {
+        text = text.substring(1)
+        console.log('✅ BOMを除去しました（フォールバック）')
+      }
+      
       return {
         encoding: 'utf-8',
         confidence: 0,
@@ -277,6 +342,9 @@ function normalizeEncoding(encoding: string): string {
     'iso2022jp': 'iso-2022-jp',
     'jis': 'iso-2022-jp',
     'utf8': 'utf-8',
+    'utf16le': 'utf-16le',
+    'utf16be': 'utf-16be',
+    'utf16': 'utf-16le', // デフォルトでLEを使用
     'cp932': 'shift_jis',
     'windows31j': 'shift_jis',
     'windows1252': 'windows-1252'
@@ -294,7 +362,9 @@ function normalizeEncodingForTextDecoder(encoding: string): string {
     'euc-jp': 'euc-jp',
     'iso-2022-jp': 'iso-2022-jp',
     'windows-1252': 'windows-1252',
-    'utf-8': 'utf-8'
+    'utf-8': 'utf-8',
+    'utf-16le': 'utf-16le',
+    'utf-16be': 'utf-16be'
   }
   
   return textDecoderMap[encoding] || 'utf-8'
@@ -339,6 +409,13 @@ async function tryAlternativeEncodings(
       try {
         const decoder = new TextDecoder(normalizeEncodingForTextDecoder(encoding))
         text = decoder.decode(uint8Array)
+        
+        // BOM除去（UTF-8/UTF-16 with BOM対応）
+        if ((encoding === 'utf-8' || encoding === 'utf-16le' || encoding === 'utf-16be') && 
+            text.charCodeAt(0) === 0xFEFF) {
+          text = text.substring(1)
+          console.log(`✅ ${encoding.toUpperCase()} BOMを除去しました（代替エンコーディング）`)
+        }
       } catch (decoderError) {
         // TextDecoderが対応していない場合はスキップ
         continue
@@ -376,7 +453,14 @@ function containsJapaneseCharacters(text: string): boolean {
 async function trySpecificEncoding(uint8Array: Uint8Array, encoding: string): Promise<EncodingDetectionResult | null> {
   try {
     const decoder = new TextDecoder(normalizeEncodingForTextDecoder(encoding))
-    const text = decoder.decode(uint8Array)
+    let text = decoder.decode(uint8Array)
+    
+    // BOM除去（UTF-8/UTF-16 with BOM対応）
+    if ((encoding === 'utf-8' || encoding === 'utf-16le' || encoding === 'utf-16be') && 
+        text.charCodeAt(0) === 0xFEFF) {
+      text = text.substring(1)
+      console.log(`✅ ${encoding.toUpperCase()} BOMを除去しました（特定エンコーディング）`)
+    }
     
     return {
       encoding,
@@ -395,6 +479,8 @@ async function trySpecificEncoding(uint8Array: Uint8Array, encoding: string): Pr
 export function getSupportedEncodings(): string[] {
   return [
     'utf-8',
+    'utf-16le',
+    'utf-16be',
     'shift_jis',
     'euc-jp', 
     'iso-2022-jp',
@@ -409,6 +495,8 @@ export function getSupportedEncodings(): string[] {
 export function getEncodingDescription(encoding: string): string {
   const descriptions: Record<string, string> = {
     'utf-8': 'UTF-8 (Unicode)',
+    'utf-16le': 'UTF-16 LE (Unicode Little Endian)',
+    'utf-16be': 'UTF-16 BE (Unicode Big Endian)',
     'shift_jis': 'Shift_JIS (日本語)',
     'euc-jp': 'EUC-JP (日本語)',
     'iso-2022-jp': 'ISO-2022-JP (日本語)',

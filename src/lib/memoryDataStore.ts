@@ -55,8 +55,9 @@ class MemoryDataStore {
   }
 
   private executeSelect(sql: string): any[] {
-    // FROM句からテーブル名を抽出
-    const fromMatch = sql.match(/FROM\s+(\w+)/i)
+    // FROM句からテーブル名を抽出（日本語文字対応）
+    // 英数字、アンダースコア、日本語文字（ひらがな、カタカナ、漢字）を含むテーブル名に対応
+    const fromMatch = sql.match(/FROM\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/i)
     if (!fromMatch) {
       throw new Error('Invalid SELECT statement: no FROM clause')
     }
@@ -95,7 +96,9 @@ class MemoryDataStore {
   }
 
   private executeDescribe(sql: string): any[] {
-    const match = sql.match(/DESCRIBE\s+(\w+)/i)
+    // DESCRIBE文からテーブル名を抽出（日本語文字対応）
+    // 英数字、アンダースコア、日本語文字（ひらがな、カタカナ、漢字）を含むテーブル名に対応
+    const match = sql.match(/DESCRIBE\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/i)
     if (!match) {
       throw new Error('Invalid DESCRIBE statement')
     }
@@ -118,7 +121,9 @@ class MemoryDataStore {
   }
 
   private executeCount(sql: string): any[] {
-    const fromMatch = sql.match(/FROM\s+(\w+)/i)
+    // FROM句からテーブル名を抽出（日本語文字対応）
+    // 英数字、アンダースコア、日本語文字（ひらがな、カタカナ、漢字）を含むテーブル名に対応
+    const fromMatch = sql.match(/FROM\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/i)
     if (!fromMatch) {
       throw new Error('Invalid COUNT statement: no FROM clause')
     }
@@ -275,7 +280,8 @@ class MemoryDataStore {
     
     // NULL条件の処理
     if (whereClause.includes('IS NULL')) {
-      const match = whereClause.match(/(\w+)\s+IS\s+NULL/i)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s+IS\s+NULL/i)
       if (match) {
         const columnName = match[1]
         return row[columnName] === null || row[columnName] === undefined
@@ -283,7 +289,8 @@ class MemoryDataStore {
     }
     
     if (whereClause.includes('IS NOT NULL')) {
-      const match = whereClause.match(/(\w+)\s+IS\s+NOT\s+NULL/i)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s+IS\s+NOT\s+NULL/i)
       if (match) {
         const columnName = match[1]
         return row[columnName] !== null && row[columnName] !== undefined
@@ -292,7 +299,8 @@ class MemoryDataStore {
     
     // 等価条件の処理
     if (whereClause.includes('=')) {
-      const match = whereClause.match(/(\w+)\s*=\s*(.+)/)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s*=\s*(.+)/)
       if (match) {
         const columnName = match[1]
         const value = match[2].trim()
@@ -322,7 +330,8 @@ class MemoryDataStore {
     
     // 不等価条件の処理
     if (whereClause.includes('!=') || whereClause.includes('<>')) {
-      const match = whereClause.match(/(\w+)\s*(?:!=|<>)\s*(.+)/)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s*(?:!=|<>)\s*(.+)/)
       if (match) {
         const columnName = match[1]
         const value = match[2].trim()
@@ -350,7 +359,8 @@ class MemoryDataStore {
     
     // 大小比較条件の処理
     if (whereClause.includes('>=')) {
-      const match = whereClause.match(/(\w+)\s*>=\s*(.+)/)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s*>=\s*(.+)/)
       if (match) {
         const columnName = match[1]
         const value = match[2].trim()
@@ -372,7 +382,8 @@ class MemoryDataStore {
     }
     
     if (whereClause.includes('<=')) {
-      const match = whereClause.match(/(\w+)\s*<=\s*(.+)/)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s*<=\s*(.+)/)
       if (match) {
         const columnName = match[1]
         const value = match[2].trim()
@@ -394,7 +405,8 @@ class MemoryDataStore {
     }
     
     if (whereClause.includes('>') && !whereClause.includes('>=')) {
-      const match = whereClause.match(/(\w+)\s*>\s*(.+)/)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s*>\s*(.+)/)
       if (match) {
         const columnName = match[1]
         const value = match[2].trim()
@@ -416,7 +428,8 @@ class MemoryDataStore {
     }
     
     if (whereClause.includes('<') && !whereClause.includes('<=')) {
-      const match = whereClause.match(/(\w+)\s*<\s*(.+)/)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s*<\s*(.+)/)
       if (match) {
         const columnName = match[1]
         const value = match[2].trim()
@@ -439,7 +452,8 @@ class MemoryDataStore {
     
     // LIKE条件の処理
     if (whereClause.includes('LIKE')) {
-      const match = whereClause.match(/(\w+)\s+LIKE\s+'(.+)'/i)
+      // カラム名の抽出（日本語文字対応）
+      const match = whereClause.match(/([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)\s+LIKE\s+'(.+)'/i)
       if (match) {
         const columnName = match[1]
         const pattern = match[2]
