@@ -209,6 +209,7 @@ export async function createTableFromFile(
   console.log(`🚀 ファイル処理開始: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB)`)
   
   await initDuckDB() // フォールバック判定のため
+  console.log(`🔧 環境設定: ${useFallback ? 'メモリデータストア' : 'DuckDB'} を使用中`)
   
   // メモリ使用量をチェック
   logMemoryUsage('ファイル処理開始前')
@@ -298,32 +299,6 @@ async function readFileWithEncoding(file: File): Promise<EncodingDetectionResult
   }
 }
 
-// Safari用チャンク読み込み関数（フォールバック用）
-async function readFileInChunks(file: File, chunkSize: number = 1024 * 1024): Promise<string> {
-  console.log(`📚 チャンク読み込み開始: ${Math.ceil(file.size / chunkSize)} チャンク`)
-  
-  let result = ''
-  let offset = 0
-  
-  while (offset < file.size) {
-    const chunk = file.slice(offset, Math.min(offset + chunkSize, file.size))
-    const chunkText = await chunk.text()
-    result += chunkText
-    offset += chunkSize
-    
-    // プログレス表示
-    const progress = Math.round((offset / file.size) * 100)
-    console.log(`📖 読み込み進捗: ${progress}%`)
-    
-    // Safari用: 少し休憩してメモリ圧迫を緩和
-    if (offset % (chunkSize * 5) === 0) {
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
-  }
-  
-  console.log('✅ チャンク読み込み完了')
-  return result
-}
 
 async function createTableFromCSV(file: File, tableName: string, delimiter: string = ','): Promise<FileProcessingResult> {
   const instance = await initDuckDB()
@@ -332,33 +307,29 @@ async function createTableFromCSV(file: File, tableName: string, delimiter: stri
     console.log(`📄 CSV読み込み開始: ${file.name}`)
     
     // エンコーディング検出付きでファイル読み込み
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-    const fileSizeMB = file.size / (1024 * 1024)
-    
     let text: string
     let encoding: string
     let encodingConfidence: number | undefined
     
-    if (isSafari && fileSizeMB > 5) {
-      console.log('🍎 Safari大容量ファイル: チャンク読み込みを実行')
-      text = await readFileInChunks(file)
-      encoding = 'utf-8' // フォールバック
-      encodingConfidence = undefined
-    } else {
-      // エンコーディング検出付きで読み込み
-      const result = await readFileWithEncoding(file)
-      text = result.text
-      encoding = result.encoding
-      encodingConfidence = result.confidence
-      
-      // エンコーディング情報をログに記録
-      console.log(`📊 ファイル読み込み完了:`, {
-        encoding: encoding,
-        confidence: result.confidence,
-        textLength: text.length,
-        fileName: file.name
-      })
-    }
+    // 常にエンコーディング検出付きで読み込み
+    console.log(`🔍 エンコーディング検出開始: ${file.name}`)
+    const result = await readFileWithEncoding(file)
+    text = result.text
+    encoding = result.encoding
+    encodingConfidence = result.confidence
+    
+    // エンコーディング情報をログに記録
+    console.log(`📊 ファイル読み込み完了:`, {
+      encoding: encoding,
+      confidence: result.confidence,
+      textLength: text.length,
+      fileName: file.name,
+      useFallback: useFallback
+    })
+    
+    // 文字化けチェック（サンプル）
+    const sampleText = text.substring(0, 200)
+    console.log(`📝 読み込みサンプル (${encoding}):`, sampleText)
     
     console.log(`📊 ファイル読み込み完了: ${text.length} 文字 (エンコーディング: ${encoding})`)
     const lines = text.split('\n').filter(line => line.trim())
