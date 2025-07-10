@@ -13,6 +13,7 @@
     "@duckdb/duckdb-wasm": "^1.28.0",
     "buffer": "^6.0.3",
     "chart.js": "^4.4.0",
+    "chartjs-adapter-date-fns": "^3.0.0",
     "clsx": "^2.0.0",
     "jschardet": "^3.1.4",
     "lucide-react": "^0.294.0",
