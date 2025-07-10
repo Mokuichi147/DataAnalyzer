@@ -201,11 +201,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           // 単一選択の場合：最初のカラムを選択
           defaultColumns = [currentAvailableColumns[0].name]
         } else if (currentType.minColumns >= 2) {
-          // 複数選択必須の場合：最小必要数まで選択（最大10カラム）
+          // 複数選択必須の場合：最小必要数まで選択（設定された上限まで）
           const selectCount = Math.min(currentType.maxColumns, currentAvailableColumns.length)
           defaultColumns = currentAvailableColumns.slice(0, selectCount).map(col => col.name)
         } else {
-          // その他の複数選択可能な場合：全カラムを選択（最大10カラム）
+          // その他の複数選択可能な場合：全カラムを選択（設定された上限まで）
           const selectCount = Math.min(currentType.maxColumns, currentAvailableColumns.length)
           defaultColumns = currentAvailableColumns.slice(0, selectCount).map(col => col.name)
         }
@@ -554,7 +554,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: Database, 
       description: '【手法】正規表現パターンマッチング\n【内容】データ型の自動判定（整数・小数・日付・真偽値）、NULL値の分析、ユニーク値の検出、データ品質の総合評価',
       minColumns: 1,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'basic' as const, 
@@ -562,7 +562,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: BarChart, 
       description: '【手法】算術平均・母集団標準偏差・分位数計算\n【内容】平均値、標準偏差、四分位数（Q1, Q2, Q3）、最小値・最大値による数値データの分布特性を要約',
       minColumns: 1,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'correlation' as const, 
@@ -570,7 +570,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: TrendingUp, 
       description: '【手法】ピアソンの積率相関係数\n【内容】変数間の線形関係の強さを-1〜+1で測定。+1に近いほど正の相関、-1に近いほど負の相関が強い',
       minColumns: 2,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'changepoint' as const, 
@@ -586,7 +586,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: Activity, 
       description: '【手法】分散共分散行列の固有値分解\n【内容】多次元データを少数の主成分に集約し、寄与率・累積寄与率を計算してデータの構造を解析',
       minColumns: 2,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'histogram' as const, 
@@ -610,7 +610,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       icon: Activity, 
       description: '【手法】連続欠損パターン検出・統計的信頼度評価\n【内容】NULL値・空文字・0値の欠損開始/復旧タイミングを検出。欠損長・信頼度・カラム別統計を提供。データ品質監視に最適',
       minColumns: 1,
-      maxColumns: 10
+      maxColumns: 1000
     },
     { 
       key: 'text' as const, 
