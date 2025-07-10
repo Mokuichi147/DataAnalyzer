@@ -180,6 +180,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     includeEmpty: true
   })
   const [error, setError] = useState<string | null>(null)
+  const [columnSearchFilter, setColumnSearchFilter] = useState<string>('')
   
   const { filters } = useDataStore()
   
@@ -320,6 +321,20 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     }
   }
 
+  // 検索フィルターを適用したカラムリストを取得
+  const getFilteredAvailableColumns = () => {
+    const availableColumns = getAvailableColumns()
+    if (!columnSearchFilter.trim()) {
+      return availableColumns
+    }
+    
+    const searchTerm = columnSearchFilter.toLowerCase()
+    return availableColumns.filter(col => 
+      col.name.toLowerCase().includes(searchTerm) ||
+      col.type.toLowerCase().includes(searchTerm)
+    )
+  }
+
   // 横軸に使用可能なカラムを取得（数値型、日時型、INDEX）
   const getXAxisColumns = () => {
     const availableColumns = columns.filter(col => 
@@ -336,8 +351,6 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     // INDEXオプションを先頭に追加
     return [{ name: 'index', type: 'INDEX', nullable: false, label: 'INDEX（行番号）' }, ...availableColumns.map(col => ({ ...col, label: col.name }))]
   }
-
-  const availableColumns = getAvailableColumns()
   
   // 後方互換性のため numericColumns を維持
   // 数値カラムフィルタリング（未使用だが将来的に使用予定）
@@ -532,6 +545,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     const currentType = getCurrentAnalysisType()
     if (!currentType) return
     
+    const availableColumns = getFilteredAvailableColumns()
     const maxSelectable = Math.min(currentType.maxColumns, availableColumns.length)
     const availableColumnNames = availableColumns.map(col => col.name)
     
@@ -625,7 +639,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const currentAnalysisType = analysisTypes.find(t => t.key === activeAnalysis)
   const canRunAnalysis = selectedColumns.length >= (currentAnalysisType?.minColumns || 1) &&
                         selectedColumns.length <= (currentAnalysisType?.maxColumns || 10) &&
-                        availableColumns.length > 0
+                        getAvailableColumns().length > 0
 
   if (!tableName) {
     return (
@@ -734,7 +748,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               }
             </p>
           )}
-          {availableColumns.length === 0 && (
+          {getAvailableColumns().length === 0 && (
             <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-600 rounded-md p-3 transition-colors">
               <div className="flex items-center">
                 <span className="text-amber-600 dark:text-amber-400 mr-2 transition-colors">⚠️</span>
@@ -746,59 +760,98 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           )}
         </div>
         
-        {/* 複数選択可能な場合のみ全選択・選択解除ボタンを表示 */}
-        {currentAnalysisType && currentAnalysisType.maxColumns > 1 && availableColumns.length > 0 && (
-          <div className="flex items-center space-x-2 mb-3">
-            <button
-              onClick={handleSelectAll}
-              disabled={selectedColumns.length >= Math.min(currentAnalysisType.maxColumns, availableColumns.length)}
-              className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              全て選択
-              {currentAnalysisType.maxColumns < availableColumns.length && 
-                ` (最大${currentAnalysisType.maxColumns}個)`
-              }
-            </button>
-            <button
-              onClick={handleDeselectAll}
-              disabled={selectedColumns.length === 0}
-              className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              選択解除
-            </button>
-            <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors">
-              ({selectedColumns.length}/{currentAnalysisType.maxColumns})
-            </span>
-          </div>
-        )}
-        
-        {availableColumns.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {availableColumns.map((col) => {
-            const isSingleSelect = currentAnalysisType?.minColumns === 1 && currentAnalysisType?.maxColumns === 1
-            const isSelected = selectedColumns.includes(col.name)
-            const maxReached = !isSingleSelect && currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns
-            const isDisabled = maxReached && !isSelected
+        {getAvailableColumns().length > 0 ? (
+          <div className="space-y-2">
+            {/* 検索ボックスとボタンを同じ行に配置 */}
+            <div className="flex items-center justify-between gap-3">
+              {/* 検索ボックス */}
+              {getAvailableColumns().length > 10 && (
+                <div className="relative flex-1 max-w-xs">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="カラム名で検索..."
+                    value={columnSearchFilter}
+                    onChange={(e) => setColumnSearchFilter(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+              )}
+              
+              {/* 複数選択可能な場合のみ全選択・選択解除ボタンを表示 */}
+              {currentAnalysisType && currentAnalysisType.maxColumns > 1 && getFilteredAvailableColumns().length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSelectAll}
+                    disabled={selectedColumns.length >= Math.min(currentAnalysisType.maxColumns, getFilteredAvailableColumns().length)}
+                    className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  >
+                    全選択
+                  </button>
+                  <button
+                    onClick={handleDeselectAll}
+                    disabled={selectedColumns.length === 0}
+                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  >
+                    解除
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors whitespace-nowrap">
+                    {selectedColumns.length}/{getFilteredAvailableColumns().length}
+                  </span>
+                </div>
+              )}
+            </div>
             
-            return (
-              <label 
-                key={col.name} 
-                className={`flex items-center space-x-2 transition-colors ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <input
-                  type={isSingleSelect ? "radio" : "checkbox"}
-                  name={isSingleSelect ? "single-column-selection" : undefined}
-                  checked={isSelected}
-                  disabled={isDisabled}
-                  onChange={() => handleColumnToggle(col.name)}
-                  className="h-4 w-4 text-blue-600 dark:text-blue-400 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 transition-colors"
-                />
-                <span className={`text-sm transition-colors ${isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
-                  {col.name}
-                </span>
-              </label>
-            )
-            })}
+            {/* スクロール可能なカラムリスト */}
+            <div className={`${getFilteredAvailableColumns().length > 9 ? 'max-h-36 overflow-y-auto' : ''} border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800 transition-colors`}>
+              <div className="p-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                  {getFilteredAvailableColumns().map((col) => {
+                  const isSingleSelect = currentAnalysisType?.minColumns === 1 && currentAnalysisType?.maxColumns === 1
+                  const isSelected = selectedColumns.includes(col.name)
+                  const maxReached = !isSingleSelect && currentAnalysisType && selectedColumns.length >= currentAnalysisType.maxColumns
+                  const isDisabled = maxReached && !isSelected
+                  
+                  return (
+                    <label 
+                      key={col.name} 
+                      className={`flex items-center space-x-2 p-1.5 rounded hover:bg-white dark:hover:bg-gray-700 transition-colors ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                    >
+                      <input
+                        type={isSingleSelect ? "radio" : "checkbox"}
+                        name={isSingleSelect ? "single-column-selection" : undefined}
+                        checked={isSelected}
+                        disabled={isDisabled}
+                        onChange={() => handleColumnToggle(col.name)}
+                        className="h-4 w-4 text-blue-600 dark:text-blue-400 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 transition-colors"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-sm font-medium transition-colors ${isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {col.name}
+                        </span>
+                        <span className={`text-xs ml-2 transition-colors ${isDisabled ? 'text-gray-300 dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'}`}>
+                          ({col.type})
+                        </span>
+                      </div>
+                    </label>
+                  )
+                  })}
+                </div>
+                
+                {/* 検索結果なしのメッセージ */}
+                {columnSearchFilter.trim() && getFilteredAvailableColumns().length === 0 && (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      「{columnSearchFilter}」に一致するカラムが見つかりません
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400 transition-colors">
@@ -814,7 +867,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       </div>
 
       {/* 変化点検出アルゴリズム選択 */}
-      {activeAnalysis === 'changepoint' && availableColumns.length > 0 && (
+      {activeAnalysis === 'changepoint' && getAvailableColumns().length > 0 && (
         <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-600 rounded-lg p-4 transition-colors">
           <h4 className="text-sm font-medium text-yellow-900 dark:text-yellow-200 mb-3 flex items-center transition-colors">
             <Zap className="h-4 w-4 mr-2 text-yellow-600 dark:text-yellow-400 transition-colors" />
@@ -915,7 +968,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       )}
 
       {/* 横軸カラム選択（時系列分析と変化点検出のみ） */}
-      {(activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && availableColumns.length > 0 && (
+      {(activeAnalysis === 'timeseries' || activeAnalysis === 'changepoint') && getAvailableColumns().length > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
           <h4 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3 flex items-center transition-colors">
             <LineChart className="h-4 w-4 mr-2" />
