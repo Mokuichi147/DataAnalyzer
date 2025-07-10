@@ -1641,6 +1641,7 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
   
   const options = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: 'top' as const,
@@ -1675,8 +1676,11 @@ function HistogramResults({ data }: { data: Array<{ bin: string; count: number; 
   }
 
   return (
-    <div>
-      <Bar data={chartData} options={options} />
+    <div className="space-y-4">
+      {/* ヒストグラムチャート - サイズ制限 */}
+      <div className="w-full max-h-96 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
+        <Bar data={chartData} options={options} />
+      </div>
       
       {/* ヒストグラム詳細テーブル */}
       <HistogramTable data={data} />
