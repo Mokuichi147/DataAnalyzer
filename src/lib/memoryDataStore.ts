@@ -47,8 +47,6 @@ class MemoryDataStore {
       return this.executeSelect(sql)
     } else if (upperSQL.startsWith('DESCRIBE')) {
       return this.executeDescribe(sql)
-    } else if (upperSQL.includes('COUNT(*)')) {
-      return this.executeCount(sql)
     }
     
     throw new Error(`Unsupported SQL: ${sql}`)
@@ -76,8 +74,19 @@ class MemoryDataStore {
     if (whereMatch) {
       const whereClause = whereMatch[1].trim()
       console.log('🔍 MemoryDataStore: Processing WHERE clause:', whereClause)
+      console.log('🔍 MemoryDataStore: Original data length:', data.length)
       
-      data = data.filter(row => this.evaluateWhereCondition(row, whereClause))
+      // サンプル行でのデバッグ（最初の1行のみ）
+      if (data.length > 0) {
+        console.log('🔍 MemoryDataStore: Sample row keys:', Object.keys(data[0]))
+        console.log('🔍 MemoryDataStore: Sample row first few values:', 
+          Object.entries(data[0]).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(', ')
+        )
+      }
+      
+      const filteredData = data.filter(row => this.evaluateWhereCondition(row, whereClause))
+      
+      data = filteredData
       console.log('🔍 MemoryDataStore: Filtered data length:', data.length)
     }
 
@@ -91,6 +100,11 @@ class MemoryDataStore {
       offset = limitMatch[2] ? parseInt(limitMatch[2]) : 0
     }
 
+    // COUNT(*)クエリの場合はカウントを返す
+    if (sql.toUpperCase().includes('COUNT(*)')) {
+      return [{ count: data.length }]
+    }
+    
     // データを返す
     return data.slice(offset, offset + limit)
   }
@@ -120,31 +134,6 @@ class MemoryDataStore {
     })
   }
 
-  private executeCount(sql: string): any[] {
-    // FROM句からテーブル名を抽出（日本語文字対応）
-    // 英数字、アンダースコア、日本語文字（ひらがな、カタカナ、漢字）を含むテーブル名に対応
-    const fromMatch = sql.match(/FROM\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/i)
-    if (!fromMatch) {
-      throw new Error('Invalid COUNT statement: no FROM clause')
-    }
-    
-    const tableName = fromMatch[1]
-    const table = this.tables.get(tableName)
-    if (!table) {
-      throw new Error(`Table ${tableName} does not exist`)
-    }
-
-    // WHERE句のチェック
-    const whereMatch = sql.match(/WHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+GROUP\s+BY|\s+LIMIT|$)/i)
-    if (whereMatch) {
-      const whereClause = whereMatch[1].trim()
-      console.log('🔍 MemoryDataStore: COUNT(*) with WHERE clause:', whereClause)
-      const count = this.getFilteredTableCount(tableName, whereClause)
-      return [{ count }]
-    } else {
-      return [{ count: table.data.length }]
-    }
-  }
 
   getTableInfo(tableName: string): Column[] {
     const table = this.tables.get(tableName)
@@ -305,7 +294,7 @@ class MemoryDataStore {
         const columnName = match[1]
         const value = match[2].trim()
         
-        console.log('🔍 MemoryDataStore: Evaluating condition:', { columnName, value, rowValue: row[columnName] })
+        // console.log('🔍 MemoryDataStore: Evaluating condition:', { columnName, value, rowValue: row[columnName] })
         
         // Boolean値の処理
         if (value === 'TRUE' || value === 'true') {
@@ -366,7 +355,7 @@ class MemoryDataStore {
         const value = match[2].trim()
         const rowValue = row[columnName]
         
-        console.log('🔍 MemoryDataStore: >= comparison:', { columnName, value, rowValue })
+        // console.log('🔍 MemoryDataStore: >= comparison:', { columnName, value, rowValue })
         
         // 数値比較
         if (/^-?\d+(\.\d+)?$/.test(value)) {
@@ -389,7 +378,7 @@ class MemoryDataStore {
         const value = match[2].trim()
         const rowValue = row[columnName]
         
-        console.log('🔍 MemoryDataStore: <= comparison:', { columnName, value, rowValue })
+        // console.log('🔍 MemoryDataStore: <= comparison:', { columnName, value, rowValue })
         
         // 数値比較
         if (/^-?\d+(\.\d+)?$/.test(value)) {
@@ -412,7 +401,7 @@ class MemoryDataStore {
         const value = match[2].trim()
         const rowValue = row[columnName]
         
-        console.log('🔍 MemoryDataStore: > comparison:', { columnName, value, rowValue })
+        // console.log('🔍 MemoryDataStore: > comparison:', { columnName, value, rowValue })
         
         // 数値比較
         if (/^-?\d+(\.\d+)?$/.test(value)) {
@@ -435,7 +424,7 @@ class MemoryDataStore {
         const value = match[2].trim()
         const rowValue = row[columnName]
         
-        console.log('🔍 MemoryDataStore: < comparison:', { columnName, value, rowValue })
+        // console.log('🔍 MemoryDataStore: < comparison:', { columnName, value, rowValue })
         
         // 数値比較
         if (/^-?\d+(\.\d+)?$/.test(value)) {

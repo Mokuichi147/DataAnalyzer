@@ -19,7 +19,7 @@ export function buildFilterClause(filters: DataFilter[]): string {
     const value = filter.value
     const values = filter.values
 
-    console.log('🔍 Processing filter:', { columnName, operator, value, values, columnType: filter.columnType })
+    console.log('🔍 Processing filter:', { columnName, operator, value, columnType: filter.columnType })
 
     switch (operator) {
       case 'equals':
@@ -119,7 +119,7 @@ export function buildFilterClause(filters: DataFilter[]): string {
 }
 
 function formatValue(value: string | number | boolean | null, columnType: string): string {
-  console.log('🔍 Formatting value:', { value, columnType, valueType: typeof value })
+  // console.log('🔍 Formatting value:', { value, columnType, valueType: typeof value })
   
   if (value === null || value === undefined) {
     return 'NULL'

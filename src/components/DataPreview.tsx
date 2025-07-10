@@ -46,15 +46,23 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       setTotalRows(totalCount)
       
       // フィルター適用後の行数を取得
-      const filteredCountQuery = `SELECT COUNT(*) as count FROM ${tableName} ${filterClause}`
-      console.log('Filtered count query:', filteredCountQuery)
-      const filteredCountResult = await executeQuery(filteredCountQuery)
-      const filteredCount = filteredCountResult[0]?.count || 0
-      console.log('Filtered row count:', filteredCount)
-      setFilteredRows(filteredCount)
+      if (filterClause) {
+        const filteredCountQuery = `SELECT COUNT(*) as count FROM ${tableName} ${filterClause}`
+        console.log('Filtered count query:', filteredCountQuery)
+        const filteredCountResult = await executeQuery(filteredCountQuery)
+        const filteredCount = filteredCountResult[0]?.count || 0
+        console.log('Filtered row count:', filteredCount)
+        setFilteredRows(filteredCount)
+      } else {
+        // フィルターが適用されていない場合は総行数と同じ
+        console.log('No filters applied, using total count')
+        setFilteredRows(totalCount)
+      }
       
       // データを取得（フィルター適用）
-      const query = `SELECT * FROM ${tableName} ${filterClause} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+      const query = filterClause 
+        ? `SELECT * FROM ${tableName} ${filterClause} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+        : `SELECT * FROM ${tableName} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
       console.log('Executing query:', query)
       
       const result = await executeQuery(query)
@@ -121,7 +129,9 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const exportData = async () => {
     try {
       const filterClause = buildFilterClause(filters)
-      const query = `SELECT * FROM ${tableName} ${filterClause}`
+      const query = filterClause 
+        ? `SELECT * FROM ${tableName} ${filterClause}`
+        : `SELECT * FROM ${tableName}`
       const result = await executeQuery(query)
       
       // CSVとしてダウンロード
