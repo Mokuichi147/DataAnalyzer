@@ -1406,7 +1406,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
   if (!factorAnalysis || !factorAnalysis.factors || !Array.isArray(factorAnalysis.factors)) {
     return (
       <div className="text-center py-4 text-red-600">
-        <p>因子分析の結果が無効です。</p>
+        <p>主成分分析の結果が無効です。</p>
         <p className="text-xs mt-2">Expected object with factors array, got: {typeof factorAnalysis}</p>
       </div>
     )
@@ -1415,7 +1415,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
   if (factorAnalysis.factors.length === 0) {
     return (
       <div className="text-center py-4 text-gray-600">
-        <p>因子分析の結果がありません。</p>
+        <p>主成分分析の結果がありません。</p>
       </div>
     )
   }
@@ -1436,7 +1436,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
   const options = {
     responsive: true,
     maintainAspectRatio: true,
-    aspectRatio: 2, // 横:縦=2:1の比率
+    aspectRatio: 2,
     plugins: {
       legend: {
         position: 'right' as const,
@@ -1450,7 +1450,7 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
       },
       title: {
         display: true,
-        text: '因子分析結果',
+        text: '主成分分析結果',
         font: {
           size: 14
         },
@@ -1472,23 +1472,136 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
       <div className="w-full max-w-2xl mx-auto mb-6">
         <Doughnut data={chartData} options={options} />
       </div>
-      <div className="mt-4 space-y-4">
-        {factorAnalysis.factors.map((factor, index) => (
-          <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
-            <h4 className="font-medium mb-2 text-gray-900 dark:text-white transition-colors">
-              {factor.name} (寄与率: {(factor.variance * 100).toFixed(1)}%)
-            </h4>
-            <div className="space-y-1">
-              {factor.loadings.map((loading, i) => (
-                <div key={i} className="flex justify-between text-sm">
-                  <span className="text-gray-900 dark:text-white transition-colors">{loading.variable}</span>
-                  <span className="font-mono text-gray-900 dark:text-white transition-colors">{formatNumber(loading.loading)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+      <FactorAnalysisTable factorAnalysis={factorAnalysis} />
+    </div>
+  )
+}
+
+function FactorAnalysisTable({ factorAnalysis }: { factorAnalysis: FactorAnalysisResult }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  // 全ての因子負荷量をフラット化
+  const allLoadings = factorAnalysis.factors.flatMap((factor, factorIndex) =>
+    factor.loadings.map(loading => ({
+      factor: factor.name,
+      factorIndex,
+      variable: loading.variable,
+      loading: loading.loading,
+      variance: factor.variance
+    }))
+  )
+  
+  // ページネーション計算
+  const totalPages = Math.ceil(allLoadings.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentLoadings = allLoadings.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4 mt-6">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">主成分分析詳細</h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">5</option>
+            <option value={10} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">10</option>
+            <option value={25} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">25</option>
+            <option value={50} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">50</option>
+          </select>
+        </div>
       </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">主成分</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">変数</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">負荷量</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">寄与率</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">強度</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+              {currentLoadings.map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white transition-colors">{item.factor}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">{item.variable}</td>
+                  <td className={`px-4 py-3 text-sm font-mono transition-colors text-right ${
+                    Math.abs(item.loading) > 0.7 ? 'text-green-600 dark:text-green-400 font-bold' :
+                    Math.abs(item.loading) > 0.3 ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-600 dark:text-gray-300'
+                  }`}>
+                    {formatNumber(item.loading)}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white transition-colors text-right">
+                    {(item.variance * 100).toFixed(1)}%
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-block w-3 h-3 rounded-full ${
+                      Math.abs(item.loading) > 0.7 ? 'bg-green-500 dark:bg-green-400' :
+                      Math.abs(item.loading) > 0.3 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
+                    }`}></span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-600 transition-colors">
+          <div className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 transition-colors">
+            <span>
+              {startIndex + 1}-{Math.min(endIndex, allLoadings.length)} / {allLoadings.length} 項目
+            </span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              前へ
+            </button>
+            <span className="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2761,24 +2874,39 @@ function CorrelationTable({ correlations }: CorrelationTableProps) {
         </div>
       </div>
       
-      <div className="space-y-2">
-        {currentCorrelations.map((corr, index) => (
-          <div key={index} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg transition-colors">
-            <span className="font-medium text-gray-900 dark:text-white transition-colors">{corr.column1} × {corr.column2}</span>
-            <div className="flex items-center space-x-2">
-              <span className={`inline-block w-3 h-3 rounded-full ${
-                Math.abs(corr.correlation) > 0.7 ? 'bg-red-500 dark:bg-red-400' :
-                Math.abs(corr.correlation) > 0.3 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
-              }`}></span>
-              <span className={`font-bold font-mono transition-colors ${
-                Math.abs(corr.correlation) > 0.7 ? 'text-red-600 dark:text-red-400' :
-                Math.abs(corr.correlation) > 0.3 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
-              }`}>
-                {formatNumber(corr.correlation)}
-              </span>
-            </div>
-          </div>
-        ))}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden transition-colors">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列1</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列2</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">相関係数</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">強度</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+              {currentCorrelations.map((corr, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white transition-colors">{corr.column1}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">{corr.column2}</td>
+                  <td className={`px-4 py-3 text-sm font-mono transition-colors text-right ${
+                    Math.abs(corr.correlation) > 0.7 ? 'text-red-600 dark:text-red-400 font-bold' :
+                    Math.abs(corr.correlation) > 0.3 ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-600 dark:text-gray-300'
+                  }`}>
+                    {formatNumber(corr.correlation)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`inline-block w-3 h-3 rounded-full ${
+                      Math.abs(corr.correlation) > 0.7 ? 'bg-red-500 dark:bg-red-400' :
+                      Math.abs(corr.correlation) > 0.3 ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-400 dark:bg-gray-500'
+                    }`}></span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       
       {/* ページネーション */}
