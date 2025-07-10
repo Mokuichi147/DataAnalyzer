@@ -2,6 +2,7 @@ import { executeQuery } from './duckdb'
 import { buildFilterClause } from './filterUtils'
 
 export interface BasicStats {
+  columnName: string
   count: number
   mean: number
   std: number
@@ -65,6 +66,7 @@ export async function getBasicStatistics(
   const row = result[0]
   
   return {
+    columnName,
     count: row.count,
     mean: row.mean,
     std: row.std,
