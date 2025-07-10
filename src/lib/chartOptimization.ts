@@ -191,7 +191,7 @@ export function getOptimizedChartOptions(
 /**
  * 変化点検出用の最適化されたChart.jsオプション
  */
-export function getChangePointChartOptions(dataSize: number): OptimizedChartOptions {
+export function getChangePointChartOptions(dataSize: number, isDateAxis: boolean = false): OptimizedChartOptions {
   const options = getOptimizedChartOptions(dataSize, 'line')
   const colors = getThemeAwareColors()
   
@@ -223,13 +223,47 @@ export function getChangePointChartOptions(dataSize: number): OptimizedChartOpti
         hoverRadius: 6,
       },
     },
+    scales: {
+      ...options.scales,
+      x: {
+        ...options.scales?.x,
+        type: isDateAxis ? 'time' as const : 'linear' as const,
+        title: {
+          display: true,
+          text: isDateAxis ? '日付' : '時間',
+          color: colors.text,
+        },
+        ticks: {
+          maxTicksLimit: dataSize > 1000 ? 10 : 20,
+          autoSkip: true,
+          color: colors.text,
+        },
+        ...(isDateAxis && {
+          time: {
+            displayFormats: {
+              millisecond: 'HH:mm:ss.SSS',
+              second: 'HH:mm:ss',
+              minute: 'HH:mm',
+              hour: 'HH:mm',
+              day: 'yyyy-MM-dd',
+              week: 'yyyy-MM-dd',
+              month: 'yyyy-MM',
+              quarter: 'yyyy-[Q]Q',
+              year: 'yyyy'
+            },
+            tooltipFormat: 'yyyy-MM-dd',
+            parser: 'yyyy-MM-dd'
+          }
+        }),
+      },
+    },
   }
 }
 
 /**
  * 時系列分析用の最適化されたChart.jsオプション
  */
-export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptions {
+export function getTimeSeriesChartOptions(dataSize: number, isDateAxis: boolean = false): OptimizedChartOptions {
   const options = getOptimizedChartOptions(dataSize, 'line')
   const colors = getThemeAwareColors()
   
@@ -276,16 +310,34 @@ export function getTimeSeriesChartOptions(dataSize: number): OptimizedChartOptio
       ...options.scales,
       x: {
         ...options.scales?.x,
-        type: 'linear' as const,
+        type: isDateAxis ? 'time' as const : 'linear' as const,
         title: {
           display: true,
-          text: '時間',
+          text: isDateAxis ? '日付' : '時間',
           color: colors.text,
         },
         ticks: {
           maxTicksLimit: dataSize > 1000 ? 10 : 20,
           autoSkip: true,
+          color: colors.text,
         },
+        ...(isDateAxis && {
+          time: {
+            displayFormats: {
+              millisecond: 'HH:mm:ss.SSS',
+              second: 'HH:mm:ss',
+              minute: 'HH:mm',
+              hour: 'HH:mm',
+              day: 'yyyy-MM-dd',
+              week: 'yyyy-MM-dd',
+              month: 'yyyy-MM',
+              quarter: 'yyyy-[Q]Q',
+              year: 'yyyy'
+            },
+            tooltipFormat: 'yyyy-MM-dd',
+            parser: 'yyyy-MM-dd'
+          }
+        }),
       },
       y: {
         ...options.scales?.y,

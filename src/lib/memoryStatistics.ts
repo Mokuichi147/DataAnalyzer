@@ -340,8 +340,36 @@ export async function detectChangePoints(
     const filterFunction = buildMemoryFilterFunction(filters)
     const filteredData = table.data.filter(filterFunction)
     
+    // X軸が日付型かどうかを判定
+    const isDateAxis = xColumn !== 'index' && filteredData.length > 0 && 
+      filteredData.some(row => isDateValue(row[xColumn]))
+      
+    console.log('🔍 ChangePoints - isDateAxis:', isDateAxis, 'xColumn:', xColumn)
+    if (filteredData.length > 0) {
+      console.log('🔍 ChangePoints - sample X values:', filteredData.slice(0, 3).map(row => ({
+        original: row[xColumn], 
+        isDate: isDateValue(row[xColumn]),
+        parsed: parseDateValue(row[xColumn])
+      })))
+    }
+      
     const rawData = filteredData.map((row, originalIndex) => {
-      const xValue = xColumn === 'index' ? originalIndex : (isNumeric(row[xColumn]) ? parseFloat(row[xColumn]) : originalIndex)
+      let xValue: number
+      
+      if (xColumn === 'index') {
+        xValue = originalIndex
+      } else if (isDateValue(row[xColumn])) {
+        // 日付型の場合
+        const dateValue = parseDateValue(row[xColumn])
+        xValue = isNaN(dateValue) ? originalIndex : dateValue
+      } else if (isNumeric(row[xColumn])) {
+        // 数値型の場合
+        xValue = parseFloat(row[xColumn])
+      } else {
+        // その他の場合はインデックスを使用
+        xValue = originalIndex
+      }
+      
       const yValue = isNumeric(row[columnName]) ? parseFloat(row[columnName]) : 0
       
       return {
@@ -367,6 +395,9 @@ export async function detectChangePoints(
     // 大量データの場合はサンプリング
     const sampledResult = sampleForChangePoint(rawData, 2000)
     const workingData = sampledResult.data
+    
+    console.log('🔍 ChangePoints - workingData length:', workingData.length)
+    console.log('🔍 ChangePoints - rawData length:', rawData.length)
 
     // アルゴリズムの選択とパラメータの設定
     const {
@@ -449,15 +480,21 @@ export async function detectChangePoints(
     }
     
     // チャート用データの準備
+    console.log('🔍 ChangePoints - Creating chart data, isDateAxis:', isDateAxis)
+    console.log('🔍 ChangePoints - Sample workingData:', workingData.slice(0, 3))
+    console.log('🔍 ChangePoints - changePoints:', changePoints)
+    
     const chartData = {
-      labels: workingData.map(d => d.originalXValue || d.index),
+      labels: isDateAxis ? undefined : workingData.map(d => d.originalXValue || d.index),
       datasets: [
         {
           label: 'データ値',
-          data: workingData.map((d) => ({
-            x: d.originalXValue || d.index,
-            y: d.value
-          })),
+          data: workingData.map((d) => {
+            const xValue = isDateAxis 
+              ? (d.originalXValue ? new Date(d.originalXValue) : new Date(d.index))
+              : (d.originalXValue || d.index)
+            return { x: xValue, y: d.value }
+          }),
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           tension: 0.1,
@@ -466,10 +503,15 @@ export async function detectChangePoints(
         },
         {
           label: '変化点',
-          data: changePoints.map(cp => ({
-            x: workingData[cp.originalIndex]?.originalXValue || cp.index,
-            y: cp.value
-          })),
+          data: changePoints.map(cp => {
+            const dataPoint = workingData[cp.originalIndex]
+            return {
+              x: isDateAxis 
+                ? (dataPoint?.originalXValue ? new Date(dataPoint.originalXValue) : new Date(cp.index))
+                : (dataPoint?.originalXValue || cp.index),
+              y: cp.value
+            }
+          }),
           borderColor: 'rgb(239, 68, 68)',
           backgroundColor: 'rgba(239, 68, 68, 0.8)',
           type: 'line' as const,
@@ -506,7 +548,8 @@ export async function detectChangePoints(
           : 0,
         algorithm: algorithmName,
         algorithmOptions: options
-      }
+      },
+      isDateAxis
     }
   } catch (error) {
     console.error('Error detecting change points:', error)
@@ -618,16 +661,56 @@ export async function getTimeSeriesData(
     const filterFunction = buildMemoryFilterFunction(filters)
     const filteredData = table.data.filter(filterFunction)
 
+    // X軸が日付型かどうかを判定
+    const isDateAxis = xColumn !== 'index' && filteredData.length > 0 && 
+      filteredData.some(row => isDateValue(row[xColumn]))
+    
+    console.log('🔍 TimeSeriesData - isDateAxis:', isDateAxis, 'xColumn:', xColumn)
+    if (filteredData.length > 0) {
+      console.log('🔍 TimeSeriesData - sample X values:', filteredData.slice(0, 3).map(row => ({
+        original: row[xColumn], 
+        isDate: isDateValue(row[xColumn]),
+        parsed: parseDateValue(row[xColumn])
+      })))
+    }
+
     // データの準備
     const rawData = filteredData.map((row, originalIndex) => {
-      const xValue = xColumn === 'index' ? originalIndex : (isNumeric(row[xColumn]) ? parseFloat(row[xColumn]) : originalIndex)
+      let xValue: number
+      let timeLabel: string
+      
+      if (xColumn === 'index') {
+        xValue = originalIndex
+        timeLabel = originalIndex.toString()
+      } else if (isDateValue(row[xColumn])) {
+        // 日付型の場合
+        const dateValue = parseDateValue(row[xColumn])
+        if (isNaN(dateValue)) {
+          xValue = originalIndex
+          timeLabel = originalIndex.toString()
+        } else {
+          xValue = dateValue
+          // 元の日付文字列をそのまま使用
+          timeLabel = String(row[xColumn]).trim()
+        }
+      } else if (isNumeric(row[xColumn])) {
+        // 数値型の場合
+        xValue = parseFloat(row[xColumn])
+        timeLabel = xValue.toString()
+      } else {
+        // その他の場合はインデックスを使用
+        xValue = originalIndex
+        timeLabel = originalIndex.toString()
+      }
+      
       const yValue = isNumeric(row[valueColumn]) ? parseFloat(row[valueColumn]) : 0
       
       return {
-        time: xValue.toString(),
+        time: timeLabel,
         value: yValue,
         index: xValue,
-        originalIndex: originalIndex
+        originalIndex: originalIndex,
+        originalXValue: xColumn === 'index' ? originalIndex : row[xColumn]
       }
     }).filter(item => !isNaN(item.value))
     .sort((a, b) => a.index - b.index) // X軸の値でソート
@@ -680,12 +763,20 @@ export async function getTimeSeriesData(
     const intercept = (sumY - slope * sumX) / n
     
     // チャート用データの準備
+    console.log('🔍 TimeSeriesData - Creating chart data, isDateAxis:', isDateAxis)
+    console.log('🔍 TimeSeriesData - Sample workingData:', workingData.slice(0, 3))
+    
     const chartData = {
-      labels: workingData.map(d => d.time),
+      labels: isDateAxis ? undefined : workingData.map(d => d.time),
       datasets: [
         {
           label: '実際の値',
-          data: values,
+          data: isDateAxis 
+            ? workingData.map(d => {
+                const xDate = d.originalXValue ? new Date(d.originalXValue) : new Date(d.index)
+                return { x: xDate, y: d.value }
+              })
+            : values,
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           tension: 0.1,
@@ -697,7 +788,12 @@ export async function getTimeSeriesData(
         },
         {
           label: `移動平均 (${movingAverageWindow}期間)`,
-          data: movingAverage,
+          data: isDateAxis 
+            ? workingData.map((d, i) => ({ 
+                x: d.originalXValue ? new Date(d.originalXValue) : new Date(d.index), 
+                y: movingAverage[i] 
+              }))
+            : movingAverage,
           borderColor: 'rgb(239, 68, 68)',
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
           tension: 0.2,
@@ -709,7 +805,12 @@ export async function getTimeSeriesData(
         },
         {
           label: 'トレンドライン',
-          data: workingData.map((_, i) => slope * i + intercept),
+          data: isDateAxis 
+            ? workingData.map((d, i) => ({ 
+                x: d.originalXValue ? new Date(d.originalXValue) : new Date(d.index), 
+                y: slope * i + intercept 
+              }))
+            : workingData.map((_, i) => slope * i + intercept),
           borderColor: 'rgb(34, 197, 94)',
           backgroundColor: 'rgba(34, 197, 94, 0.1)',
           tension: 0,
@@ -754,7 +855,8 @@ export async function getTimeSeriesData(
         },
         movingAverageWindow,
         totalPoints: workingData.length
-      }
+      },
+      isDateAxis
     }
   } catch (error) {
     console.error('Error generating time series data:', error)
@@ -872,6 +974,29 @@ export async function getColumnAnalysis(
   } catch (error) {
     console.error('Error analyzing columns:', error)
     throw error
+  }
+}
+
+// 日付値を検出・変換する関数
+function isDateValue(value: any): boolean {
+  if (value === null || value === undefined || value === '') return false
+  const strValue = String(value).trim()
+  
+  // 基本的な日付形式をチェック
+  return /^\d{4}-\d{2}-\d{2}/.test(strValue) || 
+         /^\d{2}\/\d{2}\/\d{4}/.test(strValue) ||
+         /^\d{4}\/\d{2}\/\d{2}/.test(strValue)
+}
+
+function parseDateValue(value: any): number {
+  if (value === null || value === undefined || value === '') return NaN
+  
+  const strValue = String(value).trim()
+  try {
+    const date = new Date(strValue)
+    return isNaN(date.getTime()) ? NaN : date.getTime()
+  } catch (e) {
+    return NaN
   }
 }
 

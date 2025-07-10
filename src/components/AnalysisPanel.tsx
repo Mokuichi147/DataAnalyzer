@@ -5,6 +5,7 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  TimeScale,
   PointElement,
   LineElement,
   BarElement,
@@ -14,6 +15,7 @@ import {
   ArcElement,
   ScatterController,
 } from 'chart.js'
+import 'chartjs-adapter-date-fns'
 import {
   getBasicStatistics as getBasicStatisticsOriginal,
   getCorrelationMatrix as getCorrelationMatrixOriginal,
@@ -65,6 +67,7 @@ import {
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  TimeScale,
   PointElement,
   LineElement,
   BarElement,
@@ -1204,7 +1207,7 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
       )
     }
 
-    const options = getChangePointChartOptions(performanceMetrics?.processedSize || points.length) as any
+    const options = getChangePointChartOptions(performanceMetrics?.processedSize || points.length, changePoints.isDateAxis) as any
 
     return (
       <div>
@@ -1303,7 +1306,7 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
     }]
   }
 
-  const options = getChangePointChartOptions(changePoints.length) as any
+  const options = getChangePointChartOptions(changePoints.length, false) as any
 
   return (
     <div>
@@ -1525,7 +1528,7 @@ function TimeSeriesResults({ data }: { data: any }) {
       )
     }
 
-    const options = getTimeSeriesChartOptions(performanceMetrics?.processedSize || timeSeriesData.length) as any
+    const options = getTimeSeriesChartOptions(performanceMetrics?.processedSize || timeSeriesData.length, data.isDateAxis) as any
 
     return (
       <div>
