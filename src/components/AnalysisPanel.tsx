@@ -2311,30 +2311,32 @@ function MissingDataResults({ data }: { data: MissingDataResult & { performanceM
 
       {/* カラム別統計 */}
       <div>
-        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4 transition-colors">カラム別統計</h4>
-        <div className="space-y-3">
-          {Object.entries(columnStats).map(([columnName, stats]: [string, any]) => (
-            <div key={columnName} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <h5 className="font-medium text-gray-900 dark:text-white transition-colors">{columnName}</h5>
-                <span className="text-sm text-gray-600 dark:text-gray-300 transition-colors">{formatNumber(stats.missingPercentage)}% 欠損</span>
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3 transition-colors">カラム別統計</h4>
+        <div className="max-h-64 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Object.entries(columnStats).map(([columnName, stats]: [string, any]) => (
+              <div key={columnName} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="font-medium text-gray-900 dark:text-white transition-colors text-sm truncate">{columnName}</h5>
+                  <span className="text-xs text-gray-600 dark:text-gray-300 transition-colors whitespace-nowrap ml-2">{formatNumber(stats.missingPercentage)}% 欠損</span>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300 transition-colors">イベント数:</span>
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.totalMissingEvents}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300 transition-colors">平均期間:</span>
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{formatNumber(stats.averageMissingLength)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300 transition-colors">最大期間:</span>
+                    <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.maxMissingLength}</span>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600 dark:text-gray-300 transition-colors">イベント数: </span>
-                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.totalMissingEvents}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-300 transition-colors">平均欠損期間: </span>
-                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{formatNumber(stats.averageMissingLength)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-300 transition-colors">最大欠損期間: </span>
-                  <span className="font-medium text-gray-900 dark:text-white transition-colors">{stats.maxMissingLength}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
