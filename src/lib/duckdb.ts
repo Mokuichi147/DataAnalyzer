@@ -282,7 +282,7 @@ async function readFileWithEncoding(file: File): Promise<EncodingDetectionResult
     const result = await detectFileEncoding(file, {
       fallbackEncoding: 'utf-8',
       minConfidence: 0.3,
-      supportedEncodings: ['utf-8', 'shift_jis', 'euc-jp', 'iso-2022-jp', 'windows-1252']
+      supportedEncodings: ['utf-8', 'utf-16le', 'utf-16be', 'shift_jis', 'euc-jp', 'iso-2022-jp', 'windows-1252']
     })
     
     console.log(`✅ ファイル読み込み完了:`, {
