@@ -725,9 +725,22 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
-            列選択 ({currentAnalysisType?.label})
-          </h3>
+          <div className="flex items-center gap-4">
+            <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
+              列選択 ({currentAnalysisType?.label})
+            </h3>
+            {/* PCでは説明文を横に表示 */}
+            {currentAnalysisType && (
+              <span className="hidden md:inline text-sm text-gray-600 dark:text-gray-400 transition-colors">
+                {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
+                  ? `1つの列を選択してください（自動実行）`
+                  : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
+                  ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
+                  : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
+                }
+              </span>
+            )}
+          </div>
           {isLoading && (
             <div className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 transition-colors">
               <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
@@ -736,8 +749,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           )}
         </div>
         
-        {/* 列選択の指示と警告 */}
-        <div className="mb-4">
+        {/* モバイル用の説明文 */}
+        <div className="mb-4 md:hidden">
           {currentAnalysisType && (
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 transition-colors">
               {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
@@ -748,17 +761,19 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               }
             </p>
           )}
-          {getAvailableColumns().length === 0 && (
-            <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-600 rounded-md p-3 transition-colors">
-              <div className="flex items-center">
-                <span className="text-amber-600 dark:text-amber-400 mr-2 transition-colors">⚠️</span>
-                <span className="text-amber-800 dark:text-amber-200 text-sm font-medium transition-colors">
-                  この分析に適した列がありません
-                </span>
-              </div>
-            </div>
-          )}
         </div>
+        
+        {/* 警告表示 */}
+        {getAvailableColumns().length === 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-600 rounded-md p-3 mb-4 transition-colors">
+            <div className="flex items-center">
+              <span className="text-amber-600 dark:text-amber-400 mr-2 transition-colors">⚠️</span>
+              <span className="text-amber-800 dark:text-amber-200 text-sm font-medium transition-colors">
+                この分析に適した列がありません
+              </span>
+            </div>
+          </div>
+        )}
         
         {getAvailableColumns().length > 0 ? (
           <div className="space-y-2">
