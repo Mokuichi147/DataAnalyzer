@@ -1903,67 +1903,62 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
   }
 
   return (
-    <div className="space-y-3">
-      {data.map((column, index) => (
-        <div key={index} className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-3 md:p-4 transition-colors">
+    <div className="max-h-[32rem] overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {data.map((column, index) => (
+          <div key={index} className="bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg p-3 transition-colors">
           {/* ヘッダー部分 - コンパクト化 */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <h4 className="text-base font-medium text-gray-900 dark:text-white break-words">{column.columnName}</h4>
-              <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded transition-colors">
-                {column.dataType}
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{column.columnName}</h4>
+              <span className="text-xs text-gray-600 dark:text-gray-300">
+                {formatNumber(column.totalRows)}行
               </span>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">
-              {formatNumber(column.totalRows)}行
-            </div>
+            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-2 py-1 rounded transition-colors">
+              {column.dataType}
+            </span>
           </div>
 
           {/* 基本情報 - 横並び・コンパクト化 */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.uniqueValues)}</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">ユニーク</span>
+          <div className="grid grid-cols-2 gap-1 mb-2 text-xs">
+            <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">ユニーク:</span>
+              <span className="font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.uniqueValues)}</span>
             </div>
-            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-red-700 dark:text-red-300">{formatNumber(column.nullCount)}</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">NULL({formatPercentage(column.nullPercentage)}%)</span>
+            <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">NULL:</span>
+              <span className="font-medium text-red-700 dark:text-red-300">{formatPercentage(column.nullPercentage)}%</span>
             </div>
-            <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-orange-700 dark:text-orange-300">{formatNumber(column.emptyStringCount)}</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">空文字({formatPercentage(column.emptyStringPercentage)}%)</span>
+            <div className="flex items-center justify-between bg-orange-50 dark:bg-orange-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">空文字:</span>
+              <span className="font-medium text-orange-700 dark:text-orange-300">{formatPercentage(column.emptyStringPercentage)}%</span>
             </div>
-            <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 rounded px-3 py-1 transition-colors">
-              <span className="text-sm font-medium text-green-700 dark:text-green-300">{calculateValidDataPercentage(column)}%</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">
-                {column.totalRows === 0 ? '有効データ (データなし)' : '有効データ'}
-              </span>
+            <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded px-2 py-1 transition-colors">
+              <span className="text-gray-600 dark:text-gray-300">有効:</span>
+              <span className="font-medium text-green-700 dark:text-green-300">{calculateValidDataPercentage(column)}%</span>
             </div>
           </div>
 
-          {/* 数値統計（数値型の場合） - 横並び・コンパクト化 */}
+          {/* 数値統計（数値型の場合） - コンパクト化 */}
           {column.numericStats && (
-            <div className="mb-3">
-              <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.min)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">最小</span>
+            <div className="mb-2">
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">最小:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.min)}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.max)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">最大</span>
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">最大:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.max)}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.mean)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">平均</span>
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">平均:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.mean)}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.median)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">中央値</span>
-                </div>
-                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 transition-colors">
-                  <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{formatNumber(column.numericStats.std)}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">標準偏差</span>
+                <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-1 transition-colors">
+                  <span className="text-gray-600 dark:text-gray-300">中央値:</span>
+                  <span className="font-medium text-purple-700 dark:text-purple-300">{formatNumber(column.numericStats.median)}</span>
                 </div>
               </div>
             </div>
@@ -2018,6 +2013,7 @@ function ColumnAnalysisResults({ data }: { data: ColumnAnalysisResult[] }) {
           </details>
         </div>
       ))}
+      </div>
     </div>
   )
 }
