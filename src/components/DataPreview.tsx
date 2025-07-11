@@ -47,7 +47,7 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       
       // フィルター適用後の行数を取得
       if (filterClause) {
-        const filteredCountQuery = `SELECT COUNT(*) as count FROM ${tableName} ${filterClause}`
+        const filteredCountQuery = `SELECT COUNT(*) as count FROM "${tableName}" ${filterClause}`
         console.log('Filtered count query:', filteredCountQuery)
         const filteredCountResult = await executeQuery(filteredCountQuery)
         const filteredCount = filteredCountResult[0]?.count || 0
@@ -61,8 +61,8 @@ export function DataPreview({ tableName }: DataPreviewProps) {
       
       // データを取得（フィルター適用）
       const query = filterClause 
-        ? `SELECT * FROM ${tableName} ${filterClause} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
-        : `SELECT * FROM ${tableName} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+        ? `SELECT * FROM "${tableName}" ${filterClause} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+        : `SELECT * FROM "${tableName}" LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
       console.log('Executing query:', query)
       
       const result = await executeQuery(query)
@@ -130,8 +130,8 @@ export function DataPreview({ tableName }: DataPreviewProps) {
     try {
       const filterClause = buildFilterClause(filters)
       const query = filterClause 
-        ? `SELECT * FROM ${tableName} ${filterClause}`
-        : `SELECT * FROM ${tableName}`
+        ? `SELECT * FROM "${tableName}" ${filterClause}`
+        : `SELECT * FROM "${tableName}"`
       const result = await executeQuery(query)
       
       // CSVとしてダウンロード

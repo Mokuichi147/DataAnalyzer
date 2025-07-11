@@ -10,8 +10,18 @@ import { getEncodingDescription } from '@/lib/fileEncoding'
 import { memoryDataStore } from '@/lib/memoryDataStore'
 
 /**
+ * ファイル名から拡張子を除去する関数
+ * 最後のドットより後を拡張子として除去
+ */
+function getFileBaseName(fileName: string): string {
+  const lastDotIndex = fileName.lastIndexOf('.')
+  return lastDotIndex === -1 ? fileName : fileName.substring(0, lastDotIndex)
+}
+
+/**
  * テーブル名をサニタイズする関数（日本語対応）
- * SQLで使用可能な安全なテーブル名に変換
+ * DuckDBで引用符付き識別子として使用可能な安全なテーブル名に変換
+ * 多くの文字が保持され、より意味のあるテーブル名が生成される
  */
 function sanitizeTableName(tableName: string): string {
   if (!tableName || tableName.trim() === '') {
@@ -21,18 +31,29 @@ function sanitizeTableName(tableName: string): string {
   // 先頭と末尾の空白を削除
   let sanitized = tableName.trim()
   
-  // 危険な文字のみを置換（日本語文字は保持）
-  // SQLインジェクション対策として、特定の記号のみを置換
+  // DuckDBの識別子規則に従って処理
+  // 1. 数字で始まる場合は先頭に文字を追加
+  if (/^\d/.test(sanitized)) {
+    sanitized = `t_${sanitized}`
+  }
+  
+  // 2. 最小限の危険な文字のみを処理（DuckDBは引用符で囲むため多くの文字が使用可能）
   sanitized = sanitized
-    .replace(/['"`;\\]/g, '_')  // SQLインジェクション対策
+    .replace(/"/g, '_')         // 二重引用符のみ（SQLで引用符を使うため）
     .replace(/[\r\n\t]/g, '_')  // 改行・タブ文字
     .replace(/\s+/g, '_')       // 連続する空白をアンダースコアに
     .replace(/^_+|_+$/g, '')    // 先頭・末尾のアンダースコアを削除
     .replace(/_+/g, '_')        // 連続するアンダースコアを1つに
   
-  // 空になった場合のフォールバック
+  // 3. 空になった場合のフォールバック
   if (sanitized === '') {
     return `table_${Math.random().toString(36).substr(2, 9)}`
+  }
+  
+  // 4. 最大長制限（DuckDBの制限を考慮）
+  if (sanitized.length > 63) {
+    const hash = Math.random().toString(36).substr(2, 6)
+    sanitized = sanitized.substring(0, 57) + '_' + hash
   }
   
   return sanitized
@@ -112,7 +133,7 @@ export function FileUpload({ }: FileUploadProps) {
         id: generateUUID(),
         file,
         status: 'pending' as const,
-        tableName: sanitizeTableName(file.name.split('.')[0]),
+        tableName: sanitizeTableName(getFileBaseName(file.name)),
         isDuckDBFile,
       }
       

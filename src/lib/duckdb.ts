@@ -431,11 +431,11 @@ async function createTableFromCSV(file: File, tableName: string, delimiter: stri
     } else {
       // DuckDBを使用
       const columnDefinitions = sanitizedHeaders.map(header => `"${header}" TEXT`).join(', ')
-      await instance.conn.query(`CREATE TABLE ${tableName} (${columnDefinitions})`)
+      await instance.conn.query(`CREATE TABLE "${tableName}" (${columnDefinitions})`)
       
       // データを挿入（バッチ処理で高速化）
       const placeholders = sanitizedHeaders.map(() => '?').join(', ')
-      const insertSQL = `INSERT INTO ${tableName} (${sanitizedHeaders.map(h => `"${h}"`).join(', ')}) VALUES (${placeholders})`
+      const insertSQL = `INSERT INTO "${tableName}" (${sanitizedHeaders.map(h => `"${h}"`).join(', ')}) VALUES (${placeholders})`
       
       // Safari用: バッチサイズを調整
       const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
@@ -553,11 +553,11 @@ async function createTableFromJSON(file: File, tableName: string): Promise<FileP
     } else {
       // DuckDBを使用
       const columnDefinitions = sanitizedColumns.map(col => `"${col}" TEXT`).join(', ')
-      await instance.conn.query(`CREATE TABLE ${tableName} (${columnDefinitions})`)
+      await instance.conn.query(`CREATE TABLE "${tableName}" (${columnDefinitions})`)
       
       // データを挿入
       const placeholders = sanitizedColumns.map(() => '?').join(', ')
-      const insertSQL = `INSERT INTO ${tableName} (${sanitizedColumns.map(c => `"${c}"`).join(', ')}) VALUES (${placeholders})`
+      const insertSQL = `INSERT INTO "${tableName}" (${sanitizedColumns.map(c => `"${c}"`).join(', ')}) VALUES (${placeholders})`
       
       // バッチ処理で効率化
       const batchSize = 1000
@@ -1265,7 +1265,7 @@ export async function getTableInfo(tableName: string): Promise<any[]> {
     }))
   }
   
-  const result = await instance.conn.query(`DESCRIBE ${tableName}`)
+  const result = await instance.conn.query(`DESCRIBE "${tableName}"`)
   return result.toArray()
 }
 
@@ -1281,7 +1281,7 @@ export async function getTableData(
   }
   
   const result = await instance.conn.query(
-    `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
+    `SELECT * FROM "${tableName}" LIMIT ${limit} OFFSET ${offset}`
   )
   return result.toArray()
 }
@@ -1293,7 +1293,7 @@ export async function getTableCount(tableName: string): Promise<number> {
     return memoryDataStore.getTableCount(tableName)
   }
   
-  const result = await instance.conn.query(`SELECT COUNT(*) as count FROM ${tableName}`)
+  const result = await instance.conn.query(`SELECT COUNT(*) as count FROM "${tableName}"`)
   const rows = result.toArray()
   return rows[0].count
 }
