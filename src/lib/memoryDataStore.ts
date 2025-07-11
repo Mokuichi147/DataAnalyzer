@@ -53,9 +53,13 @@ class MemoryDataStore {
   }
 
   private executeSelect(sql: string): any[] {
-    // FROM句からテーブル名を抽出（日本語文字対応）
-    // 英数字、アンダースコア、日本語文字（ひらがな、カタカナ、漢字）を含むテーブル名に対応
-    const fromMatch = sql.match(/FROM\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/i)
+    // FROM句からテーブル名を抽出（引用符対応、日本語文字対応）
+    // 引用符で囲まれたテーブル名と通常のテーブル名の両方に対応
+    let fromMatch = sql.match(/FROM\s+"([^"]+)"/i) // 引用符で囲まれたテーブル名
+    if (!fromMatch) {
+      // 引用符なしのテーブル名（ハイフン、ドット、日本語文字を含む）
+      fromMatch = sql.match(/FROM\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\-\.]+)/i)
+    }
     if (!fromMatch) {
       throw new Error('Invalid SELECT statement: no FROM clause')
     }
@@ -110,9 +114,13 @@ class MemoryDataStore {
   }
 
   private executeDescribe(sql: string): any[] {
-    // DESCRIBE文からテーブル名を抽出（日本語文字対応）
-    // 英数字、アンダースコア、日本語文字（ひらがな、カタカナ、漢字）を含むテーブル名に対応
-    const match = sql.match(/DESCRIBE\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+)/i)
+    // DESCRIBE文からテーブル名を抽出（引用符対応、日本語文字対応）
+    // 引用符で囲まれたテーブル名と通常のテーブル名の両方に対応
+    let match = sql.match(/DESCRIBE\s+"([^"]+)"/i) // 引用符で囲まれたテーブル名
+    if (!match) {
+      // 引用符なしのテーブル名（ハイフン、ドット、日本語文字を含む）
+      match = sql.match(/DESCRIBE\s+([a-zA-Z0-9_\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\-\.]+)/i)
+    }
     if (!match) {
       throw new Error('Invalid DESCRIBE statement')
     }
