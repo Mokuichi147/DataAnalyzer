@@ -22,6 +22,7 @@ export interface OptimizedChartOptions {
   elements: any
   plugins: any
   scales?: any
+  datasets?: any
 }
 
 /**
@@ -197,6 +198,15 @@ export function getChangePointChartOptions(dataSize: number, isDateAxis: boolean
   
   return {
     ...options,
+    // データセットの描画順を有効にする
+    datasets: {
+      line: {
+        parsing: {
+          xAxisKey: 'x',
+          yAxisKey: 'y'
+        }
+      }
+    },
     plugins: {
       ...options.plugins,
       title: {

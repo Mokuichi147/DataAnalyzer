@@ -174,7 +174,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const [xAxisColumn, setXAxisColumn] = useState<string>('index') // 横軸カラム選択
   const [analysisResults, setAnalysisResults] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation'>('moving_average')
+  const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation' | 'pelt' | 'trend_detection' | 'variance_detection'>('moving_average')
   const [missingDataOptions, setMissingDataOptions] = useState<MissingDataOptions>({
     includeZero: true,
     includeEmpty: true
@@ -1338,16 +1338,6 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
         {/* 統計情報の表示 */}
         {statistics && (
           <div className="space-y-4 mb-4">
-            {/* アルゴリズム情報 */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
-              <div className="flex items-center space-x-2">
-                <Zap className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm font-medium text-blue-900 dark:text-blue-300 transition-colors">
-                  使用アルゴリズム: {statistics.algorithm || 'Moving Average'}
-                </span>
-              </div>
-            </div>
-            
             {/* 統計指標 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
@@ -4081,25 +4071,6 @@ function ChangePointTable({ points }: ChangePointTableProps) {
                     </div>
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('algorithm')}>
-                  <div className="flex items-center justify-between">
-                    <span>アルゴリズム</span>
-                    <div className="ml-2">
-                      {sortColumn === 'algorithm' ? (
-                        sortDirection === 'asc' ? (
-                          <ChevronUp className="h-4 w-4 text-blue-500" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-blue-500" />
-                        )
-                      ) : (
-                        <div className="h-4 w-4 opacity-30">
-                          <ChevronUp className="h-2 w-4 text-gray-400" />
-                          <ChevronDown className="h-2 w-4 text-gray-400" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -4149,9 +4120,6 @@ function ChangePointTable({ points }: ChangePointTableProps) {
                     ) : (
                       <span className="text-gray-500 dark:text-gray-400">-</span>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 transition-colors">
-                    {point.algorithm || 'Moving Average'}
                   </td>
                 </tr>
               ))}

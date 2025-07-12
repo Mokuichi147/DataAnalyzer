@@ -296,7 +296,7 @@ function detectEWMA(data: Array<{index: number, value: number}>, lambda: number 
   // 初期のEWMAを計算（最初の数点の平均）
   const initialPoints = Math.min(5, values.length)
   let ewma = values.slice(0, initialPoints).reduce((sum, val) => sum + val, 0) / initialPoints
-  let ewmaVariance = 0
+  // let ewmaVariance = 0  // 将来の拡張用（現在は未使用）
   
   const changePoints = []
   const deviations = []
@@ -411,10 +411,33 @@ function detectBinarySegmentation(data: Array<{index: number, value: number}>, m
   return changePoints.sort((a, b) => a.originalIndex - b.originalIndex)
 }
 
-// PELT (Pruned Exact Linear Time) アルゴリズム
-function detectPELT(data: Array<{index: number, value: number}>, penalty: number = 10, minseglen: number = 3) {
+// PELT (Pruned Exact Linear Time) アルゴリズム - 最適化版
+function detectPELT(data: Array<{index: number, value: number}>, penalty: number = 10, minseglen: number = 3): any[] {
   const n = data.length
+  
+  // 大きなデータセットの場合は間引いて計算速度を向上
+  if (n > 1000) {
+    const skipInterval = Math.max(1, Math.floor(n / 500)) // 最大500点に削減
+    const sampledData = data.filter((_, i) => i % skipInterval === 0)
+    const result: any[] = detectPELT(sampledData, penalty, Math.max(2, Math.floor(minseglen / skipInterval)))
+    
+    // 元のインデックスにマッピング
+    return result.map((cp: any) => ({
+      ...cp,
+      index: data[cp.originalIndex * skipInterval]?.index || cp.index,
+      originalIndex: cp.originalIndex * skipInterval
+    }))
+  }
+  
   const values = data.map(d => d.value)
+  
+  // 累積統計をキャッシュして計算速度向上
+  const cumSum = new Array(n + 1).fill(0)
+  const cumSumSq = new Array(n + 1).fill(0)
+  for (let i = 0; i < n; i++) {
+    cumSum[i + 1] = cumSum[i] + values[i]
+    cumSumSq[i + 1] = cumSumSq[i] + values[i] * values[i]
+  }
   
   // 累積コスト配列
   const F = new Array(n + 1).fill(Infinity)
@@ -423,35 +446,28 @@ function detectPELT(data: Array<{index: number, value: number}>, penalty: number
   // 各点で最適な前の変化点を記録
   const previousChangePoint = new Array(n + 1).fill(-1)
   
-  // セグメント内のコスト計算関数（トレンド除去後の分散ベース）
+  // セグメント内のコスト計算関数（簡素化版）
   function segmentCost(start: number, end: number): number {
-    if (end <= start) return 0
+    if (end <= start || end - start < minseglen) return 0
     
-    const segmentData = values.slice(start, end)
-    const segmentLength = segmentData.length
+    const length = end - start
+    const sum = cumSum[end] - cumSum[start]
+    const sumSq = cumSumSq[end] - cumSumSq[start]
     
-    if (segmentLength < 3) return 0 // 短すぎるセグメントはコスト0
+    // 分散ベースのコスト（線形トレンド計算を簡素化）
+    const mean = sum / length
+    const variance = (sumSq - sum * mean) / length
     
-    // セグメント内の線形トレンドを計算
-    const sumX = segmentData.reduce((sum, _, i) => sum + i, 0)
-    const sumY = segmentData.reduce((sum, val) => sum + val, 0)
-    const sumXY = segmentData.reduce((sum, val, i) => sum + i * val, 0)
-    const sumXX = segmentData.reduce((sum, _, i) => sum + i * i, 0)
-    
-    const slope = (segmentLength * sumXY - sumX * sumY) / (segmentLength * sumXX - sumX * sumX)
-    const intercept = (sumY - slope * sumX) / segmentLength
-    
-    // トレンド除去後の残差の分散を計算
-    const residuals = segmentData.map((val, i) => val - (slope * i + intercept))
-    const residualVariance = residuals.reduce((sum, res) => sum + res * res, 0)
-    
-    return isNaN(residualVariance) ? 0 : residualVariance
+    return isNaN(variance) || variance < 0 ? 0 : variance * length
   }
   
-  // 動的プログラミング
+  // プルーニング付き動的プログラミング
   for (let t = 1; t <= n; t++) {
-    // 有効な候補点をチェック
-    for (let s = 0; s < t; s++) {
+    // 候補点を制限して計算量削減
+    const maxCandidates = Math.min(50, t) // 最大50候補まで
+    const stepSize = Math.max(1, Math.floor(t / maxCandidates))
+    
+    for (let s = 0; s < t; s += stepSize) {
       if (t - s >= minseglen) {
         const cost = F[s] + segmentCost(s, t) + penalty
         if (cost < F[t]) {
@@ -466,20 +482,17 @@ function detectPELT(data: Array<{index: number, value: number}>, penalty: number
   const changePoints = []
   let current = n
   
-  while (previousChangePoint[current] !== -1) {
+  while (previousChangePoint[current] !== -1 && changePoints.length < 50) { // 最大50変化点まで
     const changePointIndex = previousChangePoint[current]
     if (changePointIndex > 0) {
-      // 信頼度を計算（コスト削減に基づく）
-      const beforeCost = F[changePointIndex - 1] + segmentCost(changePointIndex - 1, current)
-      const afterCost = F[current]
-      const confidence = Math.min(Math.max((beforeCost - afterCost) / beforeCost, 0), 1)
+      const confidence = Math.min(F[current] / (penalty * 10), 1)
       
       changePoints.unshift({
         index: data[changePointIndex].index,
         originalIndex: changePointIndex,
         value: data[changePointIndex].value,
         confidence,
-        cost: afterCost,
+        cost: F[current],
         algorithm: 'PELT'
       })
     }
@@ -489,67 +502,158 @@ function detectPELT(data: Array<{index: number, value: number}>, penalty: number
   return changePoints
 }
 
-// トレンド変化検出アルゴリズム
-function detectTrendChanges(data: Array<{index: number, value: number}>, windowSize: number = 10, threshold: number = 0.5) {
-  const changePoints = []
+// トレンド変化検出アルゴリズム - 計算最適化版（全データ処理）
+function detectTrendChanges(data: Array<{index: number, value: number}>, windowSize: number = 10, threshold: number = 0.5): any[] {
+  const changePoints: any[] = []
+  const n = data.length
   
-  if (data.length < windowSize * 2) return changePoints
+  if (n < windowSize * 2) return changePoints
   
-  // 各点での局所的トレンド（線形回帰の傾き）を計算
-  function calculateLocalTrend(start: number, end: number): number {
-    const segmentData = data.slice(start, end)
-    const n = segmentData.length
+  // 大量データの場合はウィンドウサイズを動的調整
+  const adaptiveWindowSize = Math.min(windowSize, Math.max(5, Math.floor(n / 100)))
+  
+  // トレンド計算の最適化：累積統計を事前計算（全データ）
+  const cumSum = new Array(n + 1).fill(0)
+  const cumSumX = new Array(n + 1).fill(0)
+  const cumSumXY = new Array(n + 1).fill(0)
+  const cumSumXX = new Array(n + 1).fill(0)
+  
+  for (let i = 0; i < n; i++) {
+    cumSum[i + 1] = cumSum[i] + data[i].value
+    cumSumX[i + 1] = cumSumX[i] + i
+    cumSumXY[i + 1] = cumSumXY[i] + i * data[i].value
+    cumSumXX[i + 1] = cumSumXX[i] + i * i
+  }
+  
+  // 高速なトレンド計算関数（O(1)計算）
+  function calculateLocalTrendFast(start: number, end: number): number {
+    const len = end - start
+    if (len < 2) return 0
     
-    if (n < 2) return 0
+    const sumY = cumSum[end] - cumSum[start]
+    const sumX = cumSumX[end] - cumSumX[start] - start * len
+    const sumXY = cumSumXY[end] - cumSumXY[start] - start * sumY
+    const sumXXAdj = cumSumXX[end] - cumSumXX[start] - 2 * start * (cumSumX[end] - cumSumX[start]) + start * start * len
     
-    const sumX = segmentData.reduce((sum, _, i) => sum + i, 0)
-    const sumY = segmentData.reduce((sum, d) => sum + d.value, 0)
-    const sumXY = segmentData.reduce((sum, d, i) => sum + i * d.value, 0)
-    const sumXX = segmentData.reduce((sum, _, i) => sum + i * i, 0)
+    const denominator = len * sumXXAdj - sumX * sumX
+    if (Math.abs(denominator) < 1e-10) return 0
     
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+    const slope = (len * sumXY - sumX * sumY) / denominator
     return isNaN(slope) ? 0 : slope
   }
   
-  for (let i = windowSize; i < data.length - windowSize; i++) {
-    const beforeTrend = calculateLocalTrend(i - windowSize, i)
-    const afterTrend = calculateLocalTrend(i, i + windowSize)
+  // 効率的なピーク・ボトム判定（サンプリング使用）
+  function isActualPeakOrValley(centerIndex: number, checkWindow: number): { isPeak: boolean, isValley: boolean } {
+    const start = Math.max(0, centerIndex - checkWindow)
+    const end = Math.min(n, centerIndex + checkWindow + 1)
+    const centerValue = data[centerIndex].value
     
-    // トレンドの変化を検出
+    let higherCount = 0
+    let lowerCount = 0
+    let totalPoints = 0
+    
+    // 効率的なサンプリング（最大20点をチェック）
+    const sampleStep = Math.max(1, Math.floor((end - start) / 20))
+    for (let i = start; i < end; i += sampleStep) {
+      if (i === centerIndex) continue
+      totalPoints++
+      
+      if (data[i].value > centerValue) higherCount++
+      else if (data[i].value < centerValue) lowerCount++
+    }
+    
+    const isPeak = totalPoints > 0 && higherCount / totalPoints < 0.25
+    const isValley = totalPoints > 0 && lowerCount / totalPoints < 0.25
+    
+    return { isPeak, isValley }
+  }
+  
+  // 全データを処理するが、処理頻度を動的調整
+  const processingStep = Math.max(1, Math.floor(n / 500)) // 最大500候補点
+  
+  // 事前に計算したトレンドをキャッシュ
+  const trendCache = new Map<string, number>()
+  
+  function getCachedTrend(start: number, end: number): number {
+    const key = `${start}-${end}`
+    if (trendCache.has(key)) {
+      return trendCache.get(key)!
+    }
+    const trend = calculateLocalTrendFast(start, end)
+    trendCache.set(key, trend)
+    return trend
+  }
+  
+  for (let i = adaptiveWindowSize; i < n - adaptiveWindowSize; i += processingStep) {
+    const beforeTrend = getCachedTrend(i - adaptiveWindowSize, i)
+    const afterTrend = getCachedTrend(i, i + adaptiveWindowSize)
+    
     const trendChange = Math.abs(afterTrend - beforeTrend)
-    const trendDirection = Math.sign(afterTrend - beforeTrend)
     
     if (trendChange > threshold) {
       let changeType = 'trend_change'
-      if (beforeTrend >= 0 && afterTrend < 0) changeType = 'peak' // 上昇から下降
-      else if (beforeTrend <= 0 && afterTrend > 0) changeType = 'valley' // 下降から上昇
-      else if (Math.abs(beforeTrend) < 0.1 && Math.abs(afterTrend) > threshold) {
+      
+      // 効率的な変化種別判定
+      if (beforeTrend > 0.1 && afterTrend < -0.1) {
+        const { isPeak } = isActualPeakOrValley(i, Math.floor(adaptiveWindowSize / 2))
+        changeType = isPeak ? 'peak' : 'trend_change'
+      } else if (beforeTrend < -0.1 && afterTrend > 0.1) {
+        const { isValley } = isActualPeakOrValley(i, Math.floor(adaptiveWindowSize / 2))
+        changeType = isValley ? 'valley' : 'trend_change'
+      } else if (Math.abs(beforeTrend) < 0.1 && Math.abs(afterTrend) > threshold) {
         changeType = afterTrend > 0 ? 'start_increase' : 'start_decrease'
+      } else if (Math.abs(beforeTrend) > 0.1 && Math.abs(afterTrend) < 0.1) {
+        changeType = beforeTrend > 0 ? 'end_increase' : 'end_decrease'
       }
       
-      const confidence = Math.min(trendChange / threshold, 3.0) / 3.0
+      const trendStrength = Math.max(Math.abs(beforeTrend), Math.abs(afterTrend))
+      const confidence = Math.min((trendChange / threshold) * (trendStrength + 0.1), 1.0)
       
-      changePoints.push({
-        index: data[i].index,
-        originalIndex: i,
-        value: data[i].value,
-        confidence,
-        beforeTrend,
-        afterTrend,
-        trendChange,
-        trendDirection,
-        changeType,
-        algorithm: 'Trend Detection'
-      })
+      // より厳格な閾値で高品質な変化点のみを抽出
+      if (confidence > 0.5) {
+        changePoints.push({
+          index: data[i].index,
+          originalIndex: i,
+          value: data[i].value,
+          confidence,
+          beforeTrend,
+          afterTrend,
+          trendChange,
+          changeType,
+          algorithm: 'Trend Detection'
+        })
+      }
     }
   }
   
-  return changePoints
+  // 近接した変化点を統合して重要な変化点のみを残す
+  const consolidatedPoints: any[] = []
+  const minDistance = Math.max(adaptiveWindowSize, 10)
+  
+  for (const point of changePoints) {
+    const tooClose = consolidatedPoints.some(existing => 
+      Math.abs(existing.originalIndex - point.originalIndex) < minDistance
+    )
+    
+    if (!tooClose || consolidatedPoints.length === 0) {
+      consolidatedPoints.push(point)
+    } else {
+      // より信頼度の高い変化点を残す
+      const closeIndex = consolidatedPoints.findIndex(existing =>
+        Math.abs(existing.originalIndex - point.originalIndex) < minDistance
+      )
+      if (closeIndex >= 0 && point.confidence > consolidatedPoints[closeIndex].confidence) {
+        consolidatedPoints[closeIndex] = point
+      }
+    }
+  }
+  
+  return consolidatedPoints
 }
 
 // 分散変化検出アルゴリズム
-function detectVarianceChanges(data: Array<{index: number, value: number}>, windowSize: number = 15, threshold: number = 2.0) {
-  const changePoints = []
+function detectVarianceChanges(data: Array<{index: number, value: number}>, windowSize: number = 15, threshold: number = 2.0): any[] {
+  const changePoints: any[] = []
   
   if (data.length < windowSize * 2) return changePoints
   
@@ -830,45 +934,83 @@ export async function detectChangePoints(
     console.log('🔍 ChangePoints - Sample workingData:', workingData.slice(0, 3))
     console.log('🔍 ChangePoints - changePoints:', changePoints)
     
+    // 変化点の種別で色分けするための設定
+    const changePointColors = {
+      peak: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: 'ピーク' },
+      valley: { color: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.8)', name: 'ボトム' },
+      start_increase: { color: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.8)', name: '上昇開始' },
+      start_decrease: { color: 'rgb(168, 85, 247)', bg: 'rgba(168, 85, 247, 0.8)', name: '下降開始' },
+      end_increase: { color: 'rgb(99, 102, 241)', bg: 'rgba(99, 102, 241, 0.8)', name: '上昇終了' },
+      end_decrease: { color: 'rgb(217, 119, 6)', bg: 'rgba(217, 119, 6, 0.8)', name: '下降終了' },
+      trend_change: { color: 'rgb(245, 158, 11)', bg: 'rgba(245, 158, 11, 0.8)', name: 'トレンド変化' },
+      increase_volatility: { color: 'rgb(236, 72, 153)', bg: 'rgba(236, 72, 153, 0.8)', name: '分散増加' },
+      decrease_volatility: { color: 'rgb(14, 165, 233)', bg: 'rgba(14, 165, 233, 0.8)', name: '分散減少' },
+      variance_change: { color: 'rgb(139, 69, 19)', bg: 'rgba(139, 69, 19, 0.8)', name: '分散変化' },
+      default: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: '変化点' }
+    }
+    
+    // 変化点を種別ごとにグループ分け
+    const changePointsByType = changePoints.reduce((acc, cp) => {
+      const type = cp.changeType || 'default'
+      if (!acc[type]) {
+        acc[type] = []
+      }
+      acc[type].push(cp)
+      return acc
+    }, {} as Record<string, any[]>)
+    
+    // データセットを構築（描画順：線 → 点）
+    const datasets: any[] = [
+      // 1. データ値の折線（最初に描画）
+      {
+        label: 'データ値',
+        data: workingData.map((d) => {
+          const xValue = isDateAxis 
+            ? (d.originalXValue ? new Date(d.originalXValue) : new Date(d.index))
+            : (d.originalXValue || d.index)
+          return { x: xValue, y: d.value }
+        }),
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.1,
+        pointRadius: 1,
+        pointHoverRadius: 4,
+        order: 1
+      }
+    ]
+    
+    // 2. 変化点の種別ごとにデータセットを作成（後に描画）
+    Object.entries(changePointsByType).forEach(([type, points]) => {
+      const colorConfig = changePointColors[type as keyof typeof changePointColors] || changePointColors.default
+      
+      datasets.push({
+        label: colorConfig.name,
+        type: 'scatter',
+        data: (points as any[]).map((cp: any) => {
+          const dataPoint = workingData[cp.originalIndex]
+          return {
+            x: isDateAxis 
+              ? (dataPoint?.originalXValue ? new Date(dataPoint.originalXValue) : new Date(cp.index))
+              : (dataPoint?.originalXValue || cp.index),
+            y: cp.value
+          }
+        }),
+        borderColor: colorConfig.color,
+        backgroundColor: colorConfig.bg,
+        pointRadius: 8,
+        pointHoverRadius: 10,
+        pointStyle: 'circle',
+        pointBackgroundColor: colorConfig.bg,
+        pointBorderColor: colorConfig.color,
+        borderWidth: 2,
+        order: 0,  // 低い数値で前面に描画
+        yAxisID: 'y'
+      })
+    })
+    
     const chartData = {
       labels: isDateAxis ? undefined : workingData.map(d => d.originalXValue || d.index),
-      datasets: [
-        {
-          label: 'データ値',
-          data: workingData.map((d) => {
-            const xValue = isDateAxis 
-              ? (d.originalXValue ? new Date(d.originalXValue) : new Date(d.index))
-              : (d.originalXValue || d.index)
-            return { x: xValue, y: d.value }
-          }),
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          tension: 0.1,
-          pointRadius: 1,
-          pointHoverRadius: 4
-        },
-        {
-          label: '変化点',
-          data: changePoints.map(cp => {
-            const dataPoint = workingData[cp.originalIndex]
-            return {
-              x: isDateAxis 
-                ? (dataPoint?.originalXValue ? new Date(dataPoint.originalXValue) : new Date(cp.index))
-                : (dataPoint?.originalXValue || cp.index),
-              y: cp.value
-            }
-          }),
-          borderColor: 'rgb(239, 68, 68)',
-          backgroundColor: 'rgba(239, 68, 68, 0.8)',
-          type: 'line' as const,
-          pointRadius: 6,
-          pointHoverRadius: 8,
-          showLine: false,
-          pointStyle: 'circle',
-          pointBackgroundColor: 'rgba(239, 68, 68, 0.8)',
-          pointBorderColor: 'rgb(239, 68, 68)'
-        }
-      ]
+      datasets
     }
     
     const endTime = performance.now()
