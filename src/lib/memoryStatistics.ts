@@ -44,7 +44,7 @@ export interface ColumnAnalysisResult {
   }
 }
 
-export type ChangePointAlgorithm = 'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation'
+export type ChangePointAlgorithm = 'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation' | 'pelt' | 'trend_detection' | 'variance_detection'
 
 export interface ChangePointOptions {
   algorithm?: ChangePointAlgorithm
@@ -60,6 +60,15 @@ export interface ChangePointOptions {
   ewmaThreshold?: number
   // Binary Segmentation用パラメータ
   minSegmentSize?: number
+  // PELT用パラメータ
+  penalty?: number
+  minseglen?: number
+  // トレンド検出用パラメータ
+  trendWindowSize?: number
+  trendThreshold?: number
+  // 分散検出用パラメータ
+  varianceWindowSize?: number
+  varianceThreshold?: number
 }
 
 // 数値に変換できるかチェック
@@ -324,6 +333,182 @@ function detectBinarySegmentation(data: Array<{index: number, value: number}>, m
   return changePoints.sort((a, b) => a.originalIndex - b.originalIndex)
 }
 
+// PELT (Pruned Exact Linear Time) アルゴリズム
+function detectPELT(data: Array<{index: number, value: number}>, penalty: number = 10, minseglen: number = 3) {
+  const n = data.length
+  const values = data.map(d => d.value)
+  
+  // 累積コスト配列
+  const F = new Array(n + 1).fill(Infinity)
+  F[0] = -penalty
+  
+  // 各点で最適な前の変化点を記録
+  const previousChangePoint = new Array(n + 1).fill(-1)
+  
+  // セグメント内のコスト計算関数（分散ベース）
+  function segmentCost(start: number, end: number): number {
+    if (end <= start) return 0
+    
+    const segmentData = values.slice(start, end)
+    const mean = segmentData.reduce((sum, val) => sum + val, 0) / segmentData.length
+    const variance = segmentData.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0)
+    
+    return variance
+  }
+  
+  // 動的プログラミング
+  for (let t = 1; t <= n; t++) {
+    // 有効な候補点をチェック
+    for (let s = 0; s < t; s++) {
+      if (t - s >= minseglen) {
+        const cost = F[s] + segmentCost(s, t) + penalty
+        if (cost < F[t]) {
+          F[t] = cost
+          previousChangePoint[t] = s
+        }
+      }
+    }
+  }
+  
+  // 変化点を逆向きにたどって取得
+  const changePoints = []
+  let current = n
+  
+  while (previousChangePoint[current] !== -1) {
+    const changePointIndex = previousChangePoint[current]
+    if (changePointIndex > 0) {
+      // 信頼度を計算（コスト削減に基づく）
+      const beforeCost = F[changePointIndex - 1] + segmentCost(changePointIndex - 1, current)
+      const afterCost = F[current]
+      const confidence = Math.min(Math.max((beforeCost - afterCost) / beforeCost, 0), 1)
+      
+      changePoints.unshift({
+        index: data[changePointIndex].index,
+        originalIndex: changePointIndex,
+        value: data[changePointIndex].value,
+        confidence,
+        cost: afterCost,
+        algorithm: 'PELT'
+      })
+    }
+    current = previousChangePoint[current]
+  }
+  
+  return changePoints
+}
+
+// トレンド変化検出アルゴリズム
+function detectTrendChanges(data: Array<{index: number, value: number}>, windowSize: number = 10, threshold: number = 0.5) {
+  const changePoints = []
+  
+  if (data.length < windowSize * 2) return changePoints
+  
+  // 各点での局所的トレンド（線形回帰の傾き）を計算
+  function calculateLocalTrend(start: number, end: number): number {
+    const segmentData = data.slice(start, end)
+    const n = segmentData.length
+    
+    if (n < 2) return 0
+    
+    const sumX = segmentData.reduce((sum, _, i) => sum + i, 0)
+    const sumY = segmentData.reduce((sum, d) => sum + d.value, 0)
+    const sumXY = segmentData.reduce((sum, d, i) => sum + i * d.value, 0)
+    const sumXX = segmentData.reduce((sum, _, i) => sum + i * i, 0)
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+    return isNaN(slope) ? 0 : slope
+  }
+  
+  for (let i = windowSize; i < data.length - windowSize; i++) {
+    const beforeTrend = calculateLocalTrend(i - windowSize, i)
+    const afterTrend = calculateLocalTrend(i, i + windowSize)
+    
+    // トレンドの変化を検出
+    const trendChange = Math.abs(afterTrend - beforeTrend)
+    const trendDirection = Math.sign(afterTrend - beforeTrend)
+    
+    if (trendChange > threshold) {
+      let changeType = 'trend_change'
+      if (beforeTrend >= 0 && afterTrend < 0) changeType = 'peak' // 上昇から下降
+      else if (beforeTrend <= 0 && afterTrend > 0) changeType = 'valley' // 下降から上昇
+      else if (Math.abs(beforeTrend) < 0.1 && Math.abs(afterTrend) > threshold) {
+        changeType = afterTrend > 0 ? 'start_increase' : 'start_decrease'
+      }
+      
+      const confidence = Math.min(trendChange / threshold, 3.0) / 3.0
+      
+      changePoints.push({
+        index: data[i].index,
+        originalIndex: i,
+        value: data[i].value,
+        confidence,
+        beforeTrend,
+        afterTrend,
+        trendChange,
+        trendDirection,
+        changeType,
+        algorithm: 'Trend Detection'
+      })
+    }
+  }
+  
+  return changePoints
+}
+
+// 分散変化検出アルゴリズム
+function detectVarianceChanges(data: Array<{index: number, value: number}>, windowSize: number = 15, threshold: number = 2.0) {
+  const changePoints = []
+  
+  if (data.length < windowSize * 2) return changePoints
+  
+  // 局所的分散を計算
+  function calculateLocalVariance(start: number, end: number): number {
+    const segmentData = data.slice(start, end).map(d => d.value)
+    const mean = segmentData.reduce((sum, val) => sum + val, 0) / segmentData.length
+    const variance = segmentData.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / segmentData.length
+    return variance
+  }
+  
+  // 全体の分散を基準として計算
+  const allValues = data.map(d => d.value)
+  const globalMean = allValues.reduce((sum, val) => sum + val, 0) / allValues.length
+  const globalVariance = allValues.reduce((sum, val) => sum + Math.pow(val - globalMean, 2), 0) / allValues.length
+  
+  for (let i = windowSize; i < data.length - windowSize; i++) {
+    const beforeVariance = calculateLocalVariance(i - windowSize, i)
+    const afterVariance = calculateLocalVariance(i, i + windowSize)
+    
+    // 分散の比率を計算
+    const varianceRatio = afterVariance / (beforeVariance + 1e-10) // ゼロ除算回避
+    const logVarianceRatio = Math.log(varianceRatio)
+    
+    if (Math.abs(logVarianceRatio) > Math.log(threshold)) {
+      let changeType = 'variance_change'
+      if (varianceRatio > threshold) changeType = 'increase_volatility' // 分散増加
+      else if (varianceRatio < 1/threshold) changeType = 'decrease_volatility' // 分散減少
+      
+      // 信頼度は対数比率の大きさと全体分散に対する相対的重要性に基づく
+      const significance = Math.max(beforeVariance, afterVariance) / (globalVariance + 1e-10)
+      const confidence = Math.min(Math.abs(logVarianceRatio) / Math.log(threshold) * significance, 1.0)
+      
+      changePoints.push({
+        index: data[i].index,
+        originalIndex: i,
+        value: data[i].value,
+        confidence,
+        beforeVariance,
+        afterVariance,
+        varianceRatio,
+        changeType,
+        significance,
+        algorithm: 'Variance Detection'
+      })
+    }
+  }
+  
+  return changePoints
+}
+
 export async function detectChangePoints(
   tableName: string,
   columnName: string,
@@ -384,11 +569,36 @@ export async function detectChangePoints(
     .sort((a, b) => a.index - b.index) // X軸の値でソート
     
     if (rawData.length < 10) {
+      // データが少ない場合でも基本的なチャートは表示
+      const isDateAxis = xColumn !== 'index' && rawData.length > 0 && 
+        rawData.some(d => isDateValue(d.originalXValue))
+      
+      const chartData = rawData.length > 0 ? {
+        labels: isDateAxis ? undefined : rawData.map(d => d.originalXValue || d.index),
+        datasets: [
+          {
+            label: 'データ値',
+            data: rawData.map((d) => {
+              const xValue = isDateAxis 
+                ? (d.originalXValue ? new Date(d.originalXValue) : new Date(d.index))
+                : (d.originalXValue || d.index)
+              return { x: xValue, y: d.value }
+            }),
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.1,
+            pointRadius: 3,
+            pointHoverRadius: 6
+          }
+        ]
+      } : { labels: [], datasets: [] }
+      
       return {
         changePoints: [],
-        chartData: [],
+        chartData,
         samplingInfo: null,
-        performanceMetrics: { processingTime: 0, originalSize: rawData.length }
+        performanceMetrics: { processingTime: 0, originalSize: rawData.length },
+        isDateAxis
       }
     }
 
@@ -410,7 +620,13 @@ export async function detectChangePoints(
       delta = 1,
       lambda = 0.1,
       ewmaThreshold = 3,
-      minSegmentSize = 5
+      minSegmentSize = 5,
+      penalty = 10,
+      minseglen = Math.max(3, Math.floor(workingData.length / 30)),
+      trendWindowSize = Math.max(5, Math.min(15, Math.floor(workingData.length / 15))),
+      trendThreshold = 0.5,
+      varianceWindowSize = Math.max(10, Math.min(20, Math.floor(workingData.length / 10))),
+      varianceThreshold = 2.0
     } = options
 
     // 選択されたアルゴリズムで変化点検出を実行
@@ -429,6 +645,18 @@ export async function detectChangePoints(
       case 'binary_segmentation':
         changePoints = detectBinarySegmentation(workingData, minSegmentSize)
         algorithmName = 'Binary Segmentation'
+        break
+      case 'pelt':
+        changePoints = detectPELT(workingData, penalty, minseglen)
+        algorithmName = 'PELT'
+        break
+      case 'trend_detection':
+        changePoints = detectTrendChanges(workingData, trendWindowSize, trendThreshold)
+        algorithmName = 'Trend Detection'
+        break
+      case 'variance_detection':
+        changePoints = detectVarianceChanges(workingData, varianceWindowSize, varianceThreshold)
+        algorithmName = 'Variance Detection'
         break
       case 'moving_average':
       default:
@@ -984,10 +1212,11 @@ function isDateValue(value: any): boolean {
   if (value === null || value === undefined || value === '') return false
   const strValue = String(value).trim()
   
-  // 基本的な日付形式をチェック
+  // 基本的な日付形式をチェック（日本語形式も含む）
   return /^\d{4}-\d{2}-\d{2}/.test(strValue) || 
          /^\d{2}\/\d{2}\/\d{4}/.test(strValue) ||
-         /^\d{4}\/\d{2}\/\d{2}/.test(strValue)
+         /^\d{4}\/\d{2}\/\d{2}/.test(strValue) ||
+         /^\d{4}年\d{1,2}月\d{1,2}日(\s+\d{1,2}時\d{1,2}分\d{1,2}秒?)?/.test(strValue)
 }
 
 function parseDateValue(value: any): number {
@@ -995,6 +1224,17 @@ function parseDateValue(value: any): number {
   
   const strValue = String(value).trim()
   try {
+    // 日本語形式の場合は専用パーサーを使用
+    if (/^\d{4}年\d{1,2}月\d{1,2}日/.test(strValue)) {
+      const jpMatch = strValue.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日(\s+(\d{1,2})時(\d{1,2})分(\d{1,2})秒?)?/)
+      if (jpMatch) {
+        const [, year, month, day, , hour, minute, second] = jpMatch
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 
+                              parseInt(hour || '0'), parseInt(minute || '0'), parseInt(second || '0'))
+        return isNaN(date.getTime()) ? NaN : date.getTime()
+      }
+    }
+    
     const date = new Date(strValue)
     return isNaN(date.getTime()) ? NaN : date.getTime()
   } catch (e) {

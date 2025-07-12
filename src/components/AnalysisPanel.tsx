@@ -888,7 +888,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             <Zap className="h-4 w-4 mr-2 text-yellow-600 dark:text-yellow-400 transition-colors" />
             変化点検出アルゴリズムを選択
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             <label className="flex items-start space-x-3 cursor-pointer">
               <input
                 type="radio"
@@ -946,6 +946,51 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               <div>
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">Binary Segmentation</div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">再帰的分割法。複数の構造変化に適用。</div>
+              </div>
+            </label>
+            
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name="changepoint-algorithm"
+                value="pelt"
+                checked={changePointAlgorithm === 'pelt'}
+                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">PELT</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">統計的最適化。ペナルティ項で過検出を抑制。</div>
+              </div>
+            </label>
+            
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name="changepoint-algorithm"
+                value="trend_detection"
+                checked={changePointAlgorithm === 'trend_detection'}
+                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">トレンド検出</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">上昇・下降トレンドの変化点を特定。</div>
+              </div>
+            </label>
+            
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="radio"
+                name="changepoint-algorithm"
+                value="variance_detection"
+                checked={changePointAlgorithm === 'variance_detection'}
+                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">分散検出</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">データのばらつき（分散）変化を検出。</div>
               </div>
             </label>
           </div>
@@ -1261,15 +1306,21 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
     // 最適化された結果の表示
     const { changePoints: points, chartData, samplingInfo, performanceMetrics, statistics } = changePoints
     
-    if (!points || points.length === 0) {
+    // チャートデータの有無を確認
+    const hasChartData = chartData && chartData.datasets && chartData.datasets.length > 0
+    
+    if (!points || (points.length === 0 && !hasChartData)) {
       return (
         <div>
           <PerformanceInfo 
             performanceInfo={performanceMetrics || null} 
             samplingInfo={samplingInfo || null} 
           />
-          <div className="text-center py-4 text-gray-600">
-            <p>変化点が検出されませんでした。</p>
+          <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+            <p>変化点が検出されませんでした。データが不足しているか、処理エラーが発生しました。</p>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+              データを確認してから再試行してください。
+            </p>
           </div>
         </div>
       )
@@ -1323,12 +1374,37 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
           </div>
         )}
 
-        <div className="h-80 mb-6">
-          <Line data={chartData} options={options} />
-        </div>
+        {/* グラフ表示（チャートデータがある場合は常に表示） */}
+        {hasChartData && (
+          <div className="h-80 mb-6">
+            <Line data={chartData} options={options} />
+          </div>
+        )}
 
-        {/* 変化点詳細テーブル */}
-        <ChangePointTable points={points} />
+        {/* 変化点詳細テーブル（変化点がある場合のみ） */}
+        {points.length > 0 ? (
+          <ChangePointTable points={points} />
+        ) : hasChartData ? (
+          <div className="mt-4 text-center py-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-600 rounded-lg transition-colors">
+            <div className="flex items-center justify-center space-x-2 mb-2">
+              <TrendingUp className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+              <p className="text-yellow-800 dark:text-yellow-200 font-medium">変化点は検出されませんでした</p>
+            </div>
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+              データの全体的な傾向は上記のグラフで確認できます。
+            </p>
+            <p className="text-xs text-yellow-500 dark:text-yellow-500 mt-2">
+              より感度の高いアルゴリズム（CUSUM、EWMA、トレンド検出、分散検出）を試すか、閾値パラメータを調整してみてください。
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 text-center py-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-600 rounded-lg transition-colors">
+            <p className="text-red-800 dark:text-red-200 font-medium">データまたはチャートの表示に問題があります</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+              データを確認してから再試行してください。
+            </p>
+          </div>
+        )}
       </div>
     )
   }
@@ -1343,16 +1419,24 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
     )
   }
   
+  // 従来形式では簡単な処理（変化点が無い場合は空のチャートを表示）
   if (changePoints.length === 0) {
     return (
-      <div className="text-center py-4 text-gray-600">
-        <p>変化点が検出されませんでした。</p>
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>変化点が検出されませんでした。データが不足しているか、明確な変化点が存在しない可能性があります。</p>
+        <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+          アルゴリズムや閾値パラメータを変更してみてください。
+        </p>
+        <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
+          新しいアルゴリズム（PELT、トレンド検出、分散検出）では、データの全体像も確認できます。
+        </p>
       </div>
     )
   }
   
   const colors = getThemeColors()
   
+  // 従来形式のチャートを作成（変化点のみ）
   const chartData = {
     labels: changePoints.map(cp => `Point ${cp.index || 'N/A'}`),
     datasets: [{
@@ -1374,15 +1458,27 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
     }]
   }
 
+  // チャートオプションを決定（従来形式では日付軸は使用しない）
   const options = getChangePointChartOptions(changePoints.length, false) as any
 
   return (
     <div>
       <Line data={chartData} options={options} />
       
-      {/* 変化点詳細表示 */}
-      <div className="mt-4 space-y-2">
-        {changePoints.map((cp, index) => (
+      {/* 変化点が検出されなかった場合のメッセージ */}
+      {changePoints.length === 0 && (
+        <div className="mt-4 text-center py-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-600 rounded-lg transition-colors">
+          <p className="text-yellow-800 dark:text-yellow-200 font-medium">変化点は検出されませんでした</p>
+          <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+            データの全体的な傾向は上記のグラフで確認できます。より感度の高いアルゴリズムを試すか、閾値を調整してみてください。
+          </p>
+        </div>
+      )}
+      
+      {/* 変化点詳細表示（変化点がある場合のみ） */}
+      {changePoints.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {changePoints.map((cp, index) => (
           <div key={index} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
             <span className="font-medium text-gray-900 dark:text-white transition-colors">Index {cp.index || 'N/A'}</span>
             <div className="text-right">
@@ -1394,8 +1490,9 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
               </div>
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -3965,6 +4062,25 @@ function ChangePointTable({ points }: ChangePointTableProps) {
                     </div>
                   </div>
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('changeType')}>
+                  <div className="flex items-center justify-between">
+                    <span>変化種別</span>
+                    <div className="ml-2">
+                      {sortColumn === 'changeType' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('algorithm')}>
                   <div className="flex items-center justify-between">
                     <span>アルゴリズム</span>
@@ -4006,6 +4122,33 @@ function ChangePointTable({ points }: ChangePointTableProps) {
                         {point.confidence !== undefined ? (point.confidence * 100).toFixed(1) : 'N/A'}%
                       </span>
                     </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+                    {point.changeType ? (
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        point.changeType === 'peak' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                        point.changeType === 'valley' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                        point.changeType === 'start_increase' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        point.changeType === 'start_decrease' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                        point.changeType === 'increase_volatility' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
+                        point.changeType === 'decrease_volatility' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                      }`}>
+                        {
+                          point.changeType === 'peak' ? 'ピーク' :
+                          point.changeType === 'valley' ? 'ボトム' :
+                          point.changeType === 'start_increase' ? '上昇開始' :
+                          point.changeType === 'start_decrease' ? '下降開始' :
+                          point.changeType === 'increase_volatility' ? '分散増加' :
+                          point.changeType === 'decrease_volatility' ? '分散減少' :
+                          point.changeType === 'trend_change' ? 'トレンド変化' :
+                          point.changeType === 'variance_change' ? '分散変化' :
+                          point.changeType || '一般'
+                        }
+                      </span>
+                    ) : (
+                      <span className="text-gray-500 dark:text-gray-400">-</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 transition-colors">
                     {point.algorithm || 'Moving Average'}
