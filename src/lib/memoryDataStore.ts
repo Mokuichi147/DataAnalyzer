@@ -94,6 +94,38 @@ class MemoryDataStore {
       console.log('🔍 MemoryDataStore: Filtered data length:', data.length)
     }
 
+    // ORDER BY句を解析・適用
+    const orderMatch = sql.match(/ORDER\s+BY\s+"?([^"\s]+)"?\s+(ASC|DESC)?/i)
+    if (orderMatch) {
+      const orderColumn = orderMatch[1]
+      const orderDirection = (orderMatch[2] || 'ASC').toUpperCase()
+      
+      console.log('🔄 MemoryDataStore: Applying ORDER BY:', orderColumn, orderDirection)
+      
+      data = data.sort((a, b) => {
+        const aValue = a[orderColumn]
+        const bValue = b[orderColumn]
+        
+        // null/undefined チェック
+        if (aValue == null && bValue == null) return 0
+        if (aValue == null) return orderDirection === 'ASC' ? -1 : 1
+        if (bValue == null) return orderDirection === 'ASC' ? 1 : -1
+        
+        // 数値比較
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return orderDirection === 'ASC' ? aValue - bValue : bValue - aValue
+        }
+        
+        // 文字列比較
+        const aStr = String(aValue)
+        const bStr = String(bValue)
+        const comparison = aStr.localeCompare(bStr)
+        return orderDirection === 'ASC' ? comparison : -comparison
+      })
+      
+      console.log('✅ MemoryDataStore: Data sorted by', orderColumn, orderDirection)
+    }
+
     // LIMIT句を解析
     const limitMatch = sql.match(/LIMIT\s+(\d+)(?:\s+OFFSET\s+(\d+))?/i)
     let limit = data.length

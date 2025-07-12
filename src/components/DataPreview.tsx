@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Eye, Download, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, Download, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react'
 import { useRealtimeStore } from '@/store/realtimeStore'
 import { useDataStore } from '@/store/dataStore'
 import { getTableInfo, getTableCount, executeQuery } from '@/lib/duckdb'
@@ -20,6 +20,8 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const { settings: realtimeSettings } = useRealtimeStore()
   const { filters } = useDataStore()
 
@@ -59,14 +61,43 @@ export function DataPreview({ tableName }: DataPreviewProps) {
         setFilteredRows(totalCount)
       }
       
-      // データを取得（フィルター適用）
-      const query = filterClause 
-        ? `SELECT * FROM "${tableName}" ${filterClause} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
-        : `SELECT * FROM "${tableName}" LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
-      console.log('Executing query:', query)
+      // ソート句を構築
+      let orderClause = ''
+      if (sortColumn) {
+        orderClause = ` ORDER BY "${sortColumn}" ${sortDirection.toUpperCase()}`
+        console.log('🔄 Sort clause created:', orderClause)
+      } else {
+        console.log('❌ No sort column set')
+      }
+
+      // データを取得（フィルター・ソート適用）
+      const query = `SELECT * FROM "${tableName}"${filterClause}${orderClause} LIMIT ${pageSize} OFFSET ${(currentPage - 1) * pageSize}`
+      console.log('🚀 Executing query with sort:', query)
+      console.log('🔍 Current sort state:', { sortColumn, sortDirection })
       
       const result = await executeQuery(query)
-      console.log('Query result:', result)
+      console.log('📊 Query result count:', result.length)
+      console.log('🔍 First few rows:', result.slice(0, 3))
+      if (sortColumn) {
+        const sortValues = result.slice(0, 5).map(row => row[sortColumn])
+        console.log('🔄 Checking if data is sorted by', sortColumn, ':', sortValues)
+        console.log('📈 Sort direction:', sortDirection, '- Expected order:', sortDirection === 'asc' ? 'ascending' : 'descending')
+        
+        // ソートが正しく適用されているかチェック
+        const isSorted = sortValues.length <= 1 || sortValues.every((val, i) => {
+          if (i === 0) return true
+          const prev = sortValues[i-1]
+          const curr = val
+          
+          if (sortDirection === 'asc') {
+            return prev <= curr
+          } else {
+            return prev >= curr
+          }
+        })
+        
+        console.log(isSorted ? '✅ Data appears to be sorted correctly' : '❌ Data does NOT appear to be sorted correctly')
+      }
       setData(result)
       
     } catch (error) {
@@ -78,9 +109,9 @@ export function DataPreview({ tableName }: DataPreviewProps) {
   }
 
   useEffect(() => {
-    console.log('🔄 useEffect triggered - loadData:', { tableName, currentPage, pageSize, filtersLength: filters.length })
+    console.log('🔄 useEffect triggered - loadData:', { tableName, currentPage, pageSize, filtersLength: filters.length, sortColumn, sortDirection })
     loadData()
-  }, [tableName, currentPage, pageSize, filters])
+  }, [tableName, currentPage, pageSize, filters, sortColumn, sortDirection])
 
   // リアルタイム更新のリスナー
   useEffect(() => {
@@ -126,12 +157,30 @@ export function DataPreview({ tableName }: DataPreviewProps) {
     setLastRefresh(new Date())
   }
 
+  const handleSort = (columnName: string) => {
+    console.log('🐈 handleSort called:', { columnName, currentSortColumn: sortColumn, currentSortDirection: sortDirection })
+    if (sortColumn === columnName) {
+      // 同じカラムをクリックした場合は方向を切り替え
+      const newDirection = sortDirection === 'asc' ? 'desc' : 'asc'
+      console.log('🔄 Toggling sort direction:', newDirection)
+      setSortDirection(newDirection)
+    } else {
+      // 異なるカラムをクリックした場合は新しいカラムで昇順
+      console.log('🆕 Setting new sort column:', columnName)
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1) // ソート時はページを1に戻す
+  }
+
   const exportData = async () => {
     try {
       const filterClause = buildFilterClause(filters)
-      const query = filterClause 
-        ? `SELECT * FROM "${tableName}" ${filterClause}`
-        : `SELECT * FROM "${tableName}"`
+      let orderClause = ''
+      if (sortColumn) {
+        orderClause = ` ORDER BY "${sortColumn}" ${sortDirection.toUpperCase()}`
+      }
+      const query = `SELECT * FROM "${tableName}"${filterClause}${orderClause}`
       const result = await executeQuery(query)
       
       // CSVとしてダウンロード
@@ -234,11 +283,28 @@ export function DataPreview({ tableName }: DataPreviewProps) {
                     {columns.map((col) => (
                       <th
                         key={col.column_name}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                        onClick={() => handleSort(col.column_name)}
                       >
-                        <div>
-                          <div className="font-medium">{col.column_name}</div>
-                          <div className="text-xs text-gray-400 dark:text-gray-500">{col.column_type}</div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">{col.column_name}</div>
+                            <div className="text-xs text-gray-400 dark:text-gray-500">{col.column_type}</div>
+                          </div>
+                          <div className="ml-2">
+                            {sortColumn === col.column_name ? (
+                              sortDirection === 'asc' ? (
+                                <ChevronUp className="h-4 w-4 text-blue-500" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-blue-500" />
+                              )
+                            ) : (
+                              <div className="h-4 w-4 opacity-30">
+                                <ChevronUp className="h-2 w-4 text-gray-400" />
+                                <ChevronDown className="h-2 w-4 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </th>
                     ))}
