@@ -94,6 +94,202 @@ class MemoryDataStore {
       console.log('🔍 MemoryDataStore: Filtered data length:', data.length)
     }
 
+    // ORDER BY句を解析・適用
+    const orderMatch = sql.match(/ORDER\s+BY\s+"?([^"\s]+)"?\s+(ASC|DESC)?/i)
+    if (orderMatch) {
+      const orderColumn = orderMatch[1]
+      const orderDirection = (orderMatch[2] || 'ASC').toUpperCase()
+      
+      // カラムの型情報を取得
+      const columnInfo = table.columns.find(col => col.name === orderColumn)
+      const isNumericColumn = columnInfo && (
+        columnInfo.type.includes('INT') ||
+        columnInfo.type.includes('FLOAT') ||
+        columnInfo.type.includes('DOUBLE') ||
+        columnInfo.type.includes('DECIMAL') ||
+        columnInfo.type.includes('NUMBER')
+      )
+      const isDateColumn = columnInfo && (
+        columnInfo.type.includes('DATE') ||
+        columnInfo.type.includes('TIME') ||
+        columnInfo.type.includes('TIMESTAMP')
+      )
+      
+      console.log('🔄 MemoryDataStore: Applying ORDER BY:', orderColumn, orderDirection)
+      console.log('📊 Column info:', { name: orderColumn, type: columnInfo?.type, isNumeric: isNumericColumn, isDate: isDateColumn })
+      console.log('📊 Available columns:', table.columns.map(c => ({name: c.name, type: c.type})))
+      console.log('📋 Sample data before sort:', data.slice(0, 3).map(row => ({ [orderColumn]: row[orderColumn] })))
+      
+      data = data.sort((a, b) => {
+        const aValue = a[orderColumn]
+        const bValue = b[orderColumn]
+        
+        // 最初の数件だけ詳細ログを出力
+        if (data.indexOf(a) < 5 || data.indexOf(b) < 5) {
+          console.log('🔍 Sorting values:', { aValue, bValue, aType: typeof aValue, bType: typeof bValue })
+        }
+        
+        // null/undefined チェック
+        if (aValue == null && bValue == null) return 0
+        if (aValue == null) return orderDirection === 'ASC' ? -1 : 1
+        if (bValue == null) return orderDirection === 'ASC' ? 1 : -1
+        
+        // DATEカラムの場合は日付として処理
+        if (isDateColumn) {
+          // 各種日付フォーマットに対応
+          const parseDate = (value: any): Date => {
+            if (value instanceof Date) return value
+            
+            const strValue = String(value).trim()
+            
+            // 空の値の場合
+            if (!strValue || strValue === 'null' || strValue === 'undefined') {
+              return new Date(NaN)
+            }
+            
+            // ISO形式、標準的な日付形式を試す
+            let date = new Date(strValue)
+            if (!isNaN(date.getTime())) return date
+            
+            // 日本式日付フォーマットを試す (YYYY/MM/DD, YYYY-MM-DD)
+            const jpFormats = [
+              /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/,
+              /^(\d{4})-(\d{1,2})-(\d{1,2})$/
+            ]
+            
+            for (const format of jpFormats) {
+              const match = strValue.match(format)
+              if (match) {
+                const [, year, month, day] = match
+                date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+                if (!isNaN(date.getTime())) return date
+              }
+            }
+            
+            return new Date(NaN)
+          }
+          
+          const aDate = parseDate(aValue)
+          const bDate = parseDate(bValue)
+          
+          console.log('📅 Date sort:', { 
+            aValue, bValue, 
+            aDate: isNaN(aDate.getTime()) ? 'Invalid' : aDate.toISOString(), 
+            bDate: isNaN(bDate.getTime()) ? 'Invalid' : bDate.toISOString(), 
+            direction: orderDirection 
+          })
+          
+          // Invalid Dateの場合の処理
+          const aValid = !isNaN(aDate.getTime())
+          const bValid = !isNaN(bDate.getTime())
+          
+          if (!aValid && !bValid) return 0
+          if (!aValid) return orderDirection === 'ASC' ? 1 : -1  // Invalidは最後に
+          if (!bValid) return orderDirection === 'ASC' ? -1 : 1
+          
+          const aTime = aDate.getTime()
+          const bTime = bDate.getTime()
+          
+          return orderDirection === 'ASC' ? aTime - bTime : bTime - aTime
+        }
+        
+        // 数値カラムの場合は強制的に数値として処理（DATEカラムは除く）
+        if (isNumericColumn && !isDateColumn) {
+          const aNum = typeof aValue === 'number' ? aValue : parseFloat(String(aValue))
+          const bNum = typeof bValue === 'number' ? bValue : parseFloat(String(bValue))
+          
+          console.log('🔢 Forced numeric sort (column type):', { aNum, bNum, direction: orderDirection })
+          
+          // NaNの場合の処理
+          if (isNaN(aNum) && isNaN(bNum)) return 0
+          if (isNaN(aNum)) return orderDirection === 'ASC' ? -1 : 1
+          if (isNaN(bNum)) return orderDirection === 'ASC' ? 1 : -1
+          
+          return orderDirection === 'ASC' ? aNum - bNum : bNum - aNum
+        }
+        
+        // フォールバック: 日付の可能性を確認
+        const looksLikeDate = (value: any): boolean => {
+          const str = String(value).trim()
+          return /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/.test(str) || 
+                 /^\d{4}\/\d{2}\/\d{2}/.test(str) ||
+                 /^\d{4}年\d{1,2}月\d{1,2}日(\s+\d{1,2}時\d{1,2}分\d{1,2}秒?)?/.test(str)  // 日本語形式（時分秒含む）
+        }
+        
+        if (looksLikeDate(aValue) || looksLikeDate(bValue)) {
+          // 日付として処理
+          const parseJapaneseDate = (value: any): Date => {
+            const str = String(value).trim()
+            
+            // 日本語形式の場合：2025年07月06日 09時00分00秒
+            const jpMatch = str.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2})時(\d{1,2})分(\d{1,2})秒?/)
+            if (jpMatch) {
+              const [, year, month, day, hour, minute, second] = jpMatch
+              const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour || '0'), parseInt(minute || '0'), parseInt(second || '0'))
+              console.log('🇯🇵 Japanese date parsed:', { input: str, output: date.toISOString(), year, month, day, hour, minute, second })
+              return date
+            }
+            
+            // 日本語形式（日付のみ）：2025年07月06日
+            const jpDateMatch = str.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/)
+            if (jpDateMatch) {
+              const [, year, month, day] = jpDateMatch
+              const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+              console.log('🇯🇵 Japanese date only parsed:', { input: str, output: date.toISOString() })
+              return date
+            }
+            
+            // その他の形式は標準のDateコンストラクタで処理
+            const standardDate = new Date(value)
+            console.log('📅 Standard date parse:', { input: str, output: standardDate.toISOString() })
+            return standardDate
+          }
+          
+          const aDate = parseJapaneseDate(aValue)
+          const bDate = parseJapaneseDate(bValue)
+          
+          console.log('📅 Fallback date sort:', { 
+            aValue, bValue, 
+            aDate: isNaN(aDate.getTime()) ? 'Invalid' : aDate.toISOString(), 
+            bDate: isNaN(bDate.getTime()) ? 'Invalid' : bDate.toISOString(), 
+            direction: orderDirection 
+          })
+          
+          const aValid = !isNaN(aDate.getTime())
+          const bValid = !isNaN(bDate.getTime())
+          
+          if (!aValid && !bValid) return 0
+          if (!aValid) return orderDirection === 'ASC' ? 1 : -1
+          if (!bValid) return orderDirection === 'ASC' ? -1 : 1
+          
+          const aTime = aDate.getTime()
+          const bTime = bDate.getTime()
+          
+          return orderDirection === 'ASC' ? aTime - bTime : bTime - aTime
+        }
+        
+        // 数値比較（カラム型が不明の場合のフォールバック）
+        const aNum = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+        const bNum = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+        
+        // 両方が有効な数値の場合
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          console.log('🔢 Auto-detected numeric sort:', { aNum, bNum, direction: orderDirection })
+          return orderDirection === 'ASC' ? aNum - bNum : bNum - aNum
+        }
+        
+        // 文字列比較
+        const aStr = String(aValue)
+        const bStr = String(bValue)
+        console.log('🔤 String sort:', { aStr, bStr, direction: orderDirection })
+        const comparison = aStr.localeCompare(bStr)
+        return orderDirection === 'ASC' ? comparison : -comparison
+      })
+      
+      console.log('✅ MemoryDataStore: Data sorted by', orderColumn, orderDirection)
+      console.log('📋 Sample data after sort:', data.slice(0, 5).map(row => ({ [orderColumn]: row[orderColumn] })))
+    }
+
     // LIMIT句を解析
     const limitMatch = sql.match(/LIMIT\s+(\d+)(?:\s+OFFSET\s+(\d+))?/i)
     let limit = data.length
@@ -110,7 +306,19 @@ class MemoryDataStore {
     }
     
     // データを返す
-    return data.slice(offset, offset + limit)
+    const result = data.slice(offset, offset + limit)
+    
+    // ソートが適用された場合の最終結果を確認
+    if (orderMatch) {
+      const orderColumn = orderMatch[1]
+      console.log('🔍 Final result sample:', result.slice(0, 5).map((row, index) => ({
+        index,
+        [orderColumn]: row[orderColumn],
+        type: typeof row[orderColumn]
+      })))
+    }
+    
+    return result
   }
 
   private executeDescribe(sql: string): any[] {
@@ -200,11 +408,27 @@ class MemoryDataStore {
       }
       
       // 日付チェック（いくつかの一般的な形式）
-      if (/^\d{4}-\d{2}-\d{2}/.test(strValue) || 
+      // ISO形式（YYYY-MM-DDTHH:MM:SS）、標準日付形式、日本語形式など
+      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/.test(strValue) || 
           /^\d{2}\/\d{2}\/\d{4}/.test(strValue) ||
-          /^\d{4}\/\d{2}\/\d{2}/.test(strValue)) {
+          /^\d{4}\/\d{2}\/\d{2}/.test(strValue) ||
+          /^\d{4}-\d{1,2}-\d{1,2}/.test(strValue) ||
+          /^\d{4}年\d{1,2}月\d{1,2}日(\s+\d{1,2}時\d{1,2}分\d{1,2}秒?)?/.test(strValue)) {
         try {
-          const date = new Date(strValue)
+          let date: Date
+          // 日本語形式の場合は専用パーサーを使用
+          if (/^\d{4}年\d{1,2}月\d{1,2}日/.test(strValue)) {
+            const jpMatch = strValue.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日(\s+(\d{1,2})時(\d{1,2})分(\d{1,2})秒?)?/)
+            if (jpMatch) {
+              const [, year, month, day, , hour, minute, second] = jpMatch
+              date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour || '0'), parseInt(minute || '0'), parseInt(second || '0'))
+            } else {
+              date = new Date(strValue)
+            }
+          } else {
+            date = new Date(strValue)
+          }
+          
           if (!isNaN(date.getTime())) {
             dateCount++
             continue

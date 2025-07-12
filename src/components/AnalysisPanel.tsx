@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { BarChart, LineChart, TrendingUp, Activity, Zap, Database, Type } from 'lucide-react'
+import { BarChart, LineChart, TrendingUp, Activity, Zap, Database, Type, ChevronUp, ChevronDown } from 'lucide-react'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -1480,7 +1480,20 @@ function FactorAnalysisResults({ factorAnalysis }: { factorAnalysis: FactorAnaly
 function FactorAnalysisTable({ factorAnalysis }: { factorAnalysis: FactorAnalysisResult }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
   // 全ての因子負荷量をフラット化
   const allLoadings = factorAnalysis.factors.flatMap((factor, factorIndex) =>
     factor.loadings.map(loading => ({
@@ -1492,11 +1505,37 @@ function FactorAnalysisTable({ factorAnalysis }: { factorAnalysis: FactorAnalysi
     }))
   )
   
+  // ソートされたデータ
+  const sortedLoadings = [...allLoadings].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 文字列の場合
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    // 数値の場合
+    const numA = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+    const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+    
+    return sortDirection === 'asc' ? numA - numB : numB - numA
+  })
+
   // ページネーション計算
-  const totalPages = Math.ceil(allLoadings.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedLoadings.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentLoadings = allLoadings.slice(startIndex, endIndex)
+  const currentLoadings = sortedLoadings.slice(startIndex, endIndex)
   
   return (
     <div className="space-y-4 mt-6">
@@ -1525,10 +1564,82 @@ function FactorAnalysisTable({ factorAnalysis }: { factorAnalysis: FactorAnalysi
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">主成分</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">変数</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">負荷量</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">寄与率</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('factor')}>
+                  <div className="flex items-center justify-between">
+                    <span>主成分</span>
+                    <div className="ml-2">
+                      {sortColumn === 'factor' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('variable')}>
+                  <div className="flex items-center justify-between">
+                    <span>変数</span>
+                    <div className="ml-2">
+                      {sortColumn === 'variable' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('loading')}>
+                  <div className="flex items-center justify-between">
+                    <span>負荷量</span>
+                    <div className="ml-2">
+                      {sortColumn === 'loading' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('variance')}>
+                  <div className="flex items-center justify-between">
+                    <span>寄与率</span>
+                    <div className="ml-2">
+                      {sortColumn === 'variance' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">強度</th>
               </tr>
             </thead>
@@ -2399,6 +2510,8 @@ interface MissingDataTableProps {
 function MissingDataTable({ events }: MissingDataTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   
   if (!events || events.length === 0) {
     return (
@@ -2408,11 +2521,48 @@ function MissingDataTable({ events }: MissingDataTableProps) {
     )
   }
   
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedEvents = [...events].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 文字列の場合
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    // 数値の場合
+    const numA = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+    const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+    
+    return sortDirection === 'asc' ? numA - numB : numB - numA
+  })
+
   // ページネーション計算
-  const totalPages = Math.ceil(events.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedEvents.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentEvents = events.slice(startIndex, endIndex)
+  const currentEvents = sortedEvents.slice(startIndex, endIndex)
   
   return (
     <div className="space-y-4">
@@ -2441,20 +2591,100 @@ function MissingDataTable({ events }: MissingDataTableProps) {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  行番号
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('rowIndex')}>
+                  <div className="flex items-center justify-between">
+                    <span>行番号</span>
+                    <div className="ml-2">
+                      {sortColumn === 'rowIndex' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  カラム
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('columnName')}>
+                  <div className="flex items-center justify-between">
+                    <span>カラム</span>
+                    <div className="ml-2">
+                      {sortColumn === 'columnName' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  イベント
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('eventType')}>
+                  <div className="flex items-center justify-between">
+                    <span>イベント</span>
+                    <div className="ml-2">
+                      {sortColumn === 'eventType' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  値
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('value')}>
+                  <div className="flex items-center justify-between">
+                    <span>値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'value' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  欠損期間
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('missingLength')}>
+                  <div className="flex items-center justify-between">
+                    <span>欠損期間</span>
+                    <div className="ml-2">
+                      {sortColumn === 'missingLength' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -2553,6 +2783,8 @@ interface TimeSeriesTableProps {
 function TimeSeriesTable({ data }: TimeSeriesTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   
   if (!data || data.length === 0) {
     return (
@@ -2562,11 +2794,54 @@ function TimeSeriesTable({ data }: TimeSeriesTableProps) {
     )
   }
   
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedData = [...data].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // time, labelの場合の特殊処理
+    if (sortColumn === 'time') {
+      aValue = a.time || a.label
+      bValue = b.time || b.label
+    }
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 文字列の場合
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    // 数値の場合
+    const numA = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+    const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+    
+    return sortDirection === 'asc' ? numA - numB : numB - numA
+  })
+
   // ページネーション計算
-  const totalPages = Math.ceil(data.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentData = data.slice(startIndex, endIndex)
+  const currentData = sortedData.slice(startIndex, endIndex)
   
   // データの構造を確認して適切な列を決定
   const hasMovingAverage = data.some(row => row.movingAverage !== undefined)
@@ -2599,20 +2874,84 @@ function TimeSeriesTable({ data }: TimeSeriesTableProps) {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  時間
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('time')}>
+                  <div className="flex items-center justify-between">
+                    <span>時間</span>
+                    <div className="ml-2">
+                      {sortColumn === 'time' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  値
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('value')}>
+                  <div className="flex items-center justify-between">
+                    <span>値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'value' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
                 {hasMovingAverage && (
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                    移動平均
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('movingAverage')}>
+                    <div className="flex items-center justify-between">
+                      <span>移動平均</span>
+                      <div className="ml-2">
+                        {sortColumn === 'movingAverage' ? (
+                          sortDirection === 'asc' ? (
+                            <ChevronUp className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-blue-500" />
+                          )
+                        ) : (
+                          <div className="h-4 w-4 opacity-30">
+                            <ChevronUp className="h-2 w-4 text-gray-400" />
+                            <ChevronDown className="h-2 w-4 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </th>
                 )}
                 {hasTrend && (
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                    トレンド値
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('trend')}>
+                    <div className="flex items-center justify-between">
+                      <span>トレンド値</span>
+                      <div className="ml-2">
+                        {sortColumn === 'trend' ? (
+                          sortDirection === 'asc' ? (
+                            <ChevronUp className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-blue-500" />
+                          )
+                        ) : (
+                          <div className="h-4 w-4 opacity-30">
+                            <ChevronUp className="h-2 w-4 text-gray-400" />
+                            <ChevronDown className="h-2 w-4 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </th>
                 )}
               </tr>
@@ -2705,6 +3044,8 @@ interface BasicStatsTableProps {
 function BasicStatsTable({ stats }: BasicStatsTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   
   if (!stats || stats.length === 0) {
     return (
@@ -2714,11 +3055,54 @@ function BasicStatsTable({ stats }: BasicStatsTableProps) {
     )
   }
   
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedStats = [...stats].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // 特殊なケース（quartiles）
+    if (sortColumn === 'q1' || sortColumn === 'q2' || sortColumn === 'q3') {
+      aValue = a.quartiles?.[sortColumn]
+      bValue = b.quartiles?.[sortColumn]
+    }
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 文字列の場合
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    // 数値の場合
+    const numA = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+    const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+    
+    return sortDirection === 'asc' ? numA - numB : numB - numA
+  })
+
   // ページネーション計算
-  const totalPages = Math.ceil(stats.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedStats.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentStats = stats.slice(startIndex, endIndex)
+  const currentStats = sortedStats.slice(startIndex, endIndex)
   
   return (
     <div className="space-y-4 mt-6">
@@ -2747,15 +3131,177 @@ function BasicStatsTable({ stats }: BasicStatsTableProps) {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列名</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">件数</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">平均</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">標準偏差</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">最小値</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">最大値</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">Q1</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">中央値</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">Q3</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('columnName')}>
+                  <div className="flex items-center justify-between">
+                    <span>列名</span>
+                    <div className="ml-2">
+                      {sortColumn === 'columnName' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('count')}>
+                  <div className="flex items-center justify-between">
+                    <span>件数</span>
+                    <div className="ml-2">
+                      {sortColumn === 'count' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('mean')}>
+                  <div className="flex items-center justify-between">
+                    <span>平均</span>
+                    <div className="ml-2">
+                      {sortColumn === 'mean' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('std')}>
+                  <div className="flex items-center justify-between">
+                    <span>標準偏差</span>
+                    <div className="ml-2">
+                      {sortColumn === 'std' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('min')}>
+                  <div className="flex items-center justify-between">
+                    <span>最小値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'min' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('max')}>
+                  <div className="flex items-center justify-between">
+                    <span>最大値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'max' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('q1')}>
+                  <div className="flex items-center justify-between">
+                    <span>Q1</span>
+                    <div className="ml-2">
+                      {sortColumn === 'q1' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('q2')}>
+                  <div className="flex items-center justify-between">
+                    <span>中央値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'q2' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('q3')}>
+                  <div className="flex items-center justify-between">
+                    <span>Q3</span>
+                    <div className="ml-2">
+                      {sortColumn === 'q3' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -2839,6 +3385,8 @@ interface CorrelationTableProps {
 function CorrelationTable({ correlations }: CorrelationTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   
   if (!correlations || correlations.length === 0) {
     return (
@@ -2848,11 +3396,48 @@ function CorrelationTable({ correlations }: CorrelationTableProps) {
     )
   }
   
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedCorrelations = [...correlations].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 文字列の場合
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    // 数値の場合
+    const numA = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+    const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+    
+    return sortDirection === 'asc' ? numA - numB : numB - numA
+  })
+
   // ページネーション計算
-  const totalPages = Math.ceil(correlations.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedCorrelations.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentCorrelations = correlations.slice(startIndex, endIndex)
+  const currentCorrelations = sortedCorrelations.slice(startIndex, endIndex)
   
   return (
     <div className="space-y-4 mt-6">
@@ -2881,9 +3466,63 @@ function CorrelationTable({ correlations }: CorrelationTableProps) {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列1</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">列2</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">相関係数</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('column1')}>
+                  <div className="flex items-center justify-between">
+                    <span>列1</span>
+                    <div className="ml-2">
+                      {sortColumn === 'column1' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('column2')}>
+                  <div className="flex items-center justify-between">
+                    <span>列2</span>
+                    <div className="ml-2">
+                      {sortColumn === 'column2' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('correlation')}>
+                  <div className="flex items-center justify-between">
+                    <span>相関係数</span>
+                    <div className="ml-2">
+                      {sortColumn === 'correlation' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">強度</th>
               </tr>
             </thead>
@@ -2973,6 +3612,8 @@ interface HistogramTableProps {
 function HistogramTable({ data }: HistogramTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   
   if (!data || data.length === 0) {
     return (
@@ -2982,11 +3623,48 @@ function HistogramTable({ data }: HistogramTableProps) {
     )
   }
   
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedData = [...data].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 文字列の場合
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    // 数値の場合
+    const numA = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+    const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+    
+    return sortDirection === 'asc' ? numA - numB : numB - numA
+  })
+
   // ページネーション計算
-  const totalPages = Math.ceil(data.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentData = data.slice(startIndex, endIndex)
+  const currentData = sortedData.slice(startIndex, endIndex)
   
   return (
     <div className="space-y-4 mt-6">
@@ -3015,9 +3693,63 @@ function HistogramTable({ data }: HistogramTableProps) {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">区間</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">度数</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">頻度 (%)</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('bin')}>
+                  <div className="flex items-center justify-between">
+                    <span>区間</span>
+                    <div className="ml-2">
+                      {sortColumn === 'bin' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('count')}>
+                  <div className="flex items-center justify-between">
+                    <span>度数</span>
+                    <div className="ml-2">
+                      {sortColumn === 'count' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('frequency')}>
+                  <div className="flex items-center justify-between">
+                    <span>頻度 (%)</span>
+                    <div className="ml-2">
+                      {sortColumn === 'frequency' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -3095,6 +3827,8 @@ interface ChangePointTableProps {
 function ChangePointTable({ points }: ChangePointTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   
   if (!points || points.length === 0) {
     return (
@@ -3104,11 +3838,48 @@ function ChangePointTable({ points }: ChangePointTableProps) {
     )
   }
   
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedPoints = [...points].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 文字列の場合
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    // 数値の場合
+    const numA = typeof aValue === 'number' ? aValue : parseFloat(aValue)
+    const numB = typeof bValue === 'number' ? bValue : parseFloat(bValue)
+    
+    return sortDirection === 'asc' ? numA - numB : numB - numA
+  })
+
   // ページネーション計算
-  const totalPages = Math.ceil(points.length / itemsPerPage)
+  const totalPages = Math.ceil(sortedPoints.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentPoints = points.slice(startIndex, endIndex)
+  const currentPoints = sortedPoints.slice(startIndex, endIndex)
   
   return (
     <div className="space-y-4">
@@ -3137,17 +3908,81 @@ function ChangePointTable({ points }: ChangePointTableProps) {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  インデックス
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('index')}>
+                  <div className="flex items-center justify-between">
+                    <span>インデックス</span>
+                    <div className="ml-2">
+                      {sortColumn === 'index' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  値
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('value')}>
+                  <div className="flex items-center justify-between">
+                    <span>値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'value' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  信頼度
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('confidence')}>
+                  <div className="flex items-center justify-between">
+                    <span>信頼度</span>
+                    <div className="ml-2">
+                      {sortColumn === 'confidence' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  アルゴリズム
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('algorithm')}>
+                  <div className="flex items-center justify-between">
+                    <span>アルゴリズム</span>
+                    <div className="ml-2">
+                      {sortColumn === 'algorithm' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </th>
               </tr>
             </thead>
