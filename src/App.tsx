@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Database, Upload, Settings, BarChart3, Activity } from 'lucide-react'
-import { DataSourceManager } from './components/DataSourceManager'
+import { Upload, Settings, BarChart3 } from 'lucide-react'
 import { FileUpload } from './components/FileUpload'
 import { DataPreview } from './components/DataPreview'
 import { AnalysisPanel } from './components/AnalysisPanel'
-import { RealtimeManager } from './components/RealtimeManager'
 import { ThemeSettings } from './components/ThemeSettings'
+import { DataSimulator } from './components/DataSimulator'
 import { useDataStore, type DataTable } from './store/dataStore'
 import { memoryDataStore } from './lib/memoryDataStore'
 import { ThemeProvider } from './contexts/ThemeContext'
 
 function App() {
-  const [activeTab, setActiveTab] = useState('data')
+  const [activeTab, setActiveTab] = useState('upload')
   const { currentTable, tables, setCurrentTable, removeTable, removeTableByNameAndConnection } = useDataStore()
 
   // Webkitスクロールバーを隠すためのスタイル
@@ -61,17 +60,6 @@ function App() {
           {/* デスクトップ用のタブ */}
           <div className="hidden md:flex space-x-8">
             <button
-              onClick={() => setActiveTab('data')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'data'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              <Database className="inline h-4 w-4 mr-1" />
-              データソース
-            </button>
-            <button
               onClick={() => setActiveTab('upload')}
               className={`py-3 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'upload'
@@ -94,17 +82,6 @@ function App() {
               分析・可視化
             </button>
             <button
-              onClick={() => setActiveTab('realtime')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'realtime'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              <Activity className="inline h-4 w-4 mr-1" />
-              リアルタイム
-            </button>
-            <button
               onClick={() => setActiveTab('settings')}
               className={`py-3 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'settings'
@@ -120,17 +97,6 @@ function App() {
           {/* モバイル用のスクロール可能なタブ */}
           <div className="md:hidden">
             <div className="flex overflow-x-auto scrollbar-hide space-x-1 py-2">
-              <button
-                onClick={() => setActiveTab('data')}
-                className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
-                  activeTab === 'data'
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Database className="h-4 w-4 mx-auto mb-1" />
-                <span className="block">データソース</span>
-              </button>
               <button
                 onClick={() => setActiveTab('upload')}
                 className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
@@ -154,17 +120,6 @@ function App() {
                 <span className="block">分析・可視化</span>
               </button>
               <button
-                onClick={() => setActiveTab('realtime')}
-                className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
-                  activeTab === 'realtime'
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Activity className="h-4 w-4 mx-auto mb-1" />
-                <span className="block">リアルタイム</span>
-              </button>
-              <button
                 onClick={() => setActiveTab('settings')}
                 className={`flex-shrink-0 px-3 py-2 rounded-md text-xs font-medium ${
                   activeTab === 'settings'
@@ -182,11 +137,6 @@ function App() {
 
       <main className="max-w-7xl mx-auto py-4 sm:py-6 px-4 sm:px-6 lg:px-8">
         <div className="py-4 sm:py-6">
-          {activeTab === 'data' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 transition-colors">
-              <DataSourceManager />
-            </div>
-          )}
           {activeTab === 'upload' && (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 transition-colors">
               <FileUpload onNavigateToSettings={() => setActiveTab('settings')} />
@@ -362,22 +312,65 @@ function App() {
               )}
             </div>
           )}
-          {activeTab === 'realtime' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 transition-colors">
-              <RealtimeManager />
-            </div>
-          )}
           {activeTab === 'settings' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 transition-colors">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-6">設定</h2>
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 transition-colors">
+                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-6">設定</h2>
+                
+                <ThemeSettings />
+              </div>
               
-              <ThemeSettings />
+              <ExperimentalFeatures />
             </div>
           )}
         </div>
       </main>
       </div>
     </ThemeProvider>
+  )
+}
+
+function ExperimentalFeatures() {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 transition-colors">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-600 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-800/30 transition-colors"
+      >
+        <div className="flex items-center space-x-3">
+          <span className="text-yellow-600 dark:text-yellow-400">⚠️</span>
+          <div className="text-left">
+            <h3 className="font-medium text-yellow-800 dark:text-yellow-200">実験的機能</h3>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              テスト用のデータシミュレーター機能です
+            </p>
+          </div>
+        </div>
+        <span className="text-yellow-600 dark:text-yellow-400">
+          {isExpanded ? '▼' : '▶'}
+        </span>
+      </button>
+      
+      {isExpanded && (
+        <div className="mt-4 p-4 border-t border-gray-200 dark:border-gray-600">
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-md">
+            <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+              データシミュレーターについて
+            </h4>
+            <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+              <li>• 分析機能のテスト用にリアルなサンプルデータを生成します</li>
+              <li>• 欠損データの処理テストに役立つ様々な欠損パターンを生成できます</li>
+              <li>• 数値分析、グラフ作成、フィルター機能の動作確認に使用してください</li>
+              <li>• 生成されたデータは一時的なものでブラウザを閉じると消えます</li>
+            </ul>
+          </div>
+          
+          <DataSimulator />
+        </div>
+      )}
+    </div>
   )
 }
 

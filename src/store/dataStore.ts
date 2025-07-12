@@ -14,23 +14,6 @@ const generateUUID = () => {
   })
 }
 
-export interface DataConnection {
-  id: string
-  name: string
-  type: 'postgresql' | 'mysql' | 'sqlite' | 'file'
-  config: {
-    host?: string
-    port?: number
-    database?: string
-    username?: string
-    password?: string
-    ssl?: boolean
-    filePath?: string
-  }
-  isConnected: boolean
-  lastConnected?: Date
-}
-
 export interface DataTable {
   id: string
   name: string
@@ -56,7 +39,6 @@ export interface DataFilter {
 }
 
 export interface DataStoreState {
-  connections: DataConnection[]
   tables: DataTable[]
   currentTable: DataTable | null
   isLoading: boolean
@@ -64,11 +46,6 @@ export interface DataStoreState {
   filters: DataFilter[]
   
   // Actions
-  addConnection: (connection: Omit<DataConnection, 'id' | 'isConnected'>) => void
-  removeConnection: (id: string) => void
-  updateConnection: (id: string, updates: Partial<DataConnection>) => void
-  setConnectionStatus: (id: string, isConnected: boolean) => void
-  
   addTable: (table: Omit<DataTable, 'id'>) => void
   removeTable: (id: string) => void
   removeTableByNameAndConnection: (name: string, connectionId: string) => void
@@ -88,48 +65,11 @@ export interface DataStoreState {
 export const useDataStore = create<DataStoreState>()(
   persist(
     (set) => ({
-      connections: [],
       tables: [],
       currentTable: null,
       isLoading: false,
       error: null,
       filters: [],
-      
-      addConnection: (connection) => {
-        const newConnection: DataConnection = {
-          ...connection,
-          id: generateUUID(),
-          isConnected: false,
-        }
-        set(state => ({
-          connections: [...state.connections, newConnection]
-        }))
-      },
-      
-      removeConnection: (id) => {
-        set(state => ({
-          connections: state.connections.filter(conn => conn.id !== id),
-          tables: state.tables.filter(table => table.connectionId !== id)
-        }))
-      },
-      
-      updateConnection: (id, updates) => {
-        set(state => ({
-          connections: state.connections.map(conn =>
-            conn.id === id ? { ...conn, ...updates } : conn
-          )
-        }))
-      },
-      
-      setConnectionStatus: (id, isConnected) => {
-        set(state => ({
-          connections: state.connections.map(conn =>
-            conn.id === id 
-              ? { ...conn, isConnected, lastConnected: isConnected ? new Date() : conn.lastConnected }
-              : conn
-          )
-        }))
-      },
       
       addTable: (table) => {
         const newTable: DataTable = {
@@ -225,7 +165,6 @@ export const useDataStore = create<DataStoreState>()(
       name: 'data-analyzer-store',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        connections: state.connections,
         tables: state.tables,
         filters: state.filters,
       }),
