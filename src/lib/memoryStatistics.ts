@@ -210,30 +210,59 @@ export async function getCorrelationMatrix(
   }
 }
 
-// CUSUM変化点検出アルゴリズム
+// CUSUM変化点検出アルゴリズム（改善版：トレンド除去）
 function detectCUSUM(data: Array<{index: number, value: number}>, threshold: number = 5, delta: number = 1) {
+  if (data.length < 10) return []
+  
   const values = data.map(d => d.value)
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length
+  
+  // 線形トレンドを除去してからCUSUMを適用
+  const n = values.length
+  const sumX = values.reduce((sum, _, i) => sum + i, 0)
+  const sumY = values.reduce((sum, val) => sum + val, 0)
+  const sumXY = values.reduce((sum, val, i) => sum + i * val, 0)
+  const sumXX = values.reduce((sum, _, i) => sum + i * i, 0)
+  
+  // 線形回帰の係数を計算
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  const intercept = (sumY - slope * sumX) / n
+  
+  // トレンド除去済みデータ
+  const detrendedValues = values.map((val, i) => val - (slope * i + intercept))
+  const mean = detrendedValues.reduce((sum, val) => sum + val, 0) / detrendedValues.length
   
   let cusumPlus = 0
   let cusumMinus = 0
   const changePoints = []
   
-  for (let i = 0; i < data.length; i++) {
-    cusumPlus = Math.max(0, cusumPlus + data[i].value - mean - delta)
-    cusumMinus = Math.min(0, cusumMinus + data[i].value - mean + delta)
+  for (let i = 0; i < detrendedValues.length; i++) {
+    cusumPlus = Math.max(0, cusumPlus + detrendedValues[i] - mean - delta)
+    cusumMinus = Math.min(0, cusumMinus + detrendedValues[i] - mean + delta)
     
     if (cusumPlus > threshold || Math.abs(cusumMinus) > threshold) {
-      const confidence = Math.min(Math.max(cusumPlus, Math.abs(cusumMinus)) / threshold, 3.0) / 3.0
-      changePoints.push({
-        index: data[i].index,
-        originalIndex: i,
-        value: data[i].value,
-        confidence,
-        cusumPlus,
-        cusumMinus,
-        algorithm: 'CUSUM'
-      })
+      // 局所的なトレンド変化を確認
+      const windowSize = Math.min(10, Math.floor(data.length / 5))
+      const beforeTrend = calculateLocalSlope(values, Math.max(0, i - windowSize), i)
+      const afterTrend = calculateLocalSlope(values, i, Math.min(values.length, i + windowSize))
+      const trendChange = Math.abs(afterTrend - beforeTrend)
+      
+      // トレンドの変化が十分大きい場合のみ変化点として認識
+      if (trendChange > 0.1) {
+        const confidence = Math.min(Math.max(cusumPlus, Math.abs(cusumMinus)) / threshold, 3.0) / 3.0
+        changePoints.push({
+          index: data[i].index,
+          originalIndex: i,
+          value: data[i].value,
+          confidence,
+          cusumPlus,
+          cusumMinus,
+          beforeTrend,
+          afterTrend,
+          trendChange,
+          algorithm: 'CUSUM'
+        })
+      }
+      
       // CUSUMをリセット
       cusumPlus = 0
       cusumMinus = 0
@@ -243,30 +272,79 @@ function detectCUSUM(data: Array<{index: number, value: number}>, threshold: num
   return changePoints
 }
 
-// EWMA変化点検出アルゴリズム
+// 局所的な傾きを計算するヘルパー関数
+function calculateLocalSlope(values: number[], start: number, end: number): number {
+  if (end <= start || end - start < 2) return 0
+  
+  const segment = values.slice(start, end)
+  const n = segment.length
+  const sumX = segment.reduce((sum, _, i) => sum + i, 0)
+  const sumY = segment.reduce((sum, val) => sum + val, 0)
+  const sumXY = segment.reduce((sum, val, i) => sum + i * val, 0)
+  const sumXX = segment.reduce((sum, _, i) => sum + i * i, 0)
+  
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  return isNaN(slope) ? 0 : slope
+}
+
+// EWMA変化点検出アルゴリズム（改善版：適応的閾値とトレンド考慮）
 function detectEWMA(data: Array<{index: number, value: number}>, lambda: number = 0.1, threshold: number = 3) {
+  if (data.length < 10) return []
+  
   const values = data.map(d => d.value)
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length
-  const std = Math.sqrt(values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length)
   
-  let ewma = mean
+  // 初期のEWMAを計算（最初の数点の平均）
+  const initialPoints = Math.min(5, values.length)
+  let ewma = values.slice(0, initialPoints).reduce((sum, val) => sum + val, 0) / initialPoints
+  let ewmaVariance = 0
+  
   const changePoints = []
+  const deviations = []
   
-  for (let i = 0; i < data.length; i++) {
+  // 適応的標準偏差を計算
+  for (let i = initialPoints; i < data.length; i++) {
+    const oldEwma = ewma
     ewma = lambda * data[i].value + (1 - lambda) * ewma
-    const deviation = Math.abs(data[i].value - ewma) / std
     
-    if (deviation > threshold) {
-      const confidence = Math.min(deviation / threshold, 3.0) / 3.0
-      changePoints.push({
-        index: data[i].index,
-        originalIndex: i,
-        value: data[i].value,
-        confidence,
-        ewma,
-        deviation,
-        algorithm: 'EWMA'
-      })
+    // EWMAの変動を追跡
+    const prediction = oldEwma
+    const error = data[i].value - prediction
+    deviations.push(Math.abs(error))
+    
+    // 局所的な標準偏差を計算（過去20点）
+    const recentDeviations = deviations.slice(-20)
+    const localStd = Math.sqrt(recentDeviations.reduce((sum, dev) => sum + dev * dev, 0) / recentDeviations.length)
+    
+    const normalizedDeviation = Math.abs(error) / (localStd + 1e-6) // ゼロ除算回避
+    
+    if (normalizedDeviation > threshold) {
+      // 前後の局所トレンドを確認
+      const windowSize = Math.min(10, Math.floor(data.length / 5))
+      const beforeTrend = calculateLocalSlope(values, Math.max(0, i - windowSize), i)
+      const afterStart = Math.min(i + 1, values.length - windowSize)
+      const afterEnd = Math.min(i + windowSize + 1, values.length)
+      const afterTrend = calculateLocalSlope(values, afterStart, afterEnd)
+      
+      // トレンド変化または分散変化を確認
+      const trendChange = Math.abs(afterTrend - beforeTrend)
+      const isSignificantChange = trendChange > 0.1 || normalizedDeviation > threshold * 1.5
+      
+      if (isSignificantChange) {
+        const confidence = Math.min(normalizedDeviation / threshold, 3.0) / 3.0
+        changePoints.push({
+          index: data[i].index,
+          originalIndex: i,
+          value: data[i].value,
+          confidence,
+          ewma,
+          deviation: normalizedDeviation,
+          localStd,
+          beforeTrend,
+          afterTrend,
+          trendChange,
+          algorithm: 'EWMA'
+        })
+      }
     }
   }
   
@@ -345,15 +423,29 @@ function detectPELT(data: Array<{index: number, value: number}>, penalty: number
   // 各点で最適な前の変化点を記録
   const previousChangePoint = new Array(n + 1).fill(-1)
   
-  // セグメント内のコスト計算関数（分散ベース）
+  // セグメント内のコスト計算関数（トレンド除去後の分散ベース）
   function segmentCost(start: number, end: number): number {
     if (end <= start) return 0
     
     const segmentData = values.slice(start, end)
-    const mean = segmentData.reduce((sum, val) => sum + val, 0) / segmentData.length
-    const variance = segmentData.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0)
+    const segmentLength = segmentData.length
     
-    return variance
+    if (segmentLength < 3) return 0 // 短すぎるセグメントはコスト0
+    
+    // セグメント内の線形トレンドを計算
+    const sumX = segmentData.reduce((sum, _, i) => sum + i, 0)
+    const sumY = segmentData.reduce((sum, val) => sum + val, 0)
+    const sumXY = segmentData.reduce((sum, val, i) => sum + i * val, 0)
+    const sumXX = segmentData.reduce((sum, _, i) => sum + i * i, 0)
+    
+    const slope = (segmentLength * sumXY - sumX * sumY) / (segmentLength * sumXX - sumX * sumX)
+    const intercept = (sumY - slope * sumX) / segmentLength
+    
+    // トレンド除去後の残差の分散を計算
+    const residuals = segmentData.map((val, i) => val - (slope * i + intercept))
+    const residualVariance = residuals.reduce((sum, res) => sum + res * res, 0)
+    
+    return isNaN(residualVariance) ? 0 : residualVariance
   }
   
   // 動的プログラミング
@@ -660,38 +752,59 @@ export async function detectChangePoints(
         break
       case 'moving_average':
       default:
-        // 元の移動平均法を実行
+        // 改善された移動平均法（トレンド除去とより厳密な判定）
         const allValues = workingData.map(d => d.value)
-        const globalMean = allValues.reduce((sum, val) => sum + val, 0) / allValues.length
-        const globalStd = Math.sqrt(
-          allValues.reduce((sum, val) => sum + Math.pow(val - globalMean, 2), 0) / allValues.length
+        
+        // 全体のトレンドを計算
+        const n = allValues.length
+        const sumX = allValues.reduce((sum, _, i) => sum + i, 0)
+        const sumY = allValues.reduce((sum, val) => sum + val, 0)
+        const sumXY = allValues.reduce((sum, val, i) => sum + i * val, 0)
+        const sumXX = allValues.reduce((sum, _, i) => sum + i * i, 0)
+        
+        const globalSlope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+        const globalIntercept = (sumY - globalSlope * sumX) / n
+        
+        // トレンド除去済みデータ
+        const detrendedValues = allValues.map((val, i) => val - (globalSlope * i + globalIntercept))
+        const detrendedStd = Math.sqrt(
+          detrendedValues.reduce((sum, val) => sum + val * val, 0) / detrendedValues.length
         )
         
-        const detectionThreshold = globalStd * threshold
+        const detectionThreshold = detrendedStd * threshold
         let beforeSum = 0
         let afterSum = 0
         
-        // 初期窓の計算
+        // 初期窓の計算（トレンド除去済みデータで）
         for (let i = 0; i < windowSize; i++) {
-          beforeSum += workingData[i].value
+          beforeSum += detrendedValues[i]
         }
-        for (let i = windowSize; i < Math.min(windowSize * 2, workingData.length); i++) {
-          afterSum += workingData[i].value
+        for (let i = windowSize; i < Math.min(windowSize * 2, detrendedValues.length); i++) {
+          afterSum += detrendedValues[i]
         }
         
         for (let i = windowSize; i < workingData.length - windowSize; i++) {
           // 移動窓の効率的更新
           if (i > windowSize) {
-            beforeSum = beforeSum - workingData[i - windowSize - 1].value + workingData[i - 1].value
-            afterSum = afterSum - workingData[i + windowSize - 1].value + workingData[Math.min(i + windowSize, workingData.length - 1)].value
+            beforeSum = beforeSum - detrendedValues[i - windowSize - 1] + detrendedValues[i - 1]
+            afterSum = afterSum - detrendedValues[i + windowSize - 1] + detrendedValues[Math.min(i + windowSize, detrendedValues.length - 1)]
           }
           
           const beforeMeanCurrent = beforeSum / windowSize
           const afterMeanCurrent = afterSum / windowSize
-          const difference = Math.abs(afterMeanCurrent - beforeMeanCurrent)
+          const meanDifference = Math.abs(afterMeanCurrent - beforeMeanCurrent)
           
-          if (difference > detectionThreshold) {
-            const confidence = Math.min(difference / detectionThreshold, 3.0) / 3.0
+          // 局所的なトレンド変化も確認
+          const beforeTrend = calculateLocalSlope(allValues, Math.max(0, i - windowSize), i)
+          const afterTrend = calculateLocalSlope(allValues, i, Math.min(allValues.length, i + windowSize))
+          const trendChange = Math.abs(afterTrend - beforeTrend)
+          
+          // 平均の変化とトレンドの変化の両方を考慮
+          const isSignificantMeanChange = meanDifference > detectionThreshold
+          const isSignificantTrendChange = trendChange > 0.1
+          
+          if (isSignificantMeanChange && isSignificantTrendChange) {
+            const confidence = Math.min(meanDifference / detectionThreshold, 3.0) / 3.0
             
             changePoints.push({
               index: workingData[i].index,
@@ -700,7 +813,10 @@ export async function detectChangePoints(
               confidence,
               beforeMean: beforeMeanCurrent,
               afterMean: afterMeanCurrent,
-              difference,
+              meanDifference,
+              beforeTrend,
+              afterTrend,
+              trendChange,
               algorithm: 'Moving Average'
             })
           }

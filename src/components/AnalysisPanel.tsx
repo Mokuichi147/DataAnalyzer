@@ -900,7 +900,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               />
               <div>
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">移動平均法</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">短期・長期移動平均の差分で検出。安定した結果。</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">トレンド除去後の平均変化で検出。一定増加を除外。</div>
               </div>
             </label>
             
@@ -915,7 +915,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               />
               <div>
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">CUSUM</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">累積和による検出。小さな変化にも敏感。</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">トレンド除去後の累積和。実際の変化点のみ検出。</div>
               </div>
             </label>
             
@@ -930,7 +930,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               />
               <div>
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">EWMA</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">指数重み付き移動平均。最近のデータを重視。</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">適応的閾値とトレンド考慮。過検出を抑制。</div>
               </div>
             </label>
             
@@ -960,7 +960,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               />
               <div>
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">PELT</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">統計的最適化。ペナルティ項で過検出を抑制。</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">トレンド除去後の残差分散。統計的に最適化。</div>
               </div>
             </label>
             
