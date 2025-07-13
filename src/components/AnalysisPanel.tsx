@@ -174,7 +174,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   const [xAxisColumn, setXAxisColumn] = useState<string>('index') // 横軸カラム選択
   const [analysisResults, setAnalysisResults] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation' | 'pelt' | 'trend_detection' | 'variance_detection'>('moving_average')
+  const [changePointAlgorithm, setChangePointAlgorithm] = useState<'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation' | 'pelt' | 'variance_detection'>('moving_average')
   const [missingDataOptions, setMissingDataOptions] = useState<MissingDataOptions>({
     includeZero: true,
     includeEmpty: true
@@ -968,21 +968,6 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               <input
                 type="radio"
                 name="changepoint-algorithm"
-                value="trend_detection"
-                checked={changePointAlgorithm === 'trend_detection'}
-                onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
-                className="mt-1"
-              />
-              <div>
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-200 transition-colors">トレンド検出</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 transition-colors">上昇・下降トレンドの変化点を特定。</div>
-              </div>
-            </label>
-            
-            <label className="flex items-start space-x-3 cursor-pointer">
-              <input
-                type="radio"
-                name="changepoint-algorithm"
                 value="variance_detection"
                 checked={changePointAlgorithm === 'variance_detection'}
                 onChange={(e) => setChangePointAlgorithm(e.target.value as any)}
@@ -1384,7 +1369,7 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
               データの全体的な傾向は上記のグラフで確認できます。
             </p>
             <p className="text-xs text-yellow-500 dark:text-yellow-500 mt-2">
-              より感度の高いアルゴリズム（CUSUM、EWMA、トレンド検出、分散検出）を試すか、閾値パラメータを調整してみてください。
+              より感度の高いアルゴリズム（CUSUM、EWMA、分散検出）を試すか、閾値パラメータを調整してみてください。
             </p>
           </div>
         ) : (
@@ -1418,7 +1403,7 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
           アルゴリズムや閾値パラメータを変更してみてください。
         </p>
         <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
-          新しいアルゴリズム（PELT、トレンド検出、分散検出）では、データの全体像も確認できます。
+          新しいアルゴリズム（PELT、分散検出）では、データの全体像も確認できます。
         </p>
       </div>
     )
@@ -4071,6 +4056,44 @@ function ChangePointTable({ points }: ChangePointTableProps) {
                     </div>
                   </div>
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('slope')}>
+                  <div className="flex items-center justify-between">
+                    <span>傾き</span>
+                    <div className="ml-2">
+                      {sortColumn === 'slope' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('intercept')}>
+                  <div className="flex items-center justify-between">
+                    <span>切片</span>
+                    <div className="ml-2">
+                      {sortColumn === 'intercept' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -4114,12 +4137,28 @@ function ChangePointTable({ points }: ChangePointTableProps) {
                           point.changeType === 'decrease_volatility' ? '分散減少' :
                           point.changeType === 'trend_change' ? 'トレンド変化' :
                           point.changeType === 'variance_change' ? '分散変化' :
+                          point.changeType === 'setpoint_change' ? '設定値変更' :
+                          point.changeType === 'level_increase' ? 'レベル上昇' :
+                          point.changeType === 'level_decrease' ? 'レベル下降' :
+                          point.changeType?.includes('with_noise_change') ? point.changeType.replace('_with_noise_change', '+ノイズ変化') :
                           point.changeType || '一般'
                         }
                       </span>
                     ) : (
                       <span className="text-gray-500 dark:text-gray-400">-</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-300 transition-colors">
+                    {point.slope !== undefined ? formatNumber(point.slope) : 
+                     point.beforeTrend !== undefined ? formatNumber(point.beforeTrend) :
+                     point.afterTrend !== undefined ? formatNumber(point.afterTrend) :
+                     '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-gray-300 transition-colors">
+                    {point.intercept !== undefined ? formatNumber(point.intercept) : 
+                     point.beforeMean !== undefined ? formatNumber(point.beforeMean) :
+                     point.afterMean !== undefined ? formatNumber(point.afterMean) :
+                     '-'}
                   </td>
                 </tr>
               ))}

@@ -44,7 +44,7 @@ export interface ColumnAnalysisResult {
   }
 }
 
-export type ChangePointAlgorithm = 'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation' | 'pelt' | 'trend_detection' | 'variance_detection'
+export type ChangePointAlgorithm = 'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation' | 'pelt' | 'variance_detection'
 
 export interface ChangePointOptions {
   algorithm?: ChangePointAlgorithm
@@ -63,9 +63,6 @@ export interface ChangePointOptions {
   // PELT用パラメータ
   penalty?: number
   minseglen?: number
-  // トレンド検出用パラメータ
-  trendWindowSize?: number
-  trendThreshold?: number
   // 分散検出用パラメータ
   varianceWindowSize?: number
   varianceThreshold?: number
@@ -74,6 +71,35 @@ export interface ChangePointOptions {
 // 数値に変換できるかチェック
 function isNumeric(value: any): boolean {
   return !isNaN(parseFloat(value)) && isFinite(value)
+}
+
+// 簡単な線形回帰計算（共通関数）
+function calculateSimpleRegression(dataSegment: Array<{index: number, value: number}>): {slope: number, intercept: number} {
+  if (dataSegment.length < 2) {
+    return { slope: 0, intercept: 0 }
+  }
+  
+  const n = dataSegment.length
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0
+  
+  for (let i = 0; i < n; i++) {
+    const x = i
+    const y = dataSegment[i].value
+    sumX += x
+    sumY += y
+    sumXY += x * y
+    sumXX += x * x
+  }
+  
+  const denominator = n * sumXX - sumX * sumX
+  if (Math.abs(denominator) < 1e-10) {
+    return { slope: 0, intercept: sumY / n }
+  }
+  
+  const slope = (n * sumXY - sumX * sumY) / denominator
+  const intercept = (sumY - slope * sumX) / n
+  
+  return { slope, intercept }
 }
 
 // 数値データのみを抽出
@@ -248,6 +274,17 @@ function detectCUSUM(data: Array<{index: number, value: number}>, threshold: num
       
       // トレンドの変化が十分大きい場合のみ変化点として認識
       if (trendChange > 0.1) {
+        // 変化点前後での線形回帰を計算
+        const windowSize = Math.min(10, Math.floor(values.length / 10))
+        const beforeStart = Math.max(0, i - windowSize)
+        const afterEnd = Math.min(values.length, i + windowSize)
+        
+        const beforeData = data.slice(beforeStart, i)
+        const afterData = data.slice(i, afterEnd)
+        
+        const beforeRegression = calculateSimpleRegression(beforeData)
+        const afterRegression = calculateSimpleRegression(afterData)
+        
         const confidence = Math.min(Math.max(cusumPlus, Math.abs(cusumMinus)) / threshold, 3.0) / 3.0
         changePoints.push({
           index: data[i].index,
@@ -259,7 +296,11 @@ function detectCUSUM(data: Array<{index: number, value: number}>, threshold: num
           beforeTrend,
           afterTrend,
           trendChange,
-          algorithm: 'CUSUM'
+          algorithm: 'CUSUM',
+          slope: afterRegression.slope,
+          intercept: afterRegression.intercept,
+          beforeSlope: beforeRegression.slope,
+          beforeIntercept: beforeRegression.intercept
         })
       }
       
@@ -502,154 +543,7 @@ function detectPELT(data: Array<{index: number, value: number}>, penalty: number
   return changePoints
 }
 
-// トレンド変化検出アルゴリズム - 計算最適化版（全データ処理）
-function detectTrendChanges(data: Array<{index: number, value: number}>, windowSize: number = 10, threshold: number = 0.5): any[] {
-  const changePoints: any[] = []
-  const n = data.length
-  
-  if (n < windowSize * 2) return changePoints
-  
-  // 大量データの場合はウィンドウサイズを動的調整
-  const adaptiveWindowSize = Math.min(windowSize, Math.max(5, Math.floor(n / 100)))
-  
-  // トレンド計算の最適化：累積統計を事前計算（全データ）
-  const cumSum = new Array(n + 1).fill(0)
-  const cumSumX = new Array(n + 1).fill(0)
-  const cumSumXY = new Array(n + 1).fill(0)
-  const cumSumXX = new Array(n + 1).fill(0)
-  
-  for (let i = 0; i < n; i++) {
-    cumSum[i + 1] = cumSum[i] + data[i].value
-    cumSumX[i + 1] = cumSumX[i] + i
-    cumSumXY[i + 1] = cumSumXY[i] + i * data[i].value
-    cumSumXX[i + 1] = cumSumXX[i] + i * i
-  }
-  
-  // 高速なトレンド計算関数（O(1)計算）
-  function calculateLocalTrendFast(start: number, end: number): number {
-    const len = end - start
-    if (len < 2) return 0
-    
-    const sumY = cumSum[end] - cumSum[start]
-    const sumX = cumSumX[end] - cumSumX[start] - start * len
-    const sumXY = cumSumXY[end] - cumSumXY[start] - start * sumY
-    const sumXXAdj = cumSumXX[end] - cumSumXX[start] - 2 * start * (cumSumX[end] - cumSumX[start]) + start * start * len
-    
-    const denominator = len * sumXXAdj - sumX * sumX
-    if (Math.abs(denominator) < 1e-10) return 0
-    
-    const slope = (len * sumXY - sumX * sumY) / denominator
-    return isNaN(slope) ? 0 : slope
-  }
-  
-  // 効率的なピーク・ボトム判定（サンプリング使用）
-  function isActualPeakOrValley(centerIndex: number, checkWindow: number): { isPeak: boolean, isValley: boolean } {
-    const start = Math.max(0, centerIndex - checkWindow)
-    const end = Math.min(n, centerIndex + checkWindow + 1)
-    const centerValue = data[centerIndex].value
-    
-    let higherCount = 0
-    let lowerCount = 0
-    let totalPoints = 0
-    
-    // 効率的なサンプリング（最大20点をチェック）
-    const sampleStep = Math.max(1, Math.floor((end - start) / 20))
-    for (let i = start; i < end; i += sampleStep) {
-      if (i === centerIndex) continue
-      totalPoints++
-      
-      if (data[i].value > centerValue) higherCount++
-      else if (data[i].value < centerValue) lowerCount++
-    }
-    
-    const isPeak = totalPoints > 0 && higherCount / totalPoints < 0.25
-    const isValley = totalPoints > 0 && lowerCount / totalPoints < 0.25
-    
-    return { isPeak, isValley }
-  }
-  
-  // 全データを処理するが、処理頻度を動的調整
-  const processingStep = Math.max(1, Math.floor(n / 500)) // 最大500候補点
-  
-  // 事前に計算したトレンドをキャッシュ
-  const trendCache = new Map<string, number>()
-  
-  function getCachedTrend(start: number, end: number): number {
-    const key = `${start}-${end}`
-    if (trendCache.has(key)) {
-      return trendCache.get(key)!
-    }
-    const trend = calculateLocalTrendFast(start, end)
-    trendCache.set(key, trend)
-    return trend
-  }
-  
-  for (let i = adaptiveWindowSize; i < n - adaptiveWindowSize; i += processingStep) {
-    const beforeTrend = getCachedTrend(i - adaptiveWindowSize, i)
-    const afterTrend = getCachedTrend(i, i + adaptiveWindowSize)
-    
-    const trendChange = Math.abs(afterTrend - beforeTrend)
-    
-    if (trendChange > threshold) {
-      let changeType = 'trend_change'
-      
-      // 効率的な変化種別判定
-      if (beforeTrend > 0.1 && afterTrend < -0.1) {
-        const { isPeak } = isActualPeakOrValley(i, Math.floor(adaptiveWindowSize / 2))
-        changeType = isPeak ? 'peak' : 'trend_change'
-      } else if (beforeTrend < -0.1 && afterTrend > 0.1) {
-        const { isValley } = isActualPeakOrValley(i, Math.floor(adaptiveWindowSize / 2))
-        changeType = isValley ? 'valley' : 'trend_change'
-      } else if (Math.abs(beforeTrend) < 0.1 && Math.abs(afterTrend) > threshold) {
-        changeType = afterTrend > 0 ? 'start_increase' : 'start_decrease'
-      } else if (Math.abs(beforeTrend) > 0.1 && Math.abs(afterTrend) < 0.1) {
-        changeType = beforeTrend > 0 ? 'end_increase' : 'end_decrease'
-      }
-      
-      const trendStrength = Math.max(Math.abs(beforeTrend), Math.abs(afterTrend))
-      const confidence = Math.min((trendChange / threshold) * (trendStrength + 0.1), 1.0)
-      
-      // より厳格な閾値で高品質な変化点のみを抽出
-      if (confidence > 0.5) {
-        changePoints.push({
-          index: data[i].index,
-          originalIndex: i,
-          value: data[i].value,
-          confidence,
-          beforeTrend,
-          afterTrend,
-          trendChange,
-          changeType,
-          algorithm: 'Trend Detection'
-        })
-      }
-    }
-  }
-  
-  // 近接した変化点を統合して重要な変化点のみを残す
-  const consolidatedPoints: any[] = []
-  const minDistance = Math.max(adaptiveWindowSize, 10)
-  
-  for (const point of changePoints) {
-    const tooClose = consolidatedPoints.some(existing => 
-      Math.abs(existing.originalIndex - point.originalIndex) < minDistance
-    )
-    
-    if (!tooClose || consolidatedPoints.length === 0) {
-      consolidatedPoints.push(point)
-    } else {
-      // より信頼度の高い変化点を残す
-      const closeIndex = consolidatedPoints.findIndex(existing =>
-        Math.abs(existing.originalIndex - point.originalIndex) < minDistance
-      )
-      if (closeIndex >= 0 && point.confidence > consolidatedPoints[closeIndex].confidence) {
-        consolidatedPoints[closeIndex] = point
-      }
-    }
-  }
-  
-  return consolidatedPoints
-}
+
 
 // 分散変化検出アルゴリズム
 function detectVarianceChanges(data: Array<{index: number, value: number}>, windowSize: number = 15, threshold: number = 2.0): any[] {
@@ -819,8 +713,6 @@ export async function detectChangePoints(
       minSegmentSize = 5,
       penalty = 10,
       minseglen = Math.max(3, Math.floor(workingData.length / 30)),
-      trendWindowSize = Math.max(5, Math.min(15, Math.floor(workingData.length / 15))),
-      trendThreshold = 0.5,
       varianceWindowSize = Math.max(10, Math.min(20, Math.floor(workingData.length / 10))),
       varianceThreshold = 2.0
     } = options
@@ -845,10 +737,6 @@ export async function detectChangePoints(
       case 'pelt':
         changePoints = detectPELT(workingData, penalty, minseglen)
         algorithmName = 'PELT'
-        break
-      case 'trend_detection':
-        changePoints = detectTrendChanges(workingData, trendWindowSize, trendThreshold)
-        algorithmName = 'Trend Detection'
         break
       case 'variance_detection':
         changePoints = detectVarianceChanges(workingData, varianceWindowSize, varianceThreshold)
@@ -936,6 +824,7 @@ export async function detectChangePoints(
     
     // 変化点の種別で色分けするための設定
     const changePointColors = {
+      // 従来のタイプ
       peak: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: 'ピーク' },
       valley: { color: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.8)', name: 'ボトム' },
       start_increase: { color: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.8)', name: '上昇開始' },
@@ -946,11 +835,18 @@ export async function detectChangePoints(
       increase_volatility: { color: 'rgb(236, 72, 153)', bg: 'rgba(236, 72, 153, 0.8)', name: '分散増加' },
       decrease_volatility: { color: 'rgb(14, 165, 233)', bg: 'rgba(14, 165, 233, 0.8)', name: '分散減少' },
       variance_change: { color: 'rgb(139, 69, 19)', bg: 'rgba(139, 69, 19, 0.8)', name: '分散変化' },
+      // センサーデータ用の新しいタイプ
+      setpoint_change: { color: 'rgb(251, 146, 60)', bg: 'rgba(251, 146, 60, 0.8)', name: '設定値変更' },
+      level_increase: { color: 'rgb(16, 185, 129)', bg: 'rgba(16, 185, 129, 0.8)', name: 'レベル上昇' },
+      level_decrease: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: 'レベル下降' },
+      'level_increase_with_noise_change': { color: 'rgb(52, 211, 153)', bg: 'rgba(52, 211, 153, 0.8)', name: 'レベル上昇+ノイズ変化' },
+      'level_decrease_with_noise_change': { color: 'rgb(248, 113, 113)', bg: 'rgba(248, 113, 113, 0.8)', name: 'レベル下降+ノイズ変化' },
+      'setpoint_change_with_noise_change': { color: 'rgb(251, 191, 36)', bg: 'rgba(251, 191, 36, 0.8)', name: '設定値+ノイズ変化' },
       default: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: '変化点' }
     }
     
     // 変化点を種別ごとにグループ分け
-    const changePointsByType = changePoints.reduce((acc, cp) => {
+    const changePointsByType = (changePoints || []).reduce((acc, cp) => {
       const type = cp.changeType || 'default'
       if (!acc[type]) {
         acc[type] = []
@@ -958,6 +854,9 @@ export async function detectChangePoints(
       acc[type].push(cp)
       return acc
     }, {} as Record<string, any[]>)
+    
+    console.log('🔍 Change points by type:', changePointsByType)
+    console.log('🔍 Total change points:', changePoints.length)
     
     // データセットを構築（描画順：線 → 点）
     const datasets: any[] = [
@@ -1030,9 +929,9 @@ export async function detectChangePoints(
         processedSize: workingData.length
       },
       statistics: {
-        totalChangePoints: changePoints.length,
-        averageConfidence: changePoints.length > 0 
-          ? changePoints.reduce((sum, cp) => sum + cp.confidence, 0) / changePoints.length 
+        totalChangePoints: (changePoints || []).length,
+        averageConfidence: (changePoints || []).length > 0 
+          ? (changePoints || []).reduce((sum, cp) => sum + cp.confidence, 0) / (changePoints || []).length 
           : 0,
         algorithm: algorithmName,
         algorithmOptions: options
