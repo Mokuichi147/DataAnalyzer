@@ -44,6 +44,24 @@ export interface ColumnAnalysisResult {
   }
 }
 
+// 変化点の種別で色分けするための設定（グラフとテーブル表示で統一）
+export const changePointColors = {
+  // 従来のタイプ
+  peak: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: 'ピーク', tableClass: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  valley: { color: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.8)', name: 'ボトム', tableClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  start_increase: { color: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.8)', name: '上昇開始', tableClass: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  start_decrease: { color: 'rgb(251, 146, 60)', bg: 'rgba(251, 146, 60, 0.8)', name: '下降開始', tableClass: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+  increase_volatility: { color: 'rgb(168, 85, 247)', bg: 'rgba(168, 85, 247, 0.8)', name: '分散増加', tableClass: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+  decrease_volatility: { color: 'rgb(99, 102, 241)', bg: 'rgba(99, 102, 241, 0.8)', name: '分散減少', tableClass: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' },
+  variance_change: { color: 'rgb(139, 69, 19)', bg: 'rgba(139, 69, 19, 0.8)', name: '分散変化', tableClass: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
+  trend_change: { color: 'rgb(107, 114, 128)', bg: 'rgba(107, 114, 128, 0.8)', name: 'トレンド変化', tableClass: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' },
+  setpoint_change: { color: 'rgb(245, 158, 11)', bg: 'rgba(245, 158, 11, 0.8)', name: '設定値変更', tableClass: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
+  // メインタイプ
+  level_increase: { color: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.8)', name: 'レベル上昇', tableClass: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  level_decrease: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: 'レベル下降', tableClass: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  default: { color: 'rgb(156, 163, 175)', bg: 'rgba(156, 163, 175, 0.8)', name: '変化点', tableClass: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' }
+}
+
 export type ChangePointAlgorithm = 'moving_average' | 'cusum' | 'ewma' | 'binary_segmentation' | 'pelt' | 'variance_detection'
 
 export interface ChangePointOptions {
@@ -273,7 +291,7 @@ function detectCUSUM(data: Array<{index: number, value: number}>, threshold: num
       const trendChange = Math.abs(afterTrend - beforeTrend)
       
       // トレンドの変化が十分大きい場合のみ変化点として認識
-      if (trendChange > 0.1) {
+      if (trendChange > 0.5) { // 閾値を上げて過剰検出を防ぐ
         // 変化点前後での線形回帰を計算
         const windowSize = Math.min(10, Math.floor(values.length / 10))
         const beforeStart = Math.max(0, i - windowSize)
@@ -284,6 +302,10 @@ function detectCUSUM(data: Array<{index: number, value: number}>, threshold: num
         
         const beforeRegression = calculateSimpleRegression(beforeData)
         const afterRegression = calculateSimpleRegression(afterData)
+        
+        // 変化の方向を判定
+        const changeDirection = cusumPlus > Math.abs(cusumMinus) ? 'increase' : 'decrease'
+        const changeType = `level_${changeDirection}`
         
         const confidence = Math.min(Math.max(cusumPlus, Math.abs(cusumMinus)) / threshold, 3.0) / 3.0
         changePoints.push({
@@ -296,11 +318,14 @@ function detectCUSUM(data: Array<{index: number, value: number}>, threshold: num
           beforeTrend,
           afterTrend,
           trendChange,
+          changeType,
           algorithm: 'CUSUM',
           slope: afterRegression.slope,
           intercept: afterRegression.intercept,
           beforeSlope: beforeRegression.slope,
-          beforeIntercept: beforeRegression.intercept
+          afterSlope: afterRegression.slope,
+          beforeIntercept: beforeRegression.intercept,
+          afterIntercept: afterRegression.intercept
         })
       }
       
@@ -368,9 +393,21 @@ function detectEWMA(data: Array<{index: number, value: number}>, lambda: number 
       
       // トレンド変化または分散変化を確認
       const trendChange = Math.abs(afterTrend - beforeTrend)
-      const isSignificantChange = trendChange > 0.1 || normalizedDeviation > threshold * 1.5
+      const isSignificantChange = trendChange > 0.5 || normalizedDeviation > threshold * 2.0 // より厳しい条件
       
       if (isSignificantChange) {
+        // 変化の方向を判定
+        const changeDirection = afterTrend > beforeTrend ? 'increase' : 'decrease'
+        const changeType = `level_${changeDirection}`
+        
+        // 局所的な線形回帰を計算
+        const windowSize = Math.min(10, Math.floor(data.length / 10))
+        const beforeData = data.slice(Math.max(0, i - windowSize), i)
+        const afterData = data.slice(i, Math.min(data.length, i + windowSize))
+        
+        const beforeRegression = calculateSimpleRegression(beforeData)
+        const afterRegression = calculateSimpleRegression(afterData)
+        
         const confidence = Math.min(normalizedDeviation / threshold, 3.0) / 3.0
         changePoints.push({
           index: data[i].index,
@@ -383,6 +420,13 @@ function detectEWMA(data: Array<{index: number, value: number}>, lambda: number 
           beforeTrend,
           afterTrend,
           trendChange,
+          changeType,
+          slope: afterRegression.slope,
+          intercept: afterRegression.intercept,
+          beforeSlope: beforeRegression.slope,
+          afterSlope: afterRegression.slope,
+          beforeIntercept: beforeRegression.intercept,
+          afterIntercept: afterRegression.intercept,
           algorithm: 'EWMA'
         })
       }
@@ -434,12 +478,35 @@ function detectBinarySegmentation(data: Array<{index: number, value: number}>, m
       const confidence = Math.min(1 - (split.score / globalVariance), 1.0)
       
       if (confidence > 0.1) { // 閾値
+        // 変化の方向を判定
+        const beforeMean = values.slice(segment.start, split.index).reduce((sum, val) => sum + val, 0) / (split.index - segment.start)
+        const afterMean = values.slice(split.index, segment.end).reduce((sum, val) => sum + val, 0) / (segment.end - split.index)
+        const changeDirection = afterMean > beforeMean ? 'increase' : 'decrease'
+        const changeType = `level_${changeDirection}`
+        
+        // 局所的な線形回帰を計算
+        const windowSize = Math.min(10, Math.floor(values.length / 10))
+        const beforeData = data.slice(Math.max(0, split.index - windowSize), split.index)
+        const afterData = data.slice(split.index, Math.min(data.length, split.index + windowSize))
+        
+        const beforeRegression = calculateSimpleRegression(beforeData)
+        const afterRegression = calculateSimpleRegression(afterData)
+        
         changePoints.push({
           index: data[split.index].index,
           originalIndex: split.index,
           value: data[split.index].value,
           confidence,
           score: split.score,
+          beforeMean,
+          afterMean,
+          changeType,
+          slope: afterRegression.slope,
+          intercept: afterRegression.intercept,
+          beforeSlope: beforeRegression.slope,
+          afterSlope: afterRegression.slope,
+          beforeIntercept: beforeRegression.intercept,
+          afterIntercept: afterRegression.intercept,
           algorithm: 'Binary Segmentation'
         })
         
@@ -528,12 +595,42 @@ function detectPELT(data: Array<{index: number, value: number}>, penalty: number
     if (changePointIndex > 0) {
       const confidence = Math.min(F[current] / (penalty * 10), 1)
       
+      // 変化の方向を判定
+      const windowSize = Math.min(10, Math.floor(n / 10))
+      const beforeStart = Math.max(0, changePointIndex - windowSize)
+      const afterEnd = Math.min(n, changePointIndex + windowSize)
+      
+      const beforeValues = values.slice(beforeStart, changePointIndex)
+      const afterValues = values.slice(changePointIndex, afterEnd)
+      
+      const beforeMean = beforeValues.length > 0 ? beforeValues.reduce((sum, val) => sum + val, 0) / beforeValues.length : values[changePointIndex]
+      const afterMean = afterValues.length > 0 ? afterValues.reduce((sum, val) => sum + val, 0) / afterValues.length : values[changePointIndex]
+      
+      const changeDirection = afterMean > beforeMean ? 'increase' : 'decrease'
+      const changeType = `level_${changeDirection}`
+      
+      // 局所的な線形回帰を計算
+      const beforeData = data.slice(beforeStart, changePointIndex)
+      const afterData = data.slice(changePointIndex, afterEnd)
+      
+      const beforeRegression = calculateSimpleRegression(beforeData)
+      const afterRegression = calculateSimpleRegression(afterData)
+      
       changePoints.unshift({
         index: data[changePointIndex].index,
         originalIndex: changePointIndex,
         value: data[changePointIndex].value,
         confidence,
         cost: F[current],
+        beforeMean,
+        afterMean,
+        changeType,
+        slope: afterRegression.slope,
+        intercept: afterRegression.intercept,
+        beforeSlope: beforeRegression.slope,
+        afterSlope: afterRegression.slope,
+        beforeIntercept: beforeRegression.intercept,
+        afterIntercept: afterRegression.intercept,
         algorithm: 'PELT'
       })
     }
@@ -581,6 +678,14 @@ function detectVarianceChanges(data: Array<{index: number, value: number}>, wind
       const significance = Math.max(beforeVariance, afterVariance) / (globalVariance + 1e-10)
       const confidence = Math.min(Math.abs(logVarianceRatio) / Math.log(threshold) * significance, 1.0)
       
+      // 局所的な線形回帰を計算
+      const regressionWindowSize = Math.min(10, Math.floor(data.length / 10))
+      const beforeData = data.slice(Math.max(0, i - regressionWindowSize), i)
+      const afterData = data.slice(i, Math.min(data.length, i + regressionWindowSize))
+      
+      const beforeRegression = calculateSimpleRegression(beforeData)
+      const afterRegression = calculateSimpleRegression(afterData)
+      
       changePoints.push({
         index: data[i].index,
         originalIndex: i,
@@ -591,6 +696,12 @@ function detectVarianceChanges(data: Array<{index: number, value: number}>, wind
         varianceRatio,
         changeType,
         significance,
+        slope: afterRegression.slope,
+        intercept: afterRegression.intercept,
+        beforeSlope: beforeRegression.slope,
+        afterSlope: afterRegression.slope,
+        beforeIntercept: beforeRegression.intercept,
+        afterIntercept: afterRegression.intercept,
         algorithm: 'Variance Detection'
       })
     }
@@ -763,7 +874,7 @@ export async function detectChangePoints(
           detrendedValues.reduce((sum, val) => sum + val * val, 0) / detrendedValues.length
         )
         
-        const detectionThreshold = detrendedStd * threshold
+        const detectionThreshold = detrendedStd * threshold * 3.0 // 閾値を3倍に増加
         let beforeSum = 0
         let afterSum = 0
         
@@ -791,12 +902,26 @@ export async function detectChangePoints(
           const afterTrend = calculateLocalSlope(allValues, i, Math.min(allValues.length, i + windowSize))
           const trendChange = Math.abs(afterTrend - beforeTrend)
           
-          // 平均の変化とトレンドの変化の両方を考慮
+          // より厳しい条件で変化点を検出
           const isSignificantMeanChange = meanDifference > detectionThreshold
-          const isSignificantTrendChange = trendChange > 0.1
+          const isSignificantTrendChange = trendChange > 0.5 // トレンド変化の閾値を上げる
           
           if (isSignificantMeanChange && isSignificantTrendChange) {
             const confidence = Math.min(meanDifference / detectionThreshold, 3.0) / 3.0
+            
+            // 信頼度が高い場合のみ採用
+            if (confidence < 0.5) continue
+            
+            // 変化の方向を判定
+            const changeDirection = afterMeanCurrent > beforeMeanCurrent ? 'increase' : 'decrease'
+            const changeType = `level_${changeDirection}`
+            
+            // 局所的な線形回帰を計算
+            const beforeSegment = workingData.slice(Math.max(0, i - windowSize), i)
+            const afterSegment = workingData.slice(i, Math.min(workingData.length, i + windowSize))
+            
+            const beforeRegression = calculateSimpleRegression(beforeSegment)
+            const afterRegression = calculateSimpleRegression(afterSegment)
             
             changePoints.push({
               index: workingData[i].index,
@@ -805,10 +930,17 @@ export async function detectChangePoints(
               confidence,
               beforeMean: beforeMeanCurrent,
               afterMean: afterMeanCurrent,
-              meanDifference,
+              meanChange: meanDifference,
               beforeTrend,
               afterTrend,
               trendChange,
+              changeType,
+              slope: afterRegression.slope,
+              intercept: afterRegression.intercept,
+              beforeSlope: beforeRegression.slope,
+              afterSlope: afterRegression.slope,
+              beforeIntercept: beforeRegression.intercept,
+              afterIntercept: afterRegression.intercept,
               algorithm: 'Moving Average'
             })
           }
@@ -822,28 +954,7 @@ export async function detectChangePoints(
     console.log('🔍 ChangePoints - Sample workingData:', workingData.slice(0, 3))
     console.log('🔍 ChangePoints - changePoints:', changePoints)
     
-    // 変化点の種別で色分けするための設定
-    const changePointColors = {
-      // 従来のタイプ
-      peak: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: 'ピーク' },
-      valley: { color: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.8)', name: 'ボトム' },
-      start_increase: { color: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.8)', name: '上昇開始' },
-      start_decrease: { color: 'rgb(168, 85, 247)', bg: 'rgba(168, 85, 247, 0.8)', name: '下降開始' },
-      end_increase: { color: 'rgb(99, 102, 241)', bg: 'rgba(99, 102, 241, 0.8)', name: '上昇終了' },
-      end_decrease: { color: 'rgb(217, 119, 6)', bg: 'rgba(217, 119, 6, 0.8)', name: '下降終了' },
-      trend_change: { color: 'rgb(245, 158, 11)', bg: 'rgba(245, 158, 11, 0.8)', name: 'トレンド変化' },
-      increase_volatility: { color: 'rgb(236, 72, 153)', bg: 'rgba(236, 72, 153, 0.8)', name: '分散増加' },
-      decrease_volatility: { color: 'rgb(14, 165, 233)', bg: 'rgba(14, 165, 233, 0.8)', name: '分散減少' },
-      variance_change: { color: 'rgb(139, 69, 19)', bg: 'rgba(139, 69, 19, 0.8)', name: '分散変化' },
-      // センサーデータ用の新しいタイプ
-      setpoint_change: { color: 'rgb(251, 146, 60)', bg: 'rgba(251, 146, 60, 0.8)', name: '設定値変更' },
-      level_increase: { color: 'rgb(16, 185, 129)', bg: 'rgba(16, 185, 129, 0.8)', name: 'レベル上昇' },
-      level_decrease: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: 'レベル下降' },
-      'level_increase_with_noise_change': { color: 'rgb(52, 211, 153)', bg: 'rgba(52, 211, 153, 0.8)', name: 'レベル上昇+ノイズ変化' },
-      'level_decrease_with_noise_change': { color: 'rgb(248, 113, 113)', bg: 'rgba(248, 113, 113, 0.8)', name: 'レベル下降+ノイズ変化' },
-      'setpoint_change_with_noise_change': { color: 'rgb(251, 191, 36)', bg: 'rgba(251, 191, 36, 0.8)', name: '設定値+ノイズ変化' },
-      default: { color: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.8)', name: '変化点' }
-    }
+    // 変化点の色設定を使用
     
     // 変化点を種別ごとにグループ分け
     const changePointsByType = (changePoints || []).reduce((acc, cp) => {
@@ -878,32 +989,42 @@ export async function detectChangePoints(
       }
     ]
     
-    // 2. 変化点の種別ごとにデータセットを作成（後に描画）
+    // 2. 変化点の種別ごとに縦線アノテーションを作成（全ての変化点を表示）
+    const annotations: any = {}
+    let totalAnnotations = 0
+    
     Object.entries(changePointsByType).forEach(([type, points]) => {
       const colorConfig = changePointColors[type as keyof typeof changePointColors] || changePointColors.default
       
-      datasets.push({
-        label: colorConfig.name,
-        type: 'scatter',
-        data: (points as any[]).map((cp: any) => {
-          const dataPoint = workingData[cp.originalIndex]
-          return {
-            x: isDateAxis 
-              ? (dataPoint?.originalXValue ? new Date(dataPoint.originalXValue) : new Date(cp.index))
-              : (dataPoint?.originalXValue || cp.index),
-            y: cp.value
+      // 信頼度でソートして全ての変化点を表示
+      const sortedPoints = (points as any[])
+        .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+      
+      sortedPoints.forEach((cp: any, index: number) => {
+        const dataPoint = workingData[cp.originalIndex]
+        const xValue = isDateAxis 
+          ? (dataPoint?.originalXValue ? new Date(dataPoint.originalXValue) : new Date(cp.index))
+          : (dataPoint?.originalXValue || cp.index)
+        
+        annotations[`${type}_${index}`] = {
+          type: 'line',
+          scaleID: 'x',
+          value: xValue,
+          borderColor: colorConfig.color,
+          borderWidth: 2,
+          borderDash: [5, 5], // 点線スタイル
+          label: {
+            content: `${colorConfig.name}`,
+            enabled: true,
+            position: 'top',
+            backgroundColor: colorConfig.bg,
+            color: colorConfig.color,
+            font: {
+              size: 10
+            }
           }
-        }),
-        borderColor: colorConfig.color,
-        backgroundColor: colorConfig.bg,
-        pointRadius: 8,
-        pointHoverRadius: 10,
-        pointStyle: 'circle',
-        pointBackgroundColor: colorConfig.bg,
-        pointBorderColor: colorConfig.color,
-        borderWidth: 2,
-        order: 0,  // 低い数値で前面に描画
-        yAxisID: 'y'
+        }
+        totalAnnotations++
       })
     })
     
@@ -917,6 +1038,7 @@ export async function detectChangePoints(
     return {
       changePoints,
       chartData,
+      annotations, // 縦線アノテーション情報を追加
       samplingInfo: sampledResult.isReduced ? {
         originalSize: sampledResult.originalSize,
         sampledSize: sampledResult.sampledSize,

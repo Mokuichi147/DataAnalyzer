@@ -192,7 +192,7 @@ export function getOptimizedChartOptions(
 /**
  * 変化点検出用の最適化されたChart.jsオプション
  */
-export function getChangePointChartOptions(dataSize: number, isDateAxis: boolean = false): OptimizedChartOptions {
+export function getChangePointChartOptions(dataSize: number, isDateAxis: boolean = false, annotations: any = {}): OptimizedChartOptions {
   const options = getOptimizedChartOptions(dataSize, 'line')
   const colors = getThemeAwareColors()
   
@@ -219,19 +219,11 @@ export function getChangePointChartOptions(dataSize: number, isDateAxis: boolean
         color: colors.text,
       },
       annotation: {
-        annotations: {
-          // 変化点マーカー用の設定は動的に追加
-        },
+        annotations: annotations, // 動的に受け取ったアノテーション設定を使用
       },
     },
     elements: {
       ...options.elements,
-      point: {
-        ...options.elements.point,
-        // 変化点は常に表示
-        radius: 3,
-        hoverRadius: 6,
-      },
     },
     scales: {
       ...options.scales,

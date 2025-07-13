@@ -15,6 +15,7 @@ import {
   ArcElement,
   ScatterController,
 } from 'chart.js'
+import annotationPlugin from 'chartjs-plugin-annotation'
 import 'chartjs-adapter-date-fns'
 import {
   getBasicStatistics as getBasicStatisticsOriginal,
@@ -35,6 +36,7 @@ import {
   getHistogramData as getHistogramDataMemory,
   getTimeSeriesData as getTimeSeriesDataMemory,
   getColumnAnalysis,
+  changePointColors,
   type ColumnAnalysisResult
 } from '@/lib/memoryStatistics'
 
@@ -74,7 +76,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  annotationPlugin
 )
 
 // Safari環境での scatter chart サポートのため、動的に ScatterController を登録
@@ -1311,7 +1314,7 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
       )
     }
 
-    const options = getChangePointChartOptions(performanceMetrics?.processedSize || points.length, changePoints.isDateAxis) as any
+    const options = getChangePointChartOptions(performanceMetrics?.processedSize || points.length, changePoints.isDateAxis, changePoints.annotations) as any
 
     return (
       <div>
@@ -1434,7 +1437,7 @@ function ChangePointResults({ changePoints }: { changePoints: any }) {
   }
 
   // チャートオプションを決定（従来形式では日付軸は使用しない）
-  const options = getChangePointChartOptions(changePoints.length, false) as any
+  const options = getChangePointChartOptions(changePoints.length, false, {}) as any
 
   return (
     <div>
@@ -3955,6 +3958,33 @@ function ChangePointTable({ points }: ChangePointTableProps) {
   
   return (
     <div className="space-y-4">
+      {/* 変化点の色と種別の説明 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
+        <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3 transition-colors">
+          変化点の種別と色の説明
+        </h5>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+          {Object.entries(changePointColors).map(([type, config]) => {
+            if (type === 'default') return null
+            const colorConfig = config as { color: string; name: string }
+            return (
+              <div key={type} className="flex items-center space-x-2">
+                <div 
+                  className="w-3 h-3 rounded-full border"
+                  style={{ backgroundColor: colorConfig.color }}
+                ></div>
+                <span className="text-gray-700 dark:text-gray-300 transition-colors">
+                  {colorConfig.name}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+        <p className="text-xs text-blue-700 dark:text-blue-300 mt-2 transition-colors">
+          ※ グラフと表には全ての変化点が表示されます。縦線の色は変化点の種別を表します。
+        </p>
+      </div>
+
       <div className="flex items-center justify-between">
         <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">変化点詳細</h4>
         <div className="flex items-center space-x-2">
@@ -4120,26 +4150,11 @@ function ChangePointTable({ points }: ChangePointTableProps) {
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 transition-colors">
                     {point.changeType ? (
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        point.changeType === 'peak' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                        point.changeType === 'valley' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                        point.changeType === 'start_increase' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                        point.changeType === 'start_decrease' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
-                        point.changeType === 'increase_volatility' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
-                        point.changeType === 'decrease_volatility' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' :
-                        'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                        changePointColors[point.changeType as keyof typeof changePointColors]?.tableClass || 
+                        changePointColors.default.tableClass
                       }`}>
                         {
-                          point.changeType === 'peak' ? 'ピーク' :
-                          point.changeType === 'valley' ? 'ボトム' :
-                          point.changeType === 'start_increase' ? '上昇開始' :
-                          point.changeType === 'start_decrease' ? '下降開始' :
-                          point.changeType === 'increase_volatility' ? '分散増加' :
-                          point.changeType === 'decrease_volatility' ? '分散減少' :
-                          point.changeType === 'trend_change' ? 'トレンド変化' :
-                          point.changeType === 'variance_change' ? '分散変化' :
-                          point.changeType === 'setpoint_change' ? '設定値変更' :
-                          point.changeType === 'level_increase' ? 'レベル上昇' :
-                          point.changeType === 'level_decrease' ? 'レベル下降' :
+                          changePointColors[point.changeType as keyof typeof changePointColors]?.name ||
                           point.changeType?.includes('with_noise_change') ? point.changeType.replace('_with_noise_change', '+ノイズ変化') :
                           point.changeType || '一般'
                         }
