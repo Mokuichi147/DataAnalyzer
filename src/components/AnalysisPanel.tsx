@@ -4178,87 +4178,7 @@ function AssociationRulesResults({ data }: { data: any }) {
       </div>
 
       {/* アソシエーション規則一覧 */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
-            アソシエーション規則 (信頼度順)
-          </h4>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 transition-colors">
-            "条件部 → 結論部" の形式で、if-then規則を表示
-          </p>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  規則
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  サポート
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  信頼度
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  リフト値
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  確信度
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
-              {rules.map((rule: any, index: number) => (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
-                          {rule.antecedent.join(', ')}
-                        </span>
-                        <span className="text-gray-500 dark:text-gray-400 transition-colors">→</span>
-                        <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
-                          {rule.consequent.join(', ')}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
-                    {(rule.support * 100).toFixed(1)}%
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
-                    <span className={`${
-                      rule.confidence >= 0.8 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : rule.confidence >= 0.6
-                        ? 'text-yellow-600 dark:text-yellow-400'
-                        : 'text-red-600 dark:text-red-400'
-                    } font-medium transition-colors`}>
-                      {(rule.confidence * 100).toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
-                    <span className={`${
-                      rule.lift > 1.5 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : rule.lift > 1.0
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-red-600 dark:text-red-400'
-                    } font-medium transition-colors`}>
-                      {rule.lift.toFixed(2)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
-                    {rule.conviction === Infinity ? '∞' : rule.conviction.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <AssociationRulesTable rules={rules} />
 
       {/* 指標の説明 */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
@@ -4391,105 +4311,7 @@ function MutualInformationResults({ data }: { data: any }) {
       )}
 
       {/* 相互情報量ペア一覧 */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
-          <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
-            相互情報量ペア分析 (相互情報量順)
-          </h4>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 transition-colors">
-            変数間の情報依存関係を定量化
-          </p>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  変数ペア
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  相互情報量
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  正規化MI
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  関係性
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  エントロピー1
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  エントロピー2
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
-                  結合エントロピー
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
-              {pairwiseResults.map((pair: any, index: number) => (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
-                          {pair.column1}
-                        </span>
-                        <span className="text-gray-500 dark:text-gray-400 transition-colors">↔</span>
-                        <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
-                          {pair.column2}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
-                    <span className={`font-medium transition-colors ${
-                      pair.mutualInformation > 1.0 
-                        ? 'text-red-600 dark:text-red-400' 
-                        : pair.mutualInformation > 0.5
-                        ? 'text-orange-600 dark:text-orange-400'
-                        : pair.mutualInformation > 0.1
-                        ? 'text-yellow-600 dark:text-yellow-400'
-                        : 'text-gray-600 dark:text-gray-400'
-                    }`}>
-                      {pair.mutualInformation.toFixed(4)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
-                    {pair.normalizedMI.toFixed(4)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center transition-colors">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                      pair.interpretation === 'Strong' 
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                        : pair.interpretation === 'Moderate'
-                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                        : pair.interpretation === 'Weak'
-                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                    }`}>
-                      {pair.interpretation === 'Strong' ? '強い' : 
-                       pair.interpretation === 'Moderate' ? '中程度' :
-                       pair.interpretation === 'Weak' ? '弱い' : '独立'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
-                    {pair.entropy1.toFixed(3)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
-                    {pair.entropy2.toFixed(3)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
-                    {pair.jointEntropy.toFixed(3)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <MutualInformationTable pairwiseResults={pairwiseResults} />
 
       {/* 理論的背景の説明 */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
@@ -4539,6 +4361,608 @@ function MutualInformationResults({ data }: { data: any }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function AssociationRulesTable({ rules }: { rules: any[] }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  
+  if (!rules || rules.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>アソシエーション規則がありません。</p>
+      </div>
+    )
+  }
+  
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedRules = [...rules].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 数値の場合
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    }
+    
+    // 文字列の場合
+    const strA = String(aValue).toLowerCase()
+    const strB = String(bValue).toLowerCase()
+    return sortDirection === 'asc' 
+      ? strA.localeCompare(strB)
+      : strB.localeCompare(strA)
+  })
+
+  // ページネーション計算
+  const totalPages = Math.ceil(sortedRules.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentRules = sortedRules.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+          アソシエーション規則
+        </h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+          <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+            "条件部 → 結論部" の形式で、if-then規則を表示
+          </p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  規則
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('support')}>
+                  <div className="flex items-center justify-center">
+                    <span>サポート</span>
+                    <div className="ml-2">
+                      {sortColumn === 'support' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('confidence')}>
+                  <div className="flex items-center justify-center">
+                    <span>信頼度</span>
+                    <div className="ml-2">
+                      {sortColumn === 'confidence' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('lift')}>
+                  <div className="flex items-center justify-center">
+                    <span>リフト値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'lift' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('conviction')}>
+                  <div className="flex items-center justify-center">
+                    <span>確信度</span>
+                    <div className="ml-2">
+                      {sortColumn === 'conviction' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
+              {currentRules.map((rule: any, index: number) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
+                        {rule.antecedent.join(', ')}
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400 transition-colors">→</span>
+                      <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
+                        {rule.consequent.join(', ')}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {(rule.support * 100).toFixed(1)}%
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`${
+                      rule.confidence >= 0.8 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : rule.confidence >= 0.6
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-red-600 dark:text-red-400'
+                    } font-medium transition-colors`}>
+                      {(rule.confidence * 100).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`${
+                      rule.lift > 1.5 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : rule.lift > 1.0
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-red-600 dark:text-red-400'
+                    } font-medium transition-colors`}>
+                      {rule.lift.toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {rule.conviction === Infinity ? '∞' : rule.conviction.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({rules.length}件)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, rules.length)} / 全{rules.length}件のアソシエーション規則
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MutualInformationTable({ pairwiseResults }: { pairwiseResults: any[] }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  
+  if (!pairwiseResults || pairwiseResults.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>相互情報量のペア結果がありません。</p>
+      </div>
+    )
+  }
+  
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedResults = [...pairwiseResults].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 数値の場合
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    }
+    
+    // 文字列の場合
+    const strA = String(aValue).toLowerCase()
+    const strB = String(bValue).toLowerCase()
+    return sortDirection === 'asc' 
+      ? strA.localeCompare(strB)
+      : strB.localeCompare(strA)
+  })
+
+  // ページネーション計算
+  const totalPages = Math.ceil(sortedResults.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentResults = sortedResults.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+          相互情報量ペア分析
+        </h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+          <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+            変数間の情報依存関係を定量化
+          </p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  変数ペア
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('mutualInformation')}>
+                  <div className="flex items-center justify-center">
+                    <span>相互情報量</span>
+                    <div className="ml-2">
+                      {sortColumn === 'mutualInformation' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('normalizedMI')}>
+                  <div className="flex items-center justify-center">
+                    <span>正規化MI</span>
+                    <div className="ml-2">
+                      {sortColumn === 'normalizedMI' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('interpretation')}>
+                  <div className="flex items-center justify-center">
+                    <span>関係性</span>
+                    <div className="ml-2">
+                      {sortColumn === 'interpretation' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('entropy1')}>
+                  <div className="flex items-center justify-center">
+                    <span>エントロピー1</span>
+                    <div className="ml-2">
+                      {sortColumn === 'entropy1' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('entropy2')}>
+                  <div className="flex items-center justify-center">
+                    <span>エントロピー2</span>
+                    <div className="ml-2">
+                      {sortColumn === 'entropy2' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('jointEntropy')}>
+                  <div className="flex items-center justify-center">
+                    <span>結合エントロピー</span>
+                    <div className="ml-2">
+                      {sortColumn === 'jointEntropy' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
+              {currentResults.map((pair: any, index: number) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
+                        {pair.column1}
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400 transition-colors">↔</span>
+                      <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
+                        {pair.column2}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`font-medium transition-colors ${
+                      pair.mutualInformation > 1.0 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : pair.mutualInformation > 0.5
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : pair.mutualInformation > 0.1
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {pair.mutualInformation.toFixed(4)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.normalizedMI.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center transition-colors">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                      pair.interpretation === 'Strong' 
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        : pair.interpretation === 'Moderate'
+                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                        : pair.interpretation === 'Weak'
+                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                    }`}>
+                      {pair.interpretation === 'Strong' ? '強い' : 
+                       pair.interpretation === 'Moderate' ? '中程度' :
+                       pair.interpretation === 'Weak' ? '弱い' : '独立'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.entropy1.toFixed(3)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.entropy2.toFixed(3)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.jointEntropy.toFixed(3)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({pairwiseResults.length}件)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, pairwiseResults.length)} / 全{pairwiseResults.length}件の相互情報量ペア
+        </div>
+      </div>
     </div>
   )
 }
