@@ -161,7 +161,7 @@ function formatNumber(value: number | undefined | null): string {
   }
 }
 
-type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing' | 'association'
+type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing' | 'association' | 'mutual'
 
 interface AnalysisPanelProps {
   tableName: string
@@ -512,6 +512,16 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             results = await analyzeAssociationRules(selectedColumnInfos, filters)
           }
           break
+        case 'mutual':
+          if (selectedColumns.length >= 2) {
+            const selectedColumnInfos = selectedColumns.map(colName => 
+              columns.find(col => col.name === colName)
+            ).filter(Boolean)
+            
+            const { analyzeMutualInformation } = await import('../lib/mutualInformation')
+            results = await analyzeMutualInformation(selectedColumnInfos, filters)
+          }
+          break
       }
       
       console.log('📈 Analysis results:', results)
@@ -649,6 +659,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       label: 'アソシエーション規則分析', 
       icon: Network, 
       description: '【手法】Aprioriアルゴリズム\n【内容】商品の同時購入パターンや属性間の関連性を発見。サポート・信頼度・リフト値による規則の有用性評価',
+      minColumns: 2,
+      maxColumns: 1000
+    },
+    { 
+      key: 'mutual' as const, 
+      label: '相互情報量分析', 
+      icon: Activity, 
+      description: '【手法】情報理論・エントロピー計算\n【内容】変数間の非線形依存関係を検出。線形相関では捉えられない複雑な関連性を相互情報量で定量化',
       minColumns: 2,
       maxColumns: 1000
     }
@@ -1131,6 +1149,8 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
       return <TextAnalysisResults data={results} />
     case 'association':
       return <AssociationRulesResults data={results} />
+    case 'mutual':
+      return <MutualInformationResults data={results} />
     default:
       return null
   }
@@ -4276,6 +4296,245 @@ function AssociationRulesResults({ data }: { data: any }) {
                     </span>
                   </div>
                 ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MutualInformationResults({ data }: { data: any }) {
+  console.log('MutualInformationResults received:', data)
+  
+  if (!data || typeof data !== 'object') {
+    return (
+      <div className="text-center py-4 text-red-600 dark:text-red-400 transition-colors">
+        <p>相互情報量分析の結果がありません。</p>
+      </div>
+    )
+  }
+
+  const { pairwiseResults, summary, performanceMetrics } = data
+
+  if (!pairwiseResults || pairwiseResults.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>相互情報量の結果がありません。</p>
+        <p className="text-sm mt-2">2つ以上のカラムを選択してください。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* パフォーマンス指標 */}
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-colors">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3 transition-colors">
+          分析結果サマリー
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 transition-colors">
+              {summary?.totalPairs || 0}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              分析ペア数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400 transition-colors">
+              {summary?.averageMI ? summary.averageMI.toFixed(3) : '0.000'}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              平均相互情報量
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 transition-colors">
+              {performanceMetrics?.columnsAnalyzed || 0}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              分析カラム数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400 transition-colors">
+              {performanceMetrics?.processingTime ? Math.round(performanceMetrics.processingTime) : 0}ms
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              処理時間
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 強い相関のペア */}
+      {summary?.stronglyCorrelatedPairs && summary.stronglyCorrelatedPairs.length > 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-600 rounded-lg p-4 transition-colors">
+          <h4 className="text-lg font-medium text-yellow-900 dark:text-yellow-300 mb-3 transition-colors">
+            強い依存関係を持つペア ({summary.stronglyCorrelatedPairs.length}組)
+          </h4>
+          <div className="space-y-2">
+            {summary.stronglyCorrelatedPairs.slice(0, 5).map((pair: any, index: number) => (
+              <div key={index} className="flex justify-between items-center">
+                <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200 transition-colors">
+                  {pair.column1} ↔ {pair.column2}
+                </span>
+                <span className="text-sm font-mono text-yellow-700 dark:text-yellow-300 transition-colors">
+                  MI: {pair.mutualInformation.toFixed(3)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 相互情報量ペア一覧 */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+          <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+            相互情報量ペア分析 (相互情報量順)
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 transition-colors">
+            変数間の情報依存関係を定量化
+          </p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  変数ペア
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  相互情報量
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  正規化MI
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  関係性
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  エントロピー1
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  エントロピー2
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  結合エントロピー
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
+              {pairwiseResults.map((pair: any, index: number) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
+                          {pair.column1}
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400 transition-colors">↔</span>
+                        <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
+                          {pair.column2}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`font-medium transition-colors ${
+                      pair.mutualInformation > 1.0 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : pair.mutualInformation > 0.5
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : pair.mutualInformation > 0.1
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {pair.mutualInformation.toFixed(4)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.normalizedMI.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center transition-colors">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                      pair.interpretation === 'Strong' 
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        : pair.interpretation === 'Moderate'
+                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                        : pair.interpretation === 'Weak'
+                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                    }`}>
+                      {pair.interpretation === 'Strong' ? '強い' : 
+                       pair.interpretation === 'Moderate' ? '中程度' :
+                       pair.interpretation === 'Weak' ? '弱い' : '独立'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.entropy1.toFixed(3)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.entropy2.toFixed(3)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.jointEntropy.toFixed(3)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 理論的背景の説明 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
+        <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3 transition-colors">
+          相互情報量の理論的背景
+        </h5>
+        <div className="space-y-2 text-xs text-blue-800 dark:text-blue-200 transition-colors">
+          <div><strong>相互情報量 (MI):</strong> I(X;Y) = H(X) + H(Y) - H(X,Y) で算出。2つの変数が共有する情報量</div>
+          <div><strong>正規化MI:</strong> 0～1の範囲に正規化された相互情報量。異なるデータセット間での比較が可能</div>
+          <div><strong>エントロピー:</strong> 変数の不確実性を表す指標。高いほど予測が困難</div>
+          <div><strong>結合エントロピー:</strong> 2つの変数の組み合わせの不確実性</div>
+          <div><strong>利点:</strong> 線形相関では検出できない非線形の依存関係も検出可能</div>
+        </div>
+      </div>
+
+      {/* 統計サマリー詳細 */}
+      {summary && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+              統計サマリー詳細
+            </h4>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">総ペア数:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.totalPairs}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">平均相互情報量:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.averageMI.toFixed(4)}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">最大相互情報量:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.maxMI.toFixed(4)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">最小相互情報量:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.minMI.toFixed(4)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
