@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { BarChart, LineChart, TrendingUp, Activity, Zap, Database, Type, ChevronUp, ChevronDown } from 'lucide-react'
+import { BarChart, LineChart, TrendingUp, Activity, Zap, Database, Type, Network, ChevronUp, ChevronDown } from 'lucide-react'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -161,7 +161,7 @@ function formatNumber(value: number | undefined | null): string {
   }
 }
 
-type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing'
+type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing' | 'association'
 
 interface AnalysisPanelProps {
   tableName: string
@@ -502,6 +502,16 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             }
           }
           break
+        case 'association':
+          if (selectedColumns.length >= 2) {
+            const selectedColumnInfos = selectedColumns.map(colName => 
+              columns.find(col => col.name === colName)
+            ).filter(Boolean)
+            
+            const { analyzeAssociationRules } = await import('../lib/associationRules')
+            results = await analyzeAssociationRules(selectedColumnInfos, filters)
+          }
+          break
       }
       
       console.log('📈 Analysis results:', results)
@@ -633,6 +643,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       description: '【手法】TinySegmenter形態素解析 + Flesch改良読みやすさ指標\n【内容】日本語の分かち書き、文字種分析、パターン検出（メール・URL・電話番号）、文章の読みやすさ評価',
       minColumns: 1,
       maxColumns: 1
+    },
+    { 
+      key: 'association' as const, 
+      label: 'アソシエーション規則分析', 
+      icon: Network, 
+      description: '【手法】Aprioriアルゴリズム\n【内容】商品の同時購入パターンや属性間の関連性を発見。サポート・信頼度・リフト値による規則の有用性評価',
+      minColumns: 2,
+      maxColumns: 1000
     }
   ]
 
@@ -1111,6 +1129,8 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
       return <MissingDataResults data={results} />
     case 'text':
       return <TextAnalysisResults data={results} />
+    case 'association':
+      return <AssociationRulesResults data={results} />
     default:
       return null
   }
@@ -4068,6 +4088,198 @@ function ChangePointTable({ points }: ChangePointTableProps) {
           <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, points.length)} / 全{points.length}件の変化点
         </div>
       </div>
+    </div>
+  )
+}
+
+function AssociationRulesResults({ data }: { data: any }) {
+  console.log('AssociationRulesResults received:', data)
+  
+  if (!data || typeof data !== 'object') {
+    return (
+      <div className="text-center py-4 text-red-600 dark:text-red-400 transition-colors">
+        <p>アソシエーション規則分析の結果がありません。</p>
+      </div>
+    )
+  }
+
+  const { rules, totalTransactions, itemFrequency, performanceMetrics } = data
+
+  if (!rules || rules.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>アソシエーション規則が発見されませんでした。</p>
+        <p className="text-sm mt-2">最小サポート値や最小信頼度を下げてみてください。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* パフォーマンス指標 */}
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-colors">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3 transition-colors">
+          分析結果サマリー
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 transition-colors">
+              {rules.length}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              発見された規則数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400 transition-colors">
+              {totalTransactions}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              総トランザクション数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 transition-colors">
+              {performanceMetrics?.itemsAnalyzed || 0}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              分析項目数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400 transition-colors">
+              {performanceMetrics?.processingTime ? Math.round(performanceMetrics.processingTime) : 0}ms
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              処理時間
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* アソシエーション規則一覧 */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+          <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+            アソシエーション規則 (信頼度順)
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 transition-colors">
+            "条件部 → 結論部" の形式で、if-then規則を表示
+          </p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  規則
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  サポート
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  信頼度
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  リフト値
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  確信度
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
+              {rules.map((rule: any, index: number) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
+                          {rule.antecedent.join(', ')}
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400 transition-colors">→</span>
+                        <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
+                          {rule.consequent.join(', ')}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {(rule.support * 100).toFixed(1)}%
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`${
+                      rule.confidence >= 0.8 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : rule.confidence >= 0.6
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-red-600 dark:text-red-400'
+                    } font-medium transition-colors`}>
+                      {(rule.confidence * 100).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`${
+                      rule.lift > 1.5 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : rule.lift > 1.0
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-red-600 dark:text-red-400'
+                    } font-medium transition-colors`}>
+                      {rule.lift.toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {rule.conviction === Infinity ? '∞' : rule.conviction.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 指標の説明 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
+        <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3 transition-colors">
+          指標の説明
+        </h5>
+        <div className="space-y-2 text-xs text-blue-800 dark:text-blue-200 transition-colors">
+          <div><strong>サポート:</strong> 規則全体（条件部+結論部）が同時に出現する確率</div>
+          <div><strong>信頼度:</strong> 条件部が発生した時に結論部も発生する確率（条件付き確率）</div>
+          <div><strong>リフト値:</strong> 条件部の発生が結論部の発生にどれだけ影響するか（1.0が基準、高いほど強い関連性）</div>
+          <div><strong>確信度:</strong> 規則の強さを示す指標（高いほど規則が意味のある関連性を示す）</div>
+        </div>
+      </div>
+
+      {/* 頻出アイテム */}
+      {itemFrequency && itemFrequency.size > 0 && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+              アイテム出現頻度 (上位20件)
+            </h4>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {Array.from(itemFrequency.entries() as IterableIterator<[string, number]>)
+                .sort((a: [string, number], b: [string, number]) => b[1] - a[1])
+                .slice(0, 20)
+                .map(([item, count]: [string, number], index: number) => (
+                  <div key={index} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
+                    <span className="text-sm text-gray-900 dark:text-white truncate transition-colors">
+                      {item}
+                    </span>
+                    <span className="text-sm font-mono text-blue-600 dark:text-blue-400 ml-2 transition-colors">
+                      {count}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
