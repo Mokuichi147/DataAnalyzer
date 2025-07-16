@@ -64,6 +64,11 @@ import {
   getTimeSeriesChartOptions
 } from '@/lib/chartOptimization'
 
+import {
+  performCanonicalCorrelation,
+  type CanonicalCorrelationResult
+} from '@/lib/canonicalCorrelation'
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -161,7 +166,7 @@ function formatNumber(value: number | undefined | null): string {
   }
 }
 
-type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing' | 'association' | 'mutual'
+type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing' | 'association' | 'mutual' | 'canonical'
 
 interface AnalysisPanelProps {
   tableName: string
@@ -179,6 +184,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     includeZero: true,
     includeEmpty: true
   })
+  const [canonicalLeftVariables, setCanonicalLeftVariables] = useState<string[]>([])
+  const [canonicalRightVariables, setCanonicalRightVariables] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [columnSearchFilter, setColumnSearchFilter] = useState<string>('')
   
@@ -236,6 +243,13 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       runAnalysis()
     }
   }, [selectedColumns, tableName, filters])
+
+  // 正準相関分析の変数群選択が変更されたとき、自動実行
+  useEffect(() => {
+    if (activeAnalysis === 'canonical' && canonicalLeftVariables.length >= 1 && canonicalRightVariables.length >= 1 && !isLoading) {
+      runAnalysis()
+    }
+  }, [canonicalLeftVariables, canonicalRightVariables, filters])
 
   // 変化点検出アルゴリズムが変更されたとき、自動実行
   useEffect(() => {
@@ -302,6 +316,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       case 'factor':
       case 'histogram':
       case 'timeseries':
+      case 'canonical':
         // 数値型のカラムのみ
         return columns.filter(col => 
           col.type.includes('INT') || 
@@ -394,6 +409,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     
     setIsLoading(true)
     setAnalysisResults(null)
+    setError(null) // エラーをクリア
     
     try {
       console.log('🚀 Starting analysis:', { activeAnalysis, tableName, selectedColumns })
@@ -520,6 +536,17 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             
             const { analyzeMutualInformation } = await import('../lib/mutualInformation')
             results = await analyzeMutualInformation(selectedColumnInfos, filters)
+          }
+          break
+          
+        case 'canonical':
+          if (canonicalLeftVariables.length >= 1 && canonicalRightVariables.length >= 1) {
+            results = await performCanonicalCorrelation(
+              tableName,
+              canonicalLeftVariables,
+              canonicalRightVariables,
+              filters
+            )
           }
           break
       }
@@ -669,6 +696,14 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       description: '【手法】情報理論・エントロピー計算\n【内容】変数間の非線形依存関係を検出。線形相関では捉えられない複雑な関連性を相互情報量で定量化',
       minColumns: 2,
       maxColumns: 1000
+    },
+    { 
+      key: 'canonical' as const, 
+      label: '正準相関分析', 
+      icon: Network, 
+      description: '【手法】正準相関分析（Canonical Correlation Analysis）\n【内容】2つの変数群間の最大相関を持つ線形結合を発見。多変量間の関係性を正準係数・負荷量で解析',
+      minColumns: 4,
+      maxColumns: 1000
     }
   ]
 
@@ -696,6 +731,9 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               setAnalysisResults(null)
               setSelectedColumns([])
               setActiveAnalysis('column')
+              setError(null)
+              setCanonicalLeftVariables([])
+              setCanonicalRightVariables([])
             }}
             className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm transition-colors"
           >
@@ -988,6 +1026,69 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         </div>
       )}
 
+      {/* 正準相関分析の変数群選択 */}
+      {activeAnalysis === 'canonical' && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-600 rounded-lg p-4 transition-colors">
+          <h4 className="text-sm font-medium text-green-900 dark:text-green-300 mb-3 flex items-center transition-colors">
+            <Network className="h-4 w-4 mr-2" />
+            変数群の選択
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                左側変数群（X群）
+              </label>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {getAvailableColumns().map(column => (
+                  <label key={column.name} className="flex items-center space-x-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={canonicalLeftVariables.includes(column.name)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setCanonicalLeftVariables([...canonicalLeftVariables, column.name])
+                        } else {
+                          setCanonicalLeftVariables(canonicalLeftVariables.filter(col => col !== column.name))
+                        }
+                      }}
+                      className="text-green-600 dark:text-green-400 focus:ring-green-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">{column.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                右側変数群（Y群）
+              </label>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {getAvailableColumns().map(column => (
+                  <label key={column.name} className="flex items-center space-x-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={canonicalRightVariables.includes(column.name)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setCanonicalRightVariables([...canonicalRightVariables, column.name])
+                        } else {
+                          setCanonicalRightVariables(canonicalRightVariables.filter(col => col !== column.name))
+                        }
+                      }}
+                      className="text-green-600 dark:text-green-400 focus:ring-green-500"
+                    />
+                    <span className="text-gray-700 dark:text-gray-300">{column.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+            各変数群に最低1つの変数を選択してください。
+          </div>
+        </div>
+      )}
+
       {/* 欠損検知オプション */}
       {activeAnalysis === 'missing' && (
         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded-lg p-4 transition-colors">
@@ -1046,7 +1147,29 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-600 rounded-lg p-4 transition-colors">
-          <div className="text-sm text-red-800 dark:text-red-200">{error}</div>
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <span className="text-red-600 dark:text-red-400">❌</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">分析エラー</h4>
+              <div className="text-sm text-red-700 dark:text-red-300">{error}</div>
+              {activeAnalysis === 'mutual' && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  <p>• 選択した列にすべて有効なデータが含まれているか確認してください</p>
+                  <p>• 欠損値（空の値）が多い列は除外してみてください</p>
+                  <p>• 最低2つの列を選択してください</p>
+                </div>
+              )}
+              {activeAnalysis === 'canonical' && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  <p>• 左側と右側の変数群の両方に数値型の列を選択してください</p>
+                  <p>• 各変数群に最低1つの変数が必要です</p>
+                  <p>• 日付型やテキスト型の列は使用できません</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1151,6 +1274,8 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
       return <AssociationRulesResults data={results} />
     case 'mutual':
       return <MutualInformationResults data={results} />
+    case 'canonical':
+      return <CanonicalCorrelationResults data={results} />
     default:
       return null
   }
@@ -4961,6 +5086,358 @@ function MutualInformationTable({ pairwiseResults }: { pairwiseResults: any[] })
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
         <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
           <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, pairwiseResults.length)} / 全{pairwiseResults.length}件の相互情報量ペア
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CanonicalCorrelationResults({ data }: { data: CanonicalCorrelationResult | CanonicalCorrelationResult[] | null }) {
+  console.log('CanonicalCorrelationResults received:', data)
+  
+  // データが配列の場合は最初の要素を使用
+  const result = Array.isArray(data) ? data[0] : data
+  
+  if (!result) {
+    return (
+      <div className="text-center py-8 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>正準相関分析の結果がありません。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center transition-colors">
+          <Network className="h-5 w-5 mr-2 text-blue-600 dark:text-blue-400" />
+          正準相関分析結果
+        </h3>
+        <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
+          <p>2つの変数群間の最大相関を持つ線形結合（正準変量）とその関係性を解析しました。</p>
+          <p>正準相関係数が高いほど、変数群間の関係が強いことを示します。</p>
+        </div>
+      </div>
+
+      {/* 正準相関係数テーブル */}
+      <CanonicalCorrelationTable canonicalCorrelations={result.canonicalCorrelations} varianceExplained={result.varianceExplained} cumulativeVariance={result.cumulativeVariance} />
+      
+      {/* 正準係数テーブル */}
+      <CanonicalCoefficientsTable leftVariates={result.leftCanonicalVariates} rightVariates={result.rightCanonicalVariates} />
+      
+      {/* 統計的検定結果 */}
+      <StatisticalTestResults wilksLambda={result.wilksLambda} chiSquare={result.chiSquare} pValues={result.pValues} />
+    </div>
+  )
+}
+
+function CanonicalCorrelationTable({ canonicalCorrelations, varianceExplained, cumulativeVariance }: { 
+  canonicalCorrelations: number[] | undefined
+  varianceExplained: number[] | undefined
+  cumulativeVariance: number[] | undefined
+}) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  if (!canonicalCorrelations || !varianceExplained || !cumulativeVariance) {
+    return (
+      <div className="text-center py-8 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>正準相関係数のデータがありません。</p>
+      </div>
+    )
+  }
+
+  const correlationData = canonicalCorrelations.map((corr, index) => ({
+    variate: index + 1,
+    correlation: corr,
+    variance: varianceExplained[index] || 0,
+    cumulative: cumulativeVariance[index] || 0
+  }))
+
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedData = [...correlationData].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    }
+    
+    const strA = String(aValue).toLowerCase()
+    const strB = String(bValue).toLowerCase()
+    return sortDirection === 'asc' 
+      ? strA.localeCompare(strB)
+      : strB.localeCompare(strA)
+  })
+
+  // ページネーション
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentData = sortedData.slice(startIndex, endIndex)
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">正準相関係数</h4>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('variate')}>
+                  <div className="flex items-center justify-center">
+                    <span>正準変量</span>
+                    <div className="ml-2">
+                      {sortColumn === 'variate' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('correlation')}>
+                  <div className="flex items-center justify-center">
+                    <span>正準相関係数</span>
+                    <div className="ml-2">
+                      {sortColumn === 'correlation' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('variance')}>
+                  <div className="flex items-center justify-center">
+                    <span>寄与率(%)</span>
+                    <div className="ml-2">
+                      {sortColumn === 'variance' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('cumulative')}>
+                  <div className="flex items-center justify-center">
+                    <span>累積寄与率(%)</span>
+                    <div className="ml-2">
+                      {sortColumn === 'cumulative' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+              {currentData.map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {item.variate}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {formatNumber(item.correlation)}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {formatNumber(item.variance)}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {formatNumber(item.cumulative)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ページネーション */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between transition-colors">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                最初
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                前へ
+              </button>
+              <span className="px-3 py-1 text-sm text-gray-700 dark:text-gray-300 transition-colors">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                次へ
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                最後
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, sortedData.length)} / 全{sortedData.length}件の正準変量
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CanonicalCoefficientsTable({ leftVariates, rightVariates }: { 
+  leftVariates: Array<{variate: number, coefficients: Array<{variable: string, coefficient: number}>}> | undefined
+  rightVariates: Array<{variate: number, coefficients: Array<{variable: string, coefficient: number}>}> | undefined
+}) {
+  if (!leftVariates || !rightVariates) {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">正準係数</h4>
+        </div>
+        <div className="p-4 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+          <p>正準係数のデータがありません。</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">正準係数（簡易表示）</h4>
+      </div>
+      <div className="p-4 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+        <p>左側変数群（X群）: {leftVariates.length}変量, 右側変数群（Y群）: {rightVariates.length}変量の正準係数が計算されました。</p>
+        <p>詳細な係数表は実装を完了次第表示されます。</p>
+      </div>
+    </div>
+  )
+}
+
+function StatisticalTestResults({ wilksLambda, chiSquare, pValues }: { 
+  wilksLambda: number[] | undefined
+  chiSquare: number[] | undefined
+  pValues: number[] | undefined
+}) {
+  if (!wilksLambda || !chiSquare || !pValues || wilksLambda.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">統計的検定結果</h4>
+        </div>
+        <div className="p-4 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+          <p>統計的検定結果のデータがありません。</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">統計的検定結果</h4>
+      </div>
+      <div className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+            <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300">Wilks' Lambda</h5>
+            <p className="text-lg font-semibold text-blue-700 dark:text-blue-200">{formatNumber(wilksLambda[0])}</p>
+          </div>
+          <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
+            <h5 className="text-sm font-medium text-green-900 dark:text-green-300">χ²統計量</h5>
+            <p className="text-lg font-semibold text-green-700 dark:text-green-200">{formatNumber(chiSquare[0])}</p>
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
+            <h5 className="text-sm font-medium text-purple-900 dark:text-purple-300">p値</h5>
+            <p className="text-lg font-semibold text-purple-700 dark:text-purple-200">{formatNumber(pValues[0])}</p>
+          </div>
         </div>
       </div>
     </div>

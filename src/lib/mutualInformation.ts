@@ -43,6 +43,12 @@ export async function analyzeMutualInformation(
   const startTime = performance.now()
   
   try {
+    console.log('🔍 Starting mutual information analysis with columns:', columns)
+    
+    if (!columns || columns.length < 2) {
+      throw new Error('At least 2 columns are required for mutual information analysis')
+    }
+    
     const store = memoryDataStore as any
     const tableMap = store.tables
     if (!tableMap || tableMap.size === 0) {
@@ -65,10 +71,12 @@ export async function analyzeMutualInformation(
     const columnNames = columns.map(col => col.name)
     const filteredData = data
 
-    // 数値・カテゴリカルデータの前処理
-    const processedData = preprocessDataForMI(filteredData, columnNames, binCount)
+    // 数値・カテゴリカルデータの前処理をスキップして、ペアワイズ処理のみ使用
+    console.log('📊 Skipping global preprocessing, using pairwise approach for robustness')
+    console.log('📊 Available columns:', columnNames)
+    console.log('📊 Sample data:', filteredData.slice(0, 3))
     
-    // ペアワイズ相互情報量計算
+    // ペアワイズ相互情報量計算（各ペアごとに有効データを使用）
     const pairwiseResults: MutualInformationPair[] = []
     
     for (let i = 0; i < columnNames.length; i++) {
@@ -76,15 +84,45 @@ export async function analyzeMutualInformation(
         const col1 = columnNames[i]
         const col2 = columnNames[j]
         
-        const result = calculateMutualInformation(
-          processedData,
-          col1,
-          col2,
-          normalization
-        )
-        
-        pairwiseResults.push(result)
+        try {
+          console.log(`📈 Calculating MI for ${col1} vs ${col2}`)
+          
+          // このペアに対してのみ有効なデータを抽出
+          const pairValidRows = data.filter(row => {
+            const val1 = row[col1]
+            const val2 = row[col2]
+            return val1 !== null && val1 !== undefined && val1 !== '' &&
+                   val2 !== null && val2 !== undefined && val2 !== ''
+          })
+          
+          console.log(`  - Pair ${col1} vs ${col2}: ${pairValidRows.length} valid rows`)
+          
+          if (pairValidRows.length < 10) {
+            console.warn(`  - Skipping pair ${col1} vs ${col2}: insufficient data (${pairValidRows.length} rows)`)
+            continue
+          }
+          
+          // このペア用の処理済みデータを作成
+          const pairProcessedData = preprocessPairData(pairValidRows, [col1, col2], binCount)
+          
+          const result = calculateMutualInformation(
+            pairProcessedData,
+            col1,
+            col2,
+            normalization
+          )
+          
+          pairwiseResults.push(result)
+        } catch (error) {
+          console.error(`❌ Failed to calculate MI for ${col1} vs ${col2}:`, error)
+          console.warn(`  - Skipping this pair due to error`)
+          // ペアの計算に失敗しても続行
+        }
       }
+    }
+    
+    if (pairwiseResults.length === 0) {
+      throw new Error('No valid column pairs found for mutual information analysis. Check data quality and try selecting different columns.')
     }
 
     // 統計サマリー計算
@@ -110,11 +148,22 @@ export async function analyzeMutualInformation(
     }
   } catch (error) {
     console.error('Mutual information analysis failed:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      columns: columns,
+      options: options
+    })
     throw error
   }
 }
 
-function preprocessDataForMI(
+// preprocessDataForMI関数は削除 - ペアワイズ処理を使用
+
+/**
+ * ペア用のデータ前処理（より柔軟）
+ */
+function preprocessPairData(
   data: Record<string, any>[],
   columnNames: string[],
   binCount: number
@@ -122,12 +171,7 @@ function preprocessDataForMI(
   const processedData: Record<string, string[]> = {}
   
   for (const columnName of columnNames) {
-    const values = data.map(row => row[columnName]).filter(v => v !== null && v !== undefined)
-    
-    if (values.length === 0) {
-      processedData[columnName] = []
-      continue
-    }
+    const values = data.map(row => row[columnName])
     
     // 数値データかどうかを判定
     const isNumeric = values.every(v => typeof v === 'number' || !isNaN(Number(v)))
@@ -175,11 +219,42 @@ function calculateMutualInformation(
   col2: string,
   normalization: 'arithmetic' | 'geometric' | 'max'
 ): MutualInformationPair {
+  console.log(`🚀 calculateMutualInformation called with:`)
+  console.log(`  - col1: "${col1}"`)
+  console.log(`  - col2: "${col2}"`)
+  console.log(`  - data object keys:`, Object.keys(data))
+  console.log(`  - data object structure:`, Object.entries(data).map(([k, v]) => `${k}: ${Array.isArray(v) ? `array[${v.length}]` : typeof v}`))
+  
   const values1 = data[col1]
   const values2 = data[col2]
   
-  if (!values1 || !values2 || values1.length !== values2.length) {
-    throw new Error(`Invalid data for columns ${col1} and ${col2}`)
+  console.log(`🔍 MI calculation for ${col1} vs ${col2}:`)
+  console.log(`  - ${col1} exists: ${!!values1}`)
+  console.log(`  - ${col2} exists: ${!!values2}`)
+  console.log(`  - ${col1} length: ${values1?.length || 'undefined'}`)
+  console.log(`  - ${col2} length: ${values2?.length || 'undefined'}`)
+  console.log(`  - ${col1} sample:`, values1?.slice(0, 5))
+  console.log(`  - ${col2} sample:`, values2?.slice(0, 5))
+  console.log(`  - Available data keys:`, Object.keys(data))
+  
+  if (!values1) {
+    throw new Error(`Missing data array for column ${col1}`)
+  }
+  
+  if (!values2) {
+    throw new Error(`Missing data array for column ${col2}`)
+  }
+  
+  if (values1.length === 0) {
+    throw new Error(`Empty data array for column ${col1}`)
+  }
+  
+  if (values2.length === 0) {
+    throw new Error(`Empty data array for column ${col2}`)
+  }
+  
+  if (values1.length !== values2.length) {
+    throw new Error(`Data length mismatch: ${col1}(${values1.length}) vs ${col2}(${values2.length})`)
   }
   
   
