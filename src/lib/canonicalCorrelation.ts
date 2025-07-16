@@ -1,5 +1,3 @@
-import { executeQuery } from './duckdb'
-import { buildFilterClause } from './filterUtils'
 import { memoryDataStore } from './memoryDataStore'
 
 export interface CanonicalCorrelationResult {
@@ -80,7 +78,7 @@ export async function performCanonicalCorrelation(
   const allVariables = [...leftVariables, ...rightVariables]
   
   // データを取得
-  const data = await getDataFromMemoryStore(selectedTableName, allVariables, filters)
+  const data = await getDataFromMemoryStore(selectedTableName, allVariables)
   
   // 正準相関分析を実行
   const result = await calculateCanonicalCorrelation(data, leftVariables, rightVariables)
@@ -93,8 +91,7 @@ export async function performCanonicalCorrelation(
  */
 async function getDataFromMemoryStore(
   tableName: string,
-  variables: string[],
-  filters: any[] = []
+  variables: string[]
 ): Promise<number[][]> {
   console.log('📊 Getting data from memory store:', { tableName, variables })
   
