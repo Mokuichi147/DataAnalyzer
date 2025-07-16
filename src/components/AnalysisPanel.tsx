@@ -535,7 +535,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             ).filter(Boolean)
             
             const { analyzeMutualInformation } = await import('../lib/mutualInformation')
-            results = await analyzeMutualInformation(selectedColumnInfos, filters)
+            results = await analyzeMutualInformation(selectedColumnInfos, filters, {}, tableName)
           }
           break
           

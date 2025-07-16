@@ -38,12 +38,14 @@ export interface MutualInformationOptions {
 export async function analyzeMutualInformation(
   columns: any[],
   _filters: any[] = [],
-  options: MutualInformationOptions = {}
+  options: MutualInformationOptions = {},
+  tableName?: string
 ): Promise<MutualInformationResult> {
   const startTime = performance.now()
   
   try {
     console.log('🔍 Starting mutual information analysis with columns:', columns)
+    console.log('🗄️ Target table name:', tableName)
     
     if (!columns || columns.length < 2) {
       throw new Error('At least 2 columns are required for mutual information analysis')
@@ -55,11 +57,41 @@ export async function analyzeMutualInformation(
       throw new Error('No tables available for analysis')
     }
     
-    const tableName = Array.from(tableMap.keys())[0]
-    const data = memoryDataStore.query(`SELECT * FROM "${tableName}"`)
+    // テーブル名が指定されている場合はそれを使用、そうでなければ最初のテーブルを使用
+    let selectedTableName: string
+    if (tableName && tableMap.has(tableName)) {
+      selectedTableName = tableName
+    } else {
+      selectedTableName = Array.from(tableMap.keys())[0]
+      console.warn(`⚠️ Table "${tableName}" not found, using "${selectedTableName}" instead`)
+    }
+    
+    console.log('🗄️ Querying data from table:', selectedTableName)
+    console.log('🗄️ Available tables:', Array.from(tableMap.keys()))
+    
+    const data = memoryDataStore.query(`SELECT * FROM "${selectedTableName}"`)
+    
+    console.log('📊 Raw data from memoryDataStore:', {
+      dataExists: !!data,
+      dataLength: data?.length || 0,
+      sampleRow: data?.[0] || null,
+      tableKeys: Array.from(tableMap.keys())
+    })
     
     if (!data || data.length === 0) {
       throw new Error('No data available for analysis')
+    }
+    
+    // データに存在するカラム名をチェック
+    const availableColumns = data.length > 0 ? Object.keys(data[0]) : []
+    console.log('📊 Available columns in data:', availableColumns)
+    
+    const requestedColumns = columns.map(col => col.name)
+    console.log('📊 Requested columns:', requestedColumns)
+    
+    const missingColumns = requestedColumns.filter(col => !availableColumns.includes(col))
+    if (missingColumns.length > 0) {
+      throw new Error(`Columns not found in data: ${missingColumns.join(', ')}. Available columns: ${availableColumns.join(', ')}`)
     }
 
     const {
@@ -75,31 +107,74 @@ export async function analyzeMutualInformation(
     console.log('📊 Skipping global preprocessing, using pairwise approach for robustness')
     console.log('📊 Available columns:', columnNames)
     console.log('📊 Sample data:', filteredData.slice(0, 3))
+    console.log('📊 Data structure check:', {
+      isArray: Array.isArray(filteredData),
+      length: filteredData.length,
+      firstRowKeys: filteredData.length > 0 ? Object.keys(filteredData[0]) : [],
+      firstRowValues: filteredData.length > 0 ? Object.values(filteredData[0]) : []
+    })
     
     // ペアワイズ相互情報量計算（各ペアごとに有効データを使用）
     const pairwiseResults: MutualInformationPair[] = []
     
+    console.log('🔍 Starting pairwise analysis:')
+    console.log(`  - Total columns: ${columnNames.length}`)
+    console.log(`  - Total data rows: ${data.length}`)
+    console.log(`  - Available data sample:`, data.slice(0, 2))
+    
+    // 各列の有効データ数を事前にチェック
+    console.log('📊 Column data quality check:')
+    for (const col of columnNames) {
+      const validCount = data.filter(row => {
+        const val = row[col]
+        return val !== null && val !== undefined && val !== ''
+      }).length
+      console.log(`  - ${col}: ${validCount}/${data.length} valid rows (${((validCount/data.length)*100).toFixed(1)}%)`)
+      
+      // サンプルデータを表示
+      const sampleValues = data.slice(0, 5).map(row => row[col])
+      console.log(`    Sample values:`, sampleValues)
+    }
+    
+    let pairCount = 0
     for (let i = 0; i < columnNames.length; i++) {
       for (let j = i + 1; j < columnNames.length; j++) {
         const col1 = columnNames[i]
         const col2 = columnNames[j]
+        pairCount++
         
         try {
-          console.log(`📈 Calculating MI for ${col1} vs ${col2}`)
+          console.log(`📈 [${pairCount}] Calculating MI for ${col1} vs ${col2}`)
           
           // このペアに対してのみ有効なデータを抽出
           const pairValidRows = data.filter(row => {
             const val1 = row[col1]
             const val2 = row[col2]
-            return val1 !== null && val1 !== undefined && val1 !== '' &&
-                   val2 !== null && val2 !== undefined && val2 !== ''
+            const isValid1 = val1 !== null && val1 !== undefined && val1 !== ''
+            const isValid2 = val2 !== null && val2 !== undefined && val2 !== ''
+            return isValid1 && isValid2
           })
           
-          console.log(`  - Pair ${col1} vs ${col2}: ${pairValidRows.length} valid rows`)
+          console.log(`  - Pair ${col1} vs ${col2}: ${pairValidRows.length} valid rows out of ${data.length} total`)
+          
+          // 最初の3ペアは詳細に分析
+          if (pairCount <= 3) {
+            console.log(`  - Detailed analysis for pair ${pairCount}:`)
+            console.log(`    - ${col1} values in first 10 rows:`, data.slice(0, 10).map(row => row[col1]))
+            console.log(`    - ${col2} values in first 10 rows:`, data.slice(0, 10).map(row => row[col2]))
+            console.log(`    - ${col1} null/undefined/empty count:`, data.filter(row => row[col1] === null || row[col1] === undefined || row[col1] === '').length)
+            console.log(`    - ${col2} null/undefined/empty count:`, data.filter(row => row[col2] === null || row[col2] === undefined || row[col2] === '').length)
+          }
+          
+          console.log(`  - Sample valid data for this pair:`, pairValidRows.slice(0, 3).map(row => ({ [col1]: row[col1], [col2]: row[col2] })))
+          
+          if (pairValidRows.length < 3) {
+            console.warn(`  - Skipping pair ${col1} vs ${col2}: insufficient data (${pairValidRows.length} rows, need at least 3)`)
+            continue
+          }
           
           if (pairValidRows.length < 10) {
-            console.warn(`  - Skipping pair ${col1} vs ${col2}: insufficient data (${pairValidRows.length} rows)`)
-            continue
+            console.warn(`  - Warning: pair ${col1} vs ${col2} has only ${pairValidRows.length} rows (recommended: at least 10), but proceeding with analysis`)
           }
           
           // このペア用の処理済みデータを作成
@@ -122,7 +197,16 @@ export async function analyzeMutualInformation(
     }
     
     if (pairwiseResults.length === 0) {
-      throw new Error('No valid column pairs found for mutual information analysis. Check data quality and try selecting different columns.')
+      const totalPairs = (columnNames.length * (columnNames.length - 1)) / 2
+      console.error(`❌ No valid column pairs found out of ${totalPairs} possible pairs`)
+      console.error('📊 Debug info:', {
+        totalColumns: columnNames.length,
+        totalDataRows: data.length,
+        columnNames: columnNames,
+        sampleData: data.slice(0, 3)
+      })
+      
+      throw new Error(`No valid column pairs found for mutual information analysis. Analyzed ${totalPairs} pairs but none had sufficient data (need at least 3 rows with complete data per pair). Check data quality and try selecting different columns.`)
     }
 
     // 統計サマリー計算
