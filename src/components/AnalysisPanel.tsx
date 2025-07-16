@@ -184,6 +184,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     includeZero: true,
     includeEmpty: true
   })
+  const [canonicalVariableGroup, setCanonicalVariableGroup] = useState<'left' | 'right'>('left')
   const [canonicalLeftVariables, setCanonicalLeftVariables] = useState<string[]>([])
   const [canonicalRightVariables, setCanonicalRightVariables] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -199,6 +200,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   
   // デフォルト選択ロジックを実行する関数
   const applyDefaultSelection = useCallback(() => {
+    // 正準相関分析では通常の列選択は行わない
+    if (activeAnalysis === 'canonical') {
+      return
+    }
+    
     const currentAvailableColumns = getAvailableColumns()
     if (currentAvailableColumns.length > 0) {
       const currentType = analysisTypes.find(type => type.key === activeAnalysis)
@@ -227,6 +233,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   useEffect(() => {
     setAnalysisResults(null)
     setSelectedColumns([])
+    setCanonicalLeftVariables([])
+    setCanonicalRightVariables([])
     applyDefaultSelection()
   }, [activeAnalysis, applyDefaultSelection])
   
@@ -239,7 +247,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
   // 選択されたカラムやフィルタが変更されたとき、条件を満たしていれば自動実行
   useEffect(() => {
-    if (selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
+    if (activeAnalysis !== 'canonical' && selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
       runAnalysis()
     }
   }, [selectedColumns, tableName, filters])
@@ -247,9 +255,44 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   // 正準相関分析の変数群選択が変更されたとき、自動実行
   useEffect(() => {
     if (activeAnalysis === 'canonical' && canonicalLeftVariables.length >= 1 && canonicalRightVariables.length >= 1 && !isLoading) {
-      runAnalysis()
+      console.log('🔄 Canonical correlation auto-run triggered', { 
+        leftVariables: canonicalLeftVariables, 
+        rightVariables: canonicalRightVariables 
+      })
+      
+      // 直接分析を実行
+      const executeAnalysis = async () => {
+        if (!tableName) {
+          console.log('Cannot run analysis: missing table')
+          return
+        }
+        
+        setIsLoading(true)
+        setAnalysisResults(null)
+        setError(null)
+        
+        try {
+          console.log('🚀 Starting canonical correlation analysis')
+          const results = await performCanonicalCorrelation(
+            tableName,
+            canonicalLeftVariables,
+            canonicalRightVariables,
+            filters
+          )
+          setAnalysisResults(results)
+          console.log('✅ Canonical correlation analysis completed')
+        } catch (error) {
+          console.error('❌ Canonical correlation analysis error:', error)
+          setError(error instanceof Error ? error.message : '正準相関分析に失敗しました')
+        } finally {
+          setIsLoading(false)
+        }
+      }
+      
+      executeAnalysis()
     }
-  }, [canonicalLeftVariables, canonicalRightVariables, filters])
+  }, [canonicalLeftVariables, canonicalRightVariables, filters, activeAnalysis, isLoading, tableName])
+
 
   // 変化点検出アルゴリズムが変更されたとき、自動実行
   useEffect(() => {
@@ -395,13 +438,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
            selectedColumns.length <= currentType.maxColumns
   }
 
-  const runAnalysis = async () => {
-    if (!tableName || selectedColumns.length === 0) {
-      console.log('Cannot run analysis: missing table or columns')
+  const runAnalysis = useCallback(async () => {
+    if (!tableName) {
+      console.log('Cannot run analysis: missing table')
       return
     }
     
-    if (!isValidColumnSelection()) {
+    // 正準相関分析の場合は selectedColumns をチェックしない
+    if (activeAnalysis !== 'canonical' && selectedColumns.length === 0) {
+      console.log('Cannot run analysis: missing columns')
+      return
+    }
+    
+    // 正準相関分析の場合は変数群の検証を行う
+    if (activeAnalysis === 'canonical') {
+      if (canonicalLeftVariables.length < 1 || canonicalRightVariables.length < 1) {
+        setError('正準相関分析には左側と右側の変数群に最低1つずつ変数が必要です')
+        return
+      }
+    } else if (!isValidColumnSelection()) {
       const currentType = getCurrentAnalysisType()
       setError(`${currentType?.label}には${currentType?.minColumns}〜${currentType?.maxColumns}個のカラムが必要です`)
       return
@@ -569,7 +624,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [tableName, selectedColumns, activeAnalysis, canonicalLeftVariables, canonicalRightVariables, filters, changePointAlgorithm, xAxisColumn, missingDataOptions])
 
   const handleColumnToggle = (columnName: string) => {
     const currentType = getCurrentAnalysisType()
@@ -797,12 +852,13 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       )}
 
 
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-4">
-            <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
-              列選択 ({currentAnalysisType?.label})
-            </h3>
+      {(activeAnalysis as AnalysisType) !== 'canonical' && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-4">
+              <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
+                列選択 ({currentAnalysisType?.label})
+              </h3>
             {/* PCでは説明文を横に表示 */}
             {currentAnalysisType && (
               <span className="hidden md:inline text-sm text-gray-600 dark:text-gray-400 transition-colors">
@@ -824,21 +880,23 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         </div>
         
         {/* モバイル用の説明文 */}
-        <div className="mb-4 md:hidden">
-          {currentAnalysisType && (
-            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 transition-colors">
-              {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
-                ? `1つの列を選択してください（自動実行）`
-                : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
-                ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
-                : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
-              }
-            </p>
-          )}
-        </div>
+        {(activeAnalysis as AnalysisType) !== 'canonical' && (
+          <div className="mb-4 md:hidden">
+            {currentAnalysisType && (
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 transition-colors">
+                {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
+                  ? `1つの列を選択してください（自動実行）`
+                  : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
+                  ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
+                  : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
+                }
+              </p>
+            )}
+          </div>
+        )}
         
         {/* 警告表示 */}
-        {getAvailableColumns().length === 0 && (
+        {getAvailableColumns().length === 0 && (activeAnalysis as AnalysisType) !== 'canonical' && (
           <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-600 rounded-md p-3 mb-4 transition-colors">
             <div className="flex items-center">
               <span className="text-amber-600 dark:text-amber-400 mr-2 transition-colors">⚠️</span>
@@ -849,7 +907,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           </div>
         )}
         
-        {getAvailableColumns().length > 0 ? (
+        {getAvailableColumns().length > 0 && (activeAnalysis as AnalysisType) !== 'canonical' ? (
           <div className="space-y-2">
             {/* 検索ボックスとボタンを同じ行に配置 */}
             <div className="flex items-center justify-between gap-3">
@@ -954,6 +1012,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         )}
         
       </div>
+      )}
 
       {/* 変化点検出アルゴリズム選択 */}
       {activeAnalysis === 'changepoint' && getAvailableColumns().length > 0 && (
@@ -1033,58 +1092,136 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             <Network className="h-4 w-4 mr-2" />
             変数群の選択
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                左側変数群（X群）
+          <div className="space-y-3">
+            <div className="flex items-center space-x-4 mb-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                選択モード：
               </label>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {getAvailableColumns().map(column => (
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="canonicalGroup"
+                    value="left"
+                    checked={canonicalVariableGroup === 'left'}
+                    onChange={(e) => setCanonicalVariableGroup(e.target.value as 'left' | 'right')}
+                    className="text-green-600 dark:text-green-400 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">左側変数群（X群）</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="canonicalGroup"
+                    value="right"
+                    checked={canonicalVariableGroup === 'right'}
+                    onChange={(e) => setCanonicalVariableGroup(e.target.value as 'left' | 'right')}
+                    className="text-blue-600 dark:text-blue-400 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">右側変数群（Y群）</span>
+                </label>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                上で選択したモードに応じて、下の列一覧から変数を選択してください：
+              </div>
+              
+              <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-3">
+                {getFilteredAvailableColumns().map(column => (
                   <label key={column.name} className="flex items-center space-x-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={canonicalLeftVariables.includes(column.name)}
+                      checked={
+                        canonicalVariableGroup === 'left' 
+                          ? canonicalLeftVariables.includes(column.name)
+                          : canonicalRightVariables.includes(column.name)
+                      }
                       onChange={(e) => {
-                        if (e.target.checked) {
-                          setCanonicalLeftVariables([...canonicalLeftVariables, column.name])
+                        if (canonicalVariableGroup === 'left') {
+                          if (e.target.checked) {
+                            console.log('Adding to left variables:', column.name)
+                            setCanonicalLeftVariables([...canonicalLeftVariables, column.name])
+                          } else {
+                            console.log('Removing from left variables:', column.name)
+                            setCanonicalLeftVariables(canonicalLeftVariables.filter(col => col !== column.name))
+                          }
                         } else {
-                          setCanonicalLeftVariables(canonicalLeftVariables.filter(col => col !== column.name))
+                          if (e.target.checked) {
+                            console.log('Adding to right variables:', column.name)
+                            setCanonicalRightVariables([...canonicalRightVariables, column.name])
+                          } else {
+                            console.log('Removing from right variables:', column.name)
+                            setCanonicalRightVariables(canonicalRightVariables.filter(col => col !== column.name))
+                          }
                         }
                       }}
-                      className="text-green-600 dark:text-green-400 focus:ring-green-500"
+                      className={`focus:ring-2 ${canonicalVariableGroup === 'left' ? 'text-green-600 dark:text-green-400 focus:ring-green-500' : 'text-blue-600 dark:text-blue-400 focus:ring-blue-500'}`}
                     />
-                    <span className="text-gray-700 dark:text-gray-300">{column.name}</span>
+                    <span className="text-gray-700 dark:text-gray-300 transition-colors">{column.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors">({column.type})</span>
                   </label>
                 ))}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                右側変数群（Y群）
-              </label>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {getAvailableColumns().map(column => (
-                  <label key={column.name} className="flex items-center space-x-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={canonicalRightVariables.includes(column.name)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setCanonicalRightVariables([...canonicalRightVariables, column.name])
-                        } else {
-                          setCanonicalRightVariables(canonicalRightVariables.filter(col => col !== column.name))
-                        }
-                      }}
-                      className="text-green-600 dark:text-green-400 focus:ring-green-500"
-                    />
-                    <span className="text-gray-700 dark:text-gray-300">{column.name}</span>
-                  </label>
-                ))}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                  左側変数群（X群）
+                </div>
+                <div className="space-y-1 min-h-[60px]">
+                  {canonicalLeftVariables.length > 0 ? (
+                    canonicalLeftVariables.map(column => (
+                      <div key={column} className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
+                        <span>{column}</span>
+                        <button
+                          onClick={() => setCanonicalLeftVariables(canonicalLeftVariables.filter(col => col !== column))}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">変数が選択されていません</div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                  右側変数群（Y群）
+                </div>
+                <div className="space-y-1 min-h-[60px]">
+                  {canonicalRightVariables.length > 0 ? (
+                    canonicalRightVariables.map(column => (
+                      <div key={column} className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
+                        <span>{column}</span>
+                        <button
+                          onClick={() => setCanonicalRightVariables(canonicalRightVariables.filter(col => col !== column))}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">変数が選択されていません</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
-            各変数群に最低1つの変数を選択してください。
+            
+            <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+              {canonicalLeftVariables.length === 0 || canonicalRightVariables.length === 0
+                ? "各変数群に最低1つずつ変数を選択してください。"
+                : `左側${canonicalLeftVariables.length}個、右側${canonicalRightVariables.length}個の変数が選択されています。`
+              }
+            </div>
           </div>
         </div>
       )}

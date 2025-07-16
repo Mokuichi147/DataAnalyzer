@@ -62,7 +62,8 @@ export async function analyzeMutualInformation(
     if (tableName && tableMap.has(tableName)) {
       selectedTableName = tableName
     } else {
-      selectedTableName = Array.from(tableMap.keys())[0]
+      const firstTableName = Array.from(tableMap.keys())[0]
+      selectedTableName = firstTableName as string
       console.warn(`⚠️ Table "${tableName}" not found, using "${selectedTableName}" instead`)
     }
     

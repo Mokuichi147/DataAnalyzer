@@ -1,5 +1,6 @@
 import { executeQuery } from './duckdb'
 import { buildFilterClause } from './filterUtils'
+import { memoryDataStore } from './memoryDataStore'
 
 export interface CanonicalCorrelationResult {
   canonicalCorrelations: number[]
@@ -48,29 +49,38 @@ export async function performCanonicalCorrelation(
     throw new Error('両方の変数群に少なくとも1つの変数が必要です')
   }
 
-  const filterClause = buildFilterClause(filters)
-  const whereClause = filterClause ? `WHERE ${filterClause}` : ''
+  console.log('🔍 Starting canonical correlation analysis with:', {
+    tableName,
+    leftVariables,
+    rightVariables,
+    filters
+  })
+
+  // memoryDataStoreから適切なテーブルを取得
+  const store = memoryDataStore as any
+  const tableMap = store.tables
+  if (!tableMap || tableMap.size === 0) {
+    throw new Error('No tables available for analysis')
+  }
+
+  // テーブル名が存在するか確認し、存在しない場合は最初のテーブルを使用
+  let selectedTableName: string
+  if (tableMap.has(tableName)) {
+    selectedTableName = tableName
+  } else {
+    const firstTableName = Array.from(tableMap.keys())[0]
+    selectedTableName = firstTableName as string
+    console.warn(`⚠️ Table "${tableName}" not found, using "${selectedTableName}" instead`)
+  }
+
+  console.log('📊 Using table:', selectedTableName)
+  console.log('📊 Available tables:', Array.from(tableMap.keys()))
 
   // 全変数の統計情報を取得
   const allVariables = [...leftVariables, ...rightVariables]
   
-  // データ型をチェック（数値型のみ許可）
-  const numericVariables = await checkNumericVariables(tableName, allVariables, whereClause)
-  const invalidVariables = allVariables.filter(v => !numericVariables.includes(v))
-  
-  if (invalidVariables.length > 0) {
-    throw new Error(`Invalid data for columns ${invalidVariables.join(' and ')}`)
-  }
-  
-  const validVariables = await getValidVariables(tableName, allVariables, whereClause)
-  
-  if (validVariables.length < allVariables.length) {
-    const missingVariables = allVariables.filter(v => !validVariables.includes(v))
-    throw new Error(`データが不足している変数: ${missingVariables.join(', ')}`)
-  }
-
   // データを取得
-  const data = await getData(tableName, leftVariables, rightVariables, whereClause)
+  const data = await getDataFromMemoryStore(selectedTableName, allVariables, filters)
   
   // 正準相関分析を実行
   const result = await calculateCanonicalCorrelation(data, leftVariables, rightVariables)
@@ -79,102 +89,74 @@ export async function performCanonicalCorrelation(
 }
 
 /**
- * 数値型の変数をチェックする
+ * memoryDataStoreからデータを取得する
  */
-async function checkNumericVariables(
+async function getDataFromMemoryStore(
   tableName: string,
   variables: string[],
-  whereClause: string
-): Promise<string[]> {
-  const numericVariables: string[] = []
-  
-  for (const variable of variables) {
-    try {
-      // 数値型への変換を試行
-      const testQuery = `
-        SELECT COUNT(*) as count
-        FROM ${tableName}
-        ${whereClause}
-        AND ${variable} IS NOT NULL
-        AND ${variable} != ''
-        AND CAST(${variable} AS DOUBLE) IS NOT NULL
-      `
-      const result = await executeQuery(testQuery)
-      if (result.length > 0 && result[0].count > 0) {
-        numericVariables.push(variable)
-      }
-    } catch (error) {
-      console.warn(`変数 ${variable} は数値型に変換できません:`, error)
-    }
-  }
-  
-  return numericVariables
-}
-
-/**
- * 有効な変数を確認する
- */
-async function getValidVariables(
-  tableName: string,
-  variables: string[],
-  whereClause: string
-): Promise<string[]> {
-  const validVariables: string[] = []
-  
-  for (const variable of variables) {
-    try {
-      const countQuery = `
-        SELECT COUNT(*) as count
-        FROM ${tableName}
-        ${whereClause}
-        AND ${variable} IS NOT NULL
-        AND ${variable} != ''
-      `
-      const result = await executeQuery(countQuery)
-      if (result.length > 0 && result[0].count > 10) { // 最低10件のデータが必要
-        validVariables.push(variable)
-      }
-    } catch (error) {
-      console.warn(`変数 ${variable} のデータ確認に失敗:`, error)
-    }
-  }
-  
-  return validVariables
-}
-
-/**
- * データを取得する
- */
-async function getData(
-  tableName: string,
-  leftVariables: string[],
-  rightVariables: string[],
-  whereClause: string
+  filters: any[] = []
 ): Promise<number[][]> {
-  const allVariables = [...leftVariables, ...rightVariables]
-  const selectColumns = allVariables.map(col => `CAST(${col} AS DOUBLE) as ${col}`).join(', ')
+  console.log('📊 Getting data from memory store:', { tableName, variables })
   
-  const query = `
-    SELECT ${selectColumns}
-    FROM ${tableName}
-    ${whereClause}
-    AND ${allVariables.map(col => `${col} IS NOT NULL AND ${col} != ''`).join(' AND ')}
-  `
+  // データを取得
+  const data = memoryDataStore.query(`SELECT * FROM "${tableName}"`)
   
-  const result = await executeQuery(query)
-  
-  if (result.length < 10) {
-    throw new Error('正準相関分析には最低10件のデータが必要です')
+  if (!data || data.length === 0) {
+    throw new Error('No data available for analysis')
   }
   
-  // 数値データに変換
-  return result.map(row => 
-    allVariables.map(col => {
-      const value = parseFloat(row[col])
-      return isNaN(value) ? 0 : value
-    })
-  )
+  console.log('📊 Raw data sample:', data.slice(0, 3))
+  
+  // 各変数の存在を確認
+  const availableColumns = data.length > 0 ? Object.keys(data[0]) : []
+  console.log('📊 Available columns in data:', availableColumns)
+  
+  const missingColumns = variables.filter(col => !availableColumns.includes(col))
+  if (missingColumns.length > 0) {
+    throw new Error(`Columns not found in data: ${missingColumns.join(', ')}. Available columns: ${availableColumns.join(', ')}`)
+  }
+  
+  // 数値型の変数をフィルタリング
+  const numericData: number[][] = []
+  
+  for (const row of data) {
+    const numericRow: number[] = []
+    
+    for (const variable of variables) {
+      const value = row[variable]
+      let numericValue: number
+      
+      // より柔軟な数値変換
+      if (value === null || value === undefined || value === '') {
+        numericValue = 0  // 欠損値は0として扱う
+      } else {
+        numericValue = Number(value)
+        if (isNaN(numericValue)) {
+          // 文字列から数値を抽出を試行
+          const extracted = String(value).replace(/[^0-9.-]/g, '')
+          numericValue = Number(extracted)
+          if (isNaN(numericValue)) {
+            numericValue = 0  // 変換できない場合は0
+          }
+        }
+      }
+      
+      numericRow.push(numericValue)
+    }
+    
+    numericData.push(numericRow)
+  }
+  
+  console.log(`📊 Converted numeric data: ${numericData.length} rows from ${data.length} total`)
+  console.log('📊 Sample numeric data:', numericData.slice(0, 3))
+  
+  if (numericData.length < 3) {
+    throw new Error(`正準相関分析には最低3件のデータが必要です（現在：${numericData.length}件）`)
+  }
+  
+  return numericData
 }
+
 
 /**
  * 正準相関分析を計算する
