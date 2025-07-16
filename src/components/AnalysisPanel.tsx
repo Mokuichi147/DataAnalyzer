@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { BarChart, LineChart, TrendingUp, Activity, Zap, Database, Type, ChevronUp, ChevronDown } from 'lucide-react'
+import { BarChart, LineChart, TrendingUp, Activity, Zap, Database, Type, Network, ChevronUp, ChevronDown } from 'lucide-react'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -63,6 +63,11 @@ import {
   getChangePointChartOptions,
   getTimeSeriesChartOptions
 } from '@/lib/chartOptimization'
+
+import {
+  performCanonicalCorrelation,
+  type CanonicalCorrelationResult
+} from '@/lib/canonicalCorrelation'
 
 ChartJS.register(
   CategoryScale,
@@ -161,7 +166,7 @@ function formatNumber(value: number | undefined | null): string {
   }
 }
 
-type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing'
+type AnalysisType = 'basic' | 'correlation' | 'changepoint' | 'factor' | 'histogram' | 'timeseries' | 'column' | 'text' | 'missing' | 'association' | 'mutual' | 'canonical'
 
 interface AnalysisPanelProps {
   tableName: string
@@ -179,6 +184,9 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     includeZero: true,
     includeEmpty: true
   })
+  const [canonicalVariableGroup, setCanonicalVariableGroup] = useState<'left' | 'right'>('left')
+  const [canonicalLeftVariables, setCanonicalLeftVariables] = useState<string[]>([])
+  const [canonicalRightVariables, setCanonicalRightVariables] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [columnSearchFilter, setColumnSearchFilter] = useState<string>('')
   
@@ -192,6 +200,11 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   
   // デフォルト選択ロジックを実行する関数
   const applyDefaultSelection = useCallback(() => {
+    // 正準相関分析では通常の列選択は行わない
+    if (activeAnalysis === 'canonical') {
+      return
+    }
+    
     const currentAvailableColumns = getAvailableColumns()
     if (currentAvailableColumns.length > 0) {
       const currentType = analysisTypes.find(type => type.key === activeAnalysis)
@@ -220,6 +233,8 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
   useEffect(() => {
     setAnalysisResults(null)
     setSelectedColumns([])
+    setCanonicalLeftVariables([])
+    setCanonicalRightVariables([])
     applyDefaultSelection()
   }, [activeAnalysis, applyDefaultSelection])
   
@@ -232,10 +247,52 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
   // 選択されたカラムやフィルタが変更されたとき、条件を満たしていれば自動実行
   useEffect(() => {
-    if (selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
+    if (activeAnalysis !== 'canonical' && selectedColumns.length > 0 && isValidColumnSelection() && !isLoading) {
       runAnalysis()
     }
   }, [selectedColumns, tableName, filters])
+
+  // 正準相関分析の変数群選択が変更されたとき、自動実行
+  useEffect(() => {
+    if (activeAnalysis === 'canonical' && canonicalLeftVariables.length >= 1 && canonicalRightVariables.length >= 1 && !isLoading) {
+      console.log('🔄 Canonical correlation auto-run triggered', { 
+        leftVariables: canonicalLeftVariables, 
+        rightVariables: canonicalRightVariables 
+      })
+      
+      // 直接分析を実行
+      const executeAnalysis = async () => {
+        if (!tableName) {
+          console.log('Cannot run analysis: missing table')
+          return
+        }
+        
+        setIsLoading(true)
+        setAnalysisResults(null)
+        setError(null)
+        
+        try {
+          console.log('🚀 Starting canonical correlation analysis')
+          const results = await performCanonicalCorrelation(
+            tableName,
+            canonicalLeftVariables,
+            canonicalRightVariables,
+            filters
+          )
+          setAnalysisResults(results)
+          console.log('✅ Canonical correlation analysis completed')
+        } catch (error) {
+          console.error('❌ Canonical correlation analysis error:', error)
+          setError(error instanceof Error ? error.message : '正準相関分析に失敗しました')
+        } finally {
+          setIsLoading(false)
+        }
+      }
+      
+      executeAnalysis()
+    }
+  }, [canonicalLeftVariables, canonicalRightVariables, filters, activeAnalysis, isLoading, tableName])
+
 
   // 変化点検出アルゴリズムが変更されたとき、自動実行
   useEffect(() => {
@@ -302,6 +359,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       case 'factor':
       case 'histogram':
       case 'timeseries':
+      case 'canonical':
         // 数値型のカラムのみ
         return columns.filter(col => 
           col.type.includes('INT') || 
@@ -380,13 +438,25 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
            selectedColumns.length <= currentType.maxColumns
   }
 
-  const runAnalysis = async () => {
-    if (!tableName || selectedColumns.length === 0) {
-      console.log('Cannot run analysis: missing table or columns')
+  const runAnalysis = useCallback(async () => {
+    if (!tableName) {
+      console.log('Cannot run analysis: missing table')
       return
     }
     
-    if (!isValidColumnSelection()) {
+    // 正準相関分析の場合は selectedColumns をチェックしない
+    if (activeAnalysis !== 'canonical' && selectedColumns.length === 0) {
+      console.log('Cannot run analysis: missing columns')
+      return
+    }
+    
+    // 正準相関分析の場合は変数群の検証を行う
+    if (activeAnalysis === 'canonical') {
+      if (canonicalLeftVariables.length < 1 || canonicalRightVariables.length < 1) {
+        setError('正準相関分析には左側と右側の変数群に最低1つずつ変数が必要です')
+        return
+      }
+    } else if (!isValidColumnSelection()) {
       const currentType = getCurrentAnalysisType()
       setError(`${currentType?.label}には${currentType?.minColumns}〜${currentType?.maxColumns}個のカラムが必要です`)
       return
@@ -394,6 +464,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     
     setIsLoading(true)
     setAnalysisResults(null)
+    setError(null) // エラーをクリア
     
     try {
       console.log('🚀 Starting analysis:', { activeAnalysis, tableName, selectedColumns })
@@ -502,6 +573,37 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
             }
           }
           break
+        case 'association':
+          if (selectedColumns.length >= 2) {
+            const selectedColumnInfos = selectedColumns.map(colName => 
+              columns.find(col => col.name === colName)
+            ).filter(Boolean)
+            
+            const { analyzeAssociationRules } = await import('../lib/associationRules')
+            results = await analyzeAssociationRules(selectedColumnInfos, filters)
+          }
+          break
+        case 'mutual':
+          if (selectedColumns.length >= 2) {
+            const selectedColumnInfos = selectedColumns.map(colName => 
+              columns.find(col => col.name === colName)
+            ).filter(Boolean)
+            
+            const { analyzeMutualInformation } = await import('../lib/mutualInformation')
+            results = await analyzeMutualInformation(selectedColumnInfos, filters, {}, tableName)
+          }
+          break
+          
+        case 'canonical':
+          if (canonicalLeftVariables.length >= 1 && canonicalRightVariables.length >= 1) {
+            results = await performCanonicalCorrelation(
+              tableName,
+              canonicalLeftVariables,
+              canonicalRightVariables,
+              filters
+            )
+          }
+          break
       }
       
       console.log('📈 Analysis results:', results)
@@ -522,7 +624,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [tableName, selectedColumns, activeAnalysis, canonicalLeftVariables, canonicalRightVariables, filters, changePointAlgorithm, xAxisColumn, missingDataOptions])
 
   const handleColumnToggle = (columnName: string) => {
     const currentType = getCurrentAnalysisType()
@@ -633,6 +735,30 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       description: '【手法】TinySegmenter形態素解析 + Flesch改良読みやすさ指標\n【内容】日本語の分かち書き、文字種分析、パターン検出（メール・URL・電話番号）、文章の読みやすさ評価',
       minColumns: 1,
       maxColumns: 1
+    },
+    { 
+      key: 'association' as const, 
+      label: 'アソシエーション規則分析', 
+      icon: Network, 
+      description: '【手法】Aprioriアルゴリズム\n【内容】商品の同時購入パターンや属性間の関連性を発見。サポート・信頼度・リフト値による規則の有用性評価',
+      minColumns: 2,
+      maxColumns: 1000
+    },
+    { 
+      key: 'mutual' as const, 
+      label: '相互情報量分析', 
+      icon: Activity, 
+      description: '【手法】情報理論・エントロピー計算\n【内容】変数間の非線形依存関係を検出。線形相関では捉えられない複雑な関連性を相互情報量で定量化',
+      minColumns: 2,
+      maxColumns: 1000
+    },
+    { 
+      key: 'canonical' as const, 
+      label: '正準相関分析', 
+      icon: Network, 
+      description: '【手法】正準相関分析（Canonical Correlation Analysis）\n【内容】2つの変数群間の最大相関を持つ線形結合を発見。多変量間の関係性を正準係数・負荷量で解析',
+      minColumns: 4,
+      maxColumns: 1000
     }
   ]
 
@@ -660,6 +786,9 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
               setAnalysisResults(null)
               setSelectedColumns([])
               setActiveAnalysis('column')
+              setError(null)
+              setCanonicalLeftVariables([])
+              setCanonicalRightVariables([])
             }}
             className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm transition-colors"
           >
@@ -723,12 +852,13 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
       )}
 
 
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-4">
-            <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
-              列選択 ({currentAnalysisType?.label})
-            </h3>
+      {(activeAnalysis as AnalysisType) !== 'canonical' && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 transition-colors">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-4">
+              <h3 className="font-medium text-gray-900 dark:text-white transition-colors">
+                列選択 ({currentAnalysisType?.label})
+              </h3>
             {/* PCでは説明文を横に表示 */}
             {currentAnalysisType && (
               <span className="hidden md:inline text-sm text-gray-600 dark:text-gray-400 transition-colors">
@@ -750,21 +880,23 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         </div>
         
         {/* モバイル用の説明文 */}
-        <div className="mb-4 md:hidden">
-          {currentAnalysisType && (
-            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 transition-colors">
-              {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
-                ? `1つの列を選択してください（自動実行）`
-                : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
-                ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
-                : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
-              }
-            </p>
-          )}
-        </div>
+        {(activeAnalysis as AnalysisType) !== 'canonical' && (
+          <div className="mb-4 md:hidden">
+            {currentAnalysisType && (
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 transition-colors">
+                {currentAnalysisType.minColumns === 1 && currentAnalysisType.maxColumns === 1
+                  ? `1つの列を選択してください（自動実行）`
+                  : currentAnalysisType.minColumns === currentAnalysisType.maxColumns
+                  ? `${currentAnalysisType.minColumns}個の列を選択してください（自動実行）`
+                  : `${currentAnalysisType.minColumns}-${currentAnalysisType.maxColumns}個の列を選択してください（自動実行）`
+                }
+              </p>
+            )}
+          </div>
+        )}
         
         {/* 警告表示 */}
-        {getAvailableColumns().length === 0 && (
+        {getAvailableColumns().length === 0 && (activeAnalysis as AnalysisType) !== 'canonical' && (
           <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-600 rounded-md p-3 mb-4 transition-colors">
             <div className="flex items-center">
               <span className="text-amber-600 dark:text-amber-400 mr-2 transition-colors">⚠️</span>
@@ -775,7 +907,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
           </div>
         )}
         
-        {getAvailableColumns().length > 0 ? (
+        {getAvailableColumns().length > 0 && (activeAnalysis as AnalysisType) !== 'canonical' ? (
           <div className="space-y-2">
             {/* 検索ボックスとボタンを同じ行に配置 */}
             <div className="flex items-center justify-between gap-3">
@@ -880,6 +1012,7 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         )}
         
       </div>
+      )}
 
       {/* 変化点検出アルゴリズム選択 */}
       {activeAnalysis === 'changepoint' && getAvailableColumns().length > 0 && (
@@ -952,6 +1085,147 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
         </div>
       )}
 
+      {/* 正準相関分析の変数群選択 */}
+      {activeAnalysis === 'canonical' && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-600 rounded-lg p-4 transition-colors">
+          <h4 className="text-sm font-medium text-green-900 dark:text-green-300 mb-3 flex items-center transition-colors">
+            <Network className="h-4 w-4 mr-2" />
+            変数群の選択
+          </h4>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-4 mb-3">
+              <label className="text-sm text-gray-700 dark:text-gray-300">
+                選択モード：
+              </label>
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="canonicalGroup"
+                    value="left"
+                    checked={canonicalVariableGroup === 'left'}
+                    onChange={(e) => setCanonicalVariableGroup(e.target.value as 'left' | 'right')}
+                    className="text-green-600 dark:text-green-400 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">左側変数群（X群）</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="canonicalGroup"
+                    value="right"
+                    checked={canonicalVariableGroup === 'right'}
+                    onChange={(e) => setCanonicalVariableGroup(e.target.value as 'left' | 'right')}
+                    className="text-blue-600 dark:text-blue-400 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">右側変数群（Y群）</span>
+                </label>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                上で選択したモードに応じて、下の列一覧から変数を選択してください：
+              </div>
+              
+              <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-3">
+                {getFilteredAvailableColumns().map(column => (
+                  <label key={column.name} className="flex items-center space-x-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={
+                        canonicalVariableGroup === 'left' 
+                          ? canonicalLeftVariables.includes(column.name)
+                          : canonicalRightVariables.includes(column.name)
+                      }
+                      onChange={(e) => {
+                        if (canonicalVariableGroup === 'left') {
+                          if (e.target.checked) {
+                            console.log('Adding to left variables:', column.name)
+                            setCanonicalLeftVariables([...canonicalLeftVariables, column.name])
+                          } else {
+                            console.log('Removing from left variables:', column.name)
+                            setCanonicalLeftVariables(canonicalLeftVariables.filter(col => col !== column.name))
+                          }
+                        } else {
+                          if (e.target.checked) {
+                            console.log('Adding to right variables:', column.name)
+                            setCanonicalRightVariables([...canonicalRightVariables, column.name])
+                          } else {
+                            console.log('Removing from right variables:', column.name)
+                            setCanonicalRightVariables(canonicalRightVariables.filter(col => col !== column.name))
+                          }
+                        }
+                      }}
+                      className={`focus:ring-2 ${canonicalVariableGroup === 'left' ? 'text-green-600 dark:text-green-400 focus:ring-green-500' : 'text-blue-600 dark:text-blue-400 focus:ring-blue-500'}`}
+                    />
+                    <span className="text-gray-700 dark:text-gray-300 transition-colors">{column.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 transition-colors">({column.type})</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                  左側変数群（X群）
+                </div>
+                <div className="space-y-1 min-h-[60px]">
+                  {canonicalLeftVariables.length > 0 ? (
+                    canonicalLeftVariables.map(column => (
+                      <div key={column} className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
+                        <span>{column}</span>
+                        <button
+                          onClick={() => setCanonicalLeftVariables(canonicalLeftVariables.filter(col => col !== column))}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">変数が選択されていません</div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                  右側変数群（Y群）
+                </div>
+                <div className="space-y-1 min-h-[60px]">
+                  {canonicalRightVariables.length > 0 ? (
+                    canonicalRightVariables.map(column => (
+                      <div key={column} className="text-sm text-gray-600 dark:text-gray-400 flex items-center justify-between">
+                        <span>{column}</span>
+                        <button
+                          onClick={() => setCanonicalRightVariables(canonicalRightVariables.filter(col => col !== column))}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">変数が選択されていません</div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+              {canonicalLeftVariables.length === 0 || canonicalRightVariables.length === 0
+                ? "各変数群に最低1つずつ変数を選択してください。"
+                : `左側${canonicalLeftVariables.length}個、右側${canonicalRightVariables.length}個の変数が選択されています。`
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 欠損検知オプション */}
       {activeAnalysis === 'missing' && (
         <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-600 rounded-lg p-4 transition-colors">
@@ -1010,7 +1284,29 @@ export function AnalysisPanel({ tableName, columns }: AnalysisPanelProps) {
 
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-600 rounded-lg p-4 transition-colors">
-          <div className="text-sm text-red-800 dark:text-red-200">{error}</div>
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <span className="text-red-600 dark:text-red-400">❌</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">分析エラー</h4>
+              <div className="text-sm text-red-700 dark:text-red-300">{error}</div>
+              {activeAnalysis === 'mutual' && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  <p>• 選択した列にすべて有効なデータが含まれているか確認してください</p>
+                  <p>• 欠損値（空の値）が多い列は除外してみてください</p>
+                  <p>• 最低2つの列を選択してください</p>
+                </div>
+              )}
+              {activeAnalysis === 'canonical' && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  <p>• 左側と右側の変数群の両方に数値型の列を選択してください</p>
+                  <p>• 各変数群に最低1つの変数が必要です</p>
+                  <p>• 日付型やテキスト型の列は使用できません</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -1111,6 +1407,12 @@ function AnalysisResults({ type, results }: AnalysisResultsProps) {
       return <MissingDataResults data={results} />
     case 'text':
       return <TextAnalysisResults data={results} />
+    case 'association':
+      return <AssociationRulesResults data={results} />
+    case 'mutual':
+      return <MutualInformationResults data={results} />
+    case 'canonical':
+      return <CanonicalCorrelationResults data={results} />
     default:
       return null
   }
@@ -4066,6 +4368,1213 @@ function ChangePointTable({ points }: ChangePointTableProps) {
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
         <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
           <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, points.length)} / 全{points.length}件の変化点
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AssociationRulesResults({ data }: { data: any }) {
+  console.log('AssociationRulesResults received:', data)
+  
+  if (!data || typeof data !== 'object') {
+    return (
+      <div className="text-center py-4 text-red-600 dark:text-red-400 transition-colors">
+        <p>アソシエーション規則分析の結果がありません。</p>
+      </div>
+    )
+  }
+
+  const { rules, totalTransactions, itemFrequency, performanceMetrics } = data
+
+  if (!rules || rules.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>アソシエーション規則が発見されませんでした。</p>
+        <p className="text-sm mt-2">最小サポート値や最小信頼度を下げてみてください。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* パフォーマンス指標 */}
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-colors">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3 transition-colors">
+          分析結果サマリー
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 transition-colors">
+              {rules.length}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              発見された規則数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400 transition-colors">
+              {totalTransactions}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              総トランザクション数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 transition-colors">
+              {performanceMetrics?.itemsAnalyzed || 0}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              分析項目数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400 transition-colors">
+              {performanceMetrics?.processingTime ? Math.round(performanceMetrics.processingTime) : 0}ms
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              処理時間
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* アソシエーション規則一覧 */}
+      <AssociationRulesTable rules={rules} />
+
+      {/* 指標の説明 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
+        <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3 transition-colors">
+          指標の説明
+        </h5>
+        <div className="space-y-2 text-xs text-blue-800 dark:text-blue-200 transition-colors">
+          <div><strong>サポート:</strong> 規則全体（条件部+結論部）が同時に出現する確率</div>
+          <div><strong>信頼度:</strong> 条件部が発生した時に結論部も発生する確率（条件付き確率）</div>
+          <div><strong>リフト値:</strong> 条件部の発生が結論部の発生にどれだけ影響するか（1.0が基準、高いほど強い関連性）</div>
+          <div><strong>確信度:</strong> 規則の強さを示す指標（高いほど規則が意味のある関連性を示す）</div>
+        </div>
+      </div>
+
+      {/* 頻出アイテム */}
+      {itemFrequency && itemFrequency.size > 0 && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+              アイテム出現頻度 (上位20件)
+            </h4>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {Array.from(itemFrequency.entries() as IterableIterator<[string, number]>)
+                .sort((a: [string, number], b: [string, number]) => b[1] - a[1])
+                .slice(0, 20)
+                .map(([item, count]: [string, number], index: number) => (
+                  <div key={index} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded transition-colors">
+                    <span className="text-sm text-gray-900 dark:text-white truncate transition-colors">
+                      {item}
+                    </span>
+                    <span className="text-sm font-mono text-blue-600 dark:text-blue-400 ml-2 transition-colors">
+                      {count}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MutualInformationResults({ data }: { data: any }) {
+  console.log('MutualInformationResults received:', data)
+  
+  if (!data || typeof data !== 'object') {
+    return (
+      <div className="text-center py-4 text-red-600 dark:text-red-400 transition-colors">
+        <p>相互情報量分析の結果がありません。</p>
+      </div>
+    )
+  }
+
+  const { pairwiseResults, summary, performanceMetrics } = data
+
+  if (!pairwiseResults || pairwiseResults.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>相互情報量の結果がありません。</p>
+        <p className="text-sm mt-2">2つ以上のカラムを選択してください。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* パフォーマンス指標 */}
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 transition-colors">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3 transition-colors">
+          分析結果サマリー
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 transition-colors">
+              {summary?.totalPairs || 0}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              分析ペア数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400 transition-colors">
+              {summary?.averageMI ? summary.averageMI.toFixed(3) : '0.000'}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              平均相互情報量
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 transition-colors">
+              {performanceMetrics?.columnsAnalyzed || 0}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              分析カラム数
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400 transition-colors">
+              {performanceMetrics?.processingTime ? Math.round(performanceMetrics.processingTime) : 0}ms
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+              処理時間
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 強い相関のペア */}
+      {summary?.stronglyCorrelatedPairs && summary.stronglyCorrelatedPairs.length > 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-600 rounded-lg p-4 transition-colors">
+          <h4 className="text-lg font-medium text-yellow-900 dark:text-yellow-300 mb-3 transition-colors">
+            強い依存関係を持つペア ({summary.stronglyCorrelatedPairs.length}組)
+          </h4>
+          <div className="space-y-2">
+            {summary.stronglyCorrelatedPairs.slice(0, 5).map((pair: any, index: number) => (
+              <div key={index} className="flex justify-between items-center">
+                <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200 transition-colors">
+                  {pair.column1} ↔ {pair.column2}
+                </span>
+                <span className="text-sm font-mono text-yellow-700 dark:text-yellow-300 transition-colors">
+                  MI: {pair.mutualInformation.toFixed(3)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 相互情報量ペア一覧 */}
+      <MutualInformationTable pairwiseResults={pairwiseResults} />
+
+      {/* 理論的背景の説明 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
+        <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3 transition-colors">
+          相互情報量の理論的背景
+        </h5>
+        <div className="space-y-2 text-xs text-blue-800 dark:text-blue-200 transition-colors">
+          <div><strong>相互情報量 (MI):</strong> I(X;Y) = H(X) + H(Y) - H(X,Y) で算出。2つの変数が共有する情報量</div>
+          <div><strong>正規化MI:</strong> 0～1の範囲に正規化された相互情報量。異なるデータセット間での比較が可能</div>
+          <div><strong>エントロピー:</strong> 変数の不確実性を表す指標。高いほど予測が困難</div>
+          <div><strong>結合エントロピー:</strong> 2つの変数の組み合わせの不確実性</div>
+          <div><strong>利点:</strong> 線形相関では検出できない非線形の依存関係も検出可能</div>
+        </div>
+      </div>
+
+      {/* 統計サマリー詳細 */}
+      {summary && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+            <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+              統計サマリー詳細
+            </h4>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">総ペア数:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.totalPairs}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">平均相互情報量:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.averageMI.toFixed(4)}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">最大相互情報量:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.maxMI.toFixed(4)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 transition-colors">最小相互情報量:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white transition-colors">{summary.minMI.toFixed(4)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AssociationRulesTable({ rules }: { rules: any[] }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  
+  if (!rules || rules.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>アソシエーション規則がありません。</p>
+      </div>
+    )
+  }
+  
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedRules = [...rules].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 数値の場合
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    }
+    
+    // 文字列の場合
+    const strA = String(aValue).toLowerCase()
+    const strB = String(bValue).toLowerCase()
+    return sortDirection === 'asc' 
+      ? strA.localeCompare(strB)
+      : strB.localeCompare(strA)
+  })
+
+  // ページネーション計算
+  const totalPages = Math.ceil(sortedRules.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentRules = sortedRules.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+          アソシエーション規則
+        </h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+          <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+            "条件部 → 結論部" の形式で、if-then規則を表示
+          </p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  規則
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('support')}>
+                  <div className="flex items-center justify-center">
+                    <span>サポート</span>
+                    <div className="ml-2">
+                      {sortColumn === 'support' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('confidence')}>
+                  <div className="flex items-center justify-center">
+                    <span>信頼度</span>
+                    <div className="ml-2">
+                      {sortColumn === 'confidence' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('lift')}>
+                  <div className="flex items-center justify-center">
+                    <span>リフト値</span>
+                    <div className="ml-2">
+                      {sortColumn === 'lift' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('conviction')}>
+                  <div className="flex items-center justify-center">
+                    <span>確信度</span>
+                    <div className="ml-2">
+                      {sortColumn === 'conviction' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
+              {currentRules.map((rule: any, index: number) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
+                        {rule.antecedent.join(', ')}
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400 transition-colors">→</span>
+                      <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
+                        {rule.consequent.join(', ')}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {(rule.support * 100).toFixed(1)}%
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`${
+                      rule.confidence >= 0.8 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : rule.confidence >= 0.6
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-red-600 dark:text-red-400'
+                    } font-medium transition-colors`}>
+                      {(rule.confidence * 100).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`${
+                      rule.lift > 1.5 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : rule.lift > 1.0
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-red-600 dark:text-red-400'
+                    } font-medium transition-colors`}>
+                      {rule.lift.toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {rule.conviction === Infinity ? '∞' : rule.conviction.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({rules.length}件)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, rules.length)} / 全{rules.length}件のアソシエーション規則
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MutualInformationTable({ pairwiseResults }: { pairwiseResults: any[] }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  
+  if (!pairwiseResults || pairwiseResults.length === 0) {
+    return (
+      <div className="text-center py-4 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>相互情報量のペア結果がありません。</p>
+      </div>
+    )
+  }
+  
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedResults = [...pairwiseResults].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    // null/undefined チェック
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    // 数値の場合
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    }
+    
+    // 文字列の場合
+    const strA = String(aValue).toLowerCase()
+    const strB = String(bValue).toLowerCase()
+    return sortDirection === 'asc' 
+      ? strA.localeCompare(strB)
+      : strB.localeCompare(strA)
+  })
+
+  // ページネーション計算
+  const totalPages = Math.ceil(sortedResults.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentResults = sortedResults.slice(startIndex, endIndex)
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white transition-colors">
+          相互情報量ペア分析
+        </h4>
+        <div className="flex items-center space-x-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            className="px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+      </div>
+      
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 transition-colors">
+          <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors">
+            変数間の情報依存関係を定量化
+          </p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700 transition-colors">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors">
+                  変数ペア
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('mutualInformation')}>
+                  <div className="flex items-center justify-center">
+                    <span>相互情報量</span>
+                    <div className="ml-2">
+                      {sortColumn === 'mutualInformation' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('normalizedMI')}>
+                  <div className="flex items-center justify-center">
+                    <span>正規化MI</span>
+                    <div className="ml-2">
+                      {sortColumn === 'normalizedMI' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('interpretation')}>
+                  <div className="flex items-center justify-center">
+                    <span>関係性</span>
+                    <div className="ml-2">
+                      {sortColumn === 'interpretation' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('entropy1')}>
+                  <div className="flex items-center justify-center">
+                    <span>エントロピー1</span>
+                    <div className="ml-2">
+                      {sortColumn === 'entropy1' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('entropy2')}>
+                  <div className="flex items-center justify-center">
+                    <span>エントロピー2</span>
+                    <div className="ml-2">
+                      {sortColumn === 'entropy2' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('jointEntropy')}>
+                  <div className="flex items-center justify-center">
+                    <span>結合エントロピー</span>
+                    <div className="ml-2">
+                      {sortColumn === 'jointEntropy' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 transition-colors">
+              {currentResults.map((pair: any, index: number) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white transition-colors">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium transition-colors">
+                        {pair.column1}
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400 transition-colors">↔</span>
+                      <span className="text-green-600 dark:text-green-400 font-medium transition-colors">
+                        {pair.column2}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono transition-colors">
+                    <span className={`font-medium transition-colors ${
+                      pair.mutualInformation > 1.0 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : pair.mutualInformation > 0.5
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : pair.mutualInformation > 0.1
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}>
+                      {pair.mutualInformation.toFixed(4)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.normalizedMI.toFixed(4)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center transition-colors">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                      pair.interpretation === 'Strong' 
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        : pair.interpretation === 'Moderate'
+                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                        : pair.interpretation === 'Weak'
+                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                    }`}>
+                      {pair.interpretation === 'Strong' ? '強い' : 
+                       pair.interpretation === 'Moderate' ? '中程度' :
+                       pair.interpretation === 'Weak' ? '弱い' : '独立'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.entropy1.toFixed(3)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.entropy2.toFixed(3)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 dark:text-white transition-colors">
+                    {pair.jointEntropy.toFixed(3)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ページネーション */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最初
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              前へ
+            </button>
+          </div>
+          
+          <div className="flex items-center justify-center">
+            <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">
+              {currentPage} / {totalPages} ページ ({pairwiseResults.length}件)
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              次へ
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              最後
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, pairwiseResults.length)} / 全{pairwiseResults.length}件の相互情報量ペア
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CanonicalCorrelationResults({ data }: { data: CanonicalCorrelationResult | CanonicalCorrelationResult[] | null }) {
+  console.log('CanonicalCorrelationResults received:', data)
+  
+  // データが配列の場合は最初の要素を使用
+  const result = Array.isArray(data) ? data[0] : data
+  
+  if (!result) {
+    return (
+      <div className="text-center py-8 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>正準相関分析の結果がありません。</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-4 transition-colors">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center transition-colors">
+          <Network className="h-5 w-5 mr-2 text-blue-600 dark:text-blue-400" />
+          正準相関分析結果
+        </h3>
+        <div className="text-sm text-gray-600 dark:text-gray-300 transition-colors">
+          <p>2つの変数群間の最大相関を持つ線形結合（正準変量）とその関係性を解析しました。</p>
+          <p>正準相関係数が高いほど、変数群間の関係が強いことを示します。</p>
+        </div>
+      </div>
+
+      {/* 正準相関係数テーブル */}
+      <CanonicalCorrelationTable canonicalCorrelations={result.canonicalCorrelations} varianceExplained={result.varianceExplained} cumulativeVariance={result.cumulativeVariance} />
+      
+      {/* 正準係数テーブル */}
+      <CanonicalCoefficientsTable leftVariates={result.leftCanonicalVariates} rightVariates={result.rightCanonicalVariates} />
+      
+      {/* 統計的検定結果 */}
+      <StatisticalTestResults wilksLambda={result.wilksLambda} chiSquare={result.chiSquare} pValues={result.pValues} />
+    </div>
+  )
+}
+
+function CanonicalCorrelationTable({ canonicalCorrelations, varianceExplained, cumulativeVariance }: { 
+  canonicalCorrelations: number[] | undefined
+  varianceExplained: number[] | undefined
+  cumulativeVariance: number[] | undefined
+}) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  if (!canonicalCorrelations || !varianceExplained || !cumulativeVariance) {
+    return (
+      <div className="text-center py-8 text-gray-600 dark:text-gray-400 transition-colors">
+        <p>正準相関係数のデータがありません。</p>
+      </div>
+    )
+  }
+
+  const correlationData = canonicalCorrelations.map((corr, index) => ({
+    variate: index + 1,
+    correlation: corr,
+    variance: varianceExplained[index] || 0,
+    cumulative: cumulativeVariance[index] || 0
+  }))
+
+  // ソート処理
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(columnName)
+      setSortDirection('asc')
+    }
+    setCurrentPage(1)
+  }
+
+  // ソートされたデータ
+  const sortedData = [...correlationData].sort((a, b) => {
+    if (!sortColumn) return 0
+    
+    let aValue = a[sortColumn as keyof typeof a]
+    let bValue = b[sortColumn as keyof typeof b]
+    
+    if (aValue == null && bValue == null) return 0
+    if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+    if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+    
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+    }
+    
+    const strA = String(aValue).toLowerCase()
+    const strB = String(bValue).toLowerCase()
+    return sortDirection === 'asc' 
+      ? strA.localeCompare(strB)
+      : strB.localeCompare(strA)
+  })
+
+  // ページネーション
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentData = sortedData.slice(startIndex, endIndex)
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">正準相関係数</h4>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('variate')}>
+                  <div className="flex items-center justify-center">
+                    <span>正準変量</span>
+                    <div className="ml-2">
+                      {sortColumn === 'variate' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('correlation')}>
+                  <div className="flex items-center justify-center">
+                    <span>正準相関係数</span>
+                    <div className="ml-2">
+                      {sortColumn === 'correlation' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('variance')}>
+                  <div className="flex items-center justify-center">
+                    <span>寄与率(%)</span>
+                    <div className="ml-2">
+                      {sortColumn === 'variance' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort('cumulative')}>
+                  <div className="flex items-center justify-center">
+                    <span>累積寄与率(%)</span>
+                    <div className="ml-2">
+                      {sortColumn === 'cumulative' ? (
+                        sortDirection === 'asc' ? (
+                          <ChevronUp className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-blue-500" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 opacity-30">
+                          <ChevronUp className="h-2 w-4 text-gray-400" />
+                          <ChevronDown className="h-2 w-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+              {currentData.map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {item.variate}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {formatNumber(item.correlation)}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {formatNumber(item.variance)}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white transition-colors">
+                    {formatNumber(item.cumulative)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ページネーション */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between transition-colors">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-700 dark:text-gray-300 transition-colors">表示件数:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                最初
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                前へ
+              </button>
+              <span className="px-3 py-1 text-sm text-gray-700 dark:text-gray-300 transition-colors">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                次へ
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+              >
+                最後
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* 統計情報 */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-600 rounded-lg p-3 transition-colors">
+        <div className="text-sm text-blue-700 dark:text-blue-300 transition-colors">
+          <span className="font-medium">表示中:</span> {startIndex + 1}-{Math.min(endIndex, sortedData.length)} / 全{sortedData.length}件の正準変量
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CanonicalCoefficientsTable({ leftVariates, rightVariates }: { 
+  leftVariates: Array<{variate: number, coefficients: Array<{variable: string, coefficient: number}>}> | undefined
+  rightVariates: Array<{variate: number, coefficients: Array<{variable: string, coefficient: number}>}> | undefined
+}) {
+  if (!leftVariates || !rightVariates) {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">正準係数</h4>
+        </div>
+        <div className="p-4 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+          <p>正準係数のデータがありません。</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">正準係数（簡易表示）</h4>
+      </div>
+      <div className="p-4 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+        <p>左側変数群（X群）: {leftVariates.length}変量, 右側変数群（Y群）: {rightVariates.length}変量の正準係数が計算されました。</p>
+        <p>詳細な係数表は実装を完了次第表示されます。</p>
+      </div>
+    </div>
+  )
+}
+
+function StatisticalTestResults({ wilksLambda, chiSquare, pValues }: { 
+  wilksLambda: number[] | undefined
+  chiSquare: number[] | undefined
+  pValues: number[] | undefined
+}) {
+  if (!wilksLambda || !chiSquare || !pValues || wilksLambda.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">統計的検定結果</h4>
+        </div>
+        <div className="p-4 text-sm text-gray-600 dark:text-gray-300 transition-colors">
+          <p>統計的検定結果のデータがありません。</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white transition-colors">統計的検定結果</h4>
+      </div>
+      <div className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+            <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300">Wilks' Lambda</h5>
+            <p className="text-lg font-semibold text-blue-700 dark:text-blue-200">{formatNumber(wilksLambda[0])}</p>
+          </div>
+          <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
+            <h5 className="text-sm font-medium text-green-900 dark:text-green-300">χ²統計量</h5>
+            <p className="text-lg font-semibold text-green-700 dark:text-green-200">{formatNumber(chiSquare[0])}</p>
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
+            <h5 className="text-sm font-medium text-purple-900 dark:text-purple-300">p値</h5>
+            <p className="text-lg font-semibold text-purple-700 dark:text-purple-200">{formatNumber(pValues[0])}</p>
+          </div>
         </div>
       </div>
     </div>
